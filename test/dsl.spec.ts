@@ -1,16 +1,12 @@
 import { expect } from "chai";
 import "mocha";
 
-import {
-  Env,
-  Expression,
-  evaluate,
-  parse,
-  print,
-  read,
-  tokenize,
-} from "../src/dsl";
+import { Expression } from "../src/dsl";
+import { print } from "../src/print";
+import { evaluate } from "../src/evaluate";
+import { Env } from "../src/env";
 import { addBuiltins } from "../src/builtins";
+import { tokenize, parse, read } from "../src/read";
 
 describe("tokenize", () => {
   it("should identify paren", () => {
@@ -255,9 +251,52 @@ describe("special forms", () => {
     expect(print(res)).to.equal("(1 2 3 4)");
   });
 
-  it("evaluates macros", () => {
+  it("evaluates builtin lambdas", () => {
     expect(print(basicEval("(splat 2)"))).to.equal("#<2 2 2>");
     expect(print(basicEval("(min-vec #<1 2 3>)"))).to.equal("1");
     expect(print(basicEval("(max-vec #<1 2 3>)"))).to.equal("3");
+  });
+
+  it("evaluates builtin macros", () => {
+    expect(print(basicEval("(and 1 2)"))).to.equal("2");
+    expect(print(basicEval("(and 1 0)"))).to.equal("0");
+    expect(print(basicEval("(and 0 2)"))).to.equal("0");
+    expect(print(basicEval("(and 0 0)"))).to.equal("0");
+    expect(print(basicEval("(and 1 ())"))).to.equal("()");
+    expect(print(basicEval("(and () 2)"))).to.equal("()");
+    expect(print(basicEval("(and () 0)"))).to.equal("()");
+    expect(print(basicEval("(and 0 ())"))).to.equal("0");
+    expect(print(basicEval("(and () ())"))).to.equal("()");
+
+    expect(print(basicEval("(or 1 2)"))).to.equal("1");
+    expect(print(basicEval("(or 1 0)"))).to.equal("1");
+    expect(print(basicEval("(or 0 2)"))).to.equal("2");
+    expect(print(basicEval("(or 0 0)"))).to.equal("0");
+    expect(print(basicEval("(or 1 ())"))).to.equal("1");
+    expect(print(basicEval("(or () 2)"))).to.equal("2");
+    expect(print(basicEval("(or () 0)"))).to.equal("0");
+    expect(print(basicEval("(or 0 ())"))).to.equal("()");
+    expect(print(basicEval("(or () ())"))).to.equal("()");
+  });
+
+  it("doesn't evaluate macro args early", () => {
+    const env = new Env();
+    addBuiltins(env);
+    const res = basicEval(
+      `(begin
+        (define left 0)
+        (define right 0)
+        (and
+            (begin
+                (set! left 1)
+                0)
+            (begin
+                (set! right 2)
+                right)))`,
+      env
+    );
+    expect(print(res)).to.equal("0");
+    expect(print(env.get("left"))).to.equal("1");
+    expect(print(env.get("right"))).to.equal("0");
   });
 });

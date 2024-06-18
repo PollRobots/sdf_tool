@@ -43,6 +43,7 @@ These functions work on shapes and on vectors
 ## lisp like
 
 - `(define name exp)`
+- `(set! name exp)`
 - `(if test conseq alt)`
 - `(proc exp ...)`
 - `(lambda symbols exp)` &mdash; `symbols` is a list of symbols.
@@ -71,15 +72,15 @@ These functions work on shapes and on vectors
 - `(eq ...)`
 - `(neq ...)`
 - `(min ...)`
-- `(minv vec)` &mdash; sugar for `(min (x vec) (y vec) (z vec))`
+- `(min-vec vec)` &mdash; sugar for `(min (x vec) (y vec) (z vec))`
 - `(max ...)`
-- `(maxv vec)` &mdash; sugar for `(max (x vec) (y vec) (z vec))`
-- `(x vec)`
-- `(y vec)`
-- `(z vec)`
+- `(max-vev vec)` &mdash; sugar for `(max (x vec) (y vec) (z vec))`
+- `(get-x vec)`
+- `(get-y vec)`
+- `(get-z vec)`
 - `(xyz vec)` &mdash; swizzle vec to combination of proc name (i.e. defined for
   all 27 of `/[xyz][xyz][xyz]/`)
 - `(splat a)` &mdash; splat number `a` into a vector
 - `(trig a [b])` &mdash; trig function over `a`, `trig` is one of `/sin|cos|tan|asin|acos|atan|atan2`
 - `(radians a)`
-- `(degress a)`
+- `(degrees a)`

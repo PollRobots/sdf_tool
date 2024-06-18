@@ -1,5 +1,4 @@
 import {
-  Env,
   Expression,
   Internal,
   Value,
@@ -7,9 +6,15 @@ import {
   isValue,
   isVector,
   kEmptyList,
-  print,
-  read,
 } from "./dsl";
+import { print } from "./print";
+import { Env } from "./env";
+import { read } from "./read";
+
+const kTrue: Expression = {
+  type: "identifier",
+  value: "t",
+};
 
 const requireValueArgs = (name: string, args: Expression[]): Value[] => {
   return args.map((el) => {
@@ -122,12 +127,12 @@ const makeComparison = (
         for (const curr of values.slice(1)) {
           const n = curr.value as number;
           if (impl(last, n) == 0) {
-            return { type: "number", value: 0 };
+            return kEmptyList;
           } else {
             last = n;
           }
         }
-        return { type: "number", value: 1 };
+        return kTrue;
       }
     },
   };
@@ -167,6 +172,115 @@ const kBuiltins: Internal[] = [
     name: "list",
     impl: (args) =>
       args.length === 0 ? kEmptyList : { type: "list", value: args },
+  },
+  {
+    name: "head",
+    impl: (args) => {
+      requireArity("head", 1, args);
+      const arg = args[0];
+      if (arg.type === "null") {
+        return arg;
+      } else if (arg.type === "list") {
+        return (arg.value as Expression[])[0];
+      } else {
+        throw new Error(`head only works on lists`);
+      }
+    },
+  },
+  {
+    name: "tail",
+    impl: (args) => {
+      requireArity("tail", 1, args);
+      const arg = args[0];
+      if (arg.type === "null" || arg.type === "list") {
+        const list = arg.value as Expression[];
+        if (list.length < 2) {
+          return kEmptyList;
+        }
+        return {
+          type: "list",
+          value: list.slice(1),
+        };
+      } else {
+        throw new Error(`tail only works on lists`);
+      }
+    },
+  },
+  {
+    name: "list?",
+    impl: (args) => {
+      requireArity("list?", 1, args);
+      const arg = args[0];
+      if (arg.type === "null" || arg.type === "list") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
+    name: "number?",
+    impl: (args) => {
+      requireArity("number?", 1, args);
+      const arg = args[0];
+      if (arg.type === "number") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
+    name: "vector?",
+    impl: (args) => {
+      requireArity("vector?", 1, args);
+      const arg = args[0];
+      if (arg.type === "vector") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
+    name: "shape?",
+    impl: (args) => {
+      requireArity("shape?", 1, args);
+      const arg = args[0];
+      if (arg.type === "shape") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
+    name: "callable?",
+    impl: (args) => {
+      requireArity("callable?", 1, args);
+      const arg = args[0];
+      if (
+        arg.type === "lambda" ||
+        arg.type === "macro" ||
+        arg.type === "internal"
+      ) {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
+    name: "error?",
+    impl: (args) => {
+      requireArity("error?", 1, args);
+      const arg = args[0];
+      if (arg.type === "error") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
   },
   {
     name: "+",
@@ -479,29 +593,42 @@ interface MacroDef {
 
 const kMacros: MacroDef[] = [
   {
+    name: "and",
+    symbols: ["a", "b"],
+    body: "`(let ((aa ,a)) (if aa ,b aa))",
+  },
+  {
+    name: "or",
+    symbols: ["a", "b"],
+    body: "`(let ((aa ,a)) (if aa aa ,b))",
+  },
+];
+
+const kLambdas: MacroDef[] = [
+  {
     name: "splat",
     symbols: ["a"],
-    body: "`(let ((val ,a)) (vec val val val))",
+    body: "(vec a a a)",
   },
   {
     name: "min-vec",
-    symbols: ["a"],
-    body: "`(let ((v ,a)) (min (get-x v) (get-y v) (get-z v)))",
+    symbols: ["v"],
+    body: "(min (get-x v) (get-y v) (get-z v))",
   },
   {
     name: "max-vec",
-    symbols: ["a"],
-    body: "`(let ((v ,a)) (max (get-x v) (get-y v) (get-z v)))",
+    symbols: ["v"],
+    body: "(max (get-x v) (get-y v) (get-z v))",
   },
   {
     name: "normalize",
-    symbols: ["a"],
-    body: "`(let ((v ,a)) (/ v length(v))",
+    symbols: ["v"],
+    body: "(/ v length(v))",
   },
   {
     name: "length",
     symbols: ["a"],
-    body: "`(sqrt (dot ,a))",
+    body: "(sqrt (dot a))",
   },
 ];
 
@@ -516,18 +643,38 @@ const readOne = (name: string, input: string): Expression => {
 };
 
 export const addBuiltins = (env: Env) => {
+  env.set("t", kTrue);
   for (const b of kBuiltins) {
     env.set(b.name, { type: "internal", value: b });
   }
   for (const b of kMacros) {
-    env.set(b.name, {
-      type: "macro",
-      value: {
-        name: b.name,
-        symbols: b.symbols,
-        body: readOne(b.name, b.body),
-        closure: env,
-      },
-    });
+    try {
+      env.set(b.name, {
+        type: "macro",
+        value: {
+          name: b.name,
+          symbols: b.symbols,
+          body: readOne(b.name, b.body),
+          closure: env,
+        },
+      });
+    } catch (err) {
+      throw new Error(`Error adding macro '${b.name}': ${err}`);
+    }
+  }
+  for (const b of kLambdas) {
+    try {
+      env.set(b.name, {
+        type: "lambda",
+        value: {
+          name: b.name,
+          symbols: b.symbols,
+          body: readOne(b.name, b.body),
+          closure: env,
+        },
+      });
+    } catch (err) {
+      throw new Error(`Error adding lambda '${b.name}': ${err}`);
+    }
   }
 };
