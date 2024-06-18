@@ -14,6 +14,7 @@ const isSpecial = (name: string): boolean =>
   !!name.match(/^(if|define|set\!|lambda|let|begin|quote|quasi-quote|shape)$/);
 
 export const evaluate = (expr: Expression, env: Env): Expression => {
+  //console.log("evaluate:", print(expr));
   switch (expr.type) {
     case "list":
       const list = expr.value as Expression[];
@@ -273,11 +274,11 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
               value: `macro expected ${macro.symbols.length} args, got ${args.length}`,
             };
           }
-          const macro_env = new Env(env);
+          const macro_env = new Env(macro.closure);
           macro.symbols.forEach((el, i) =>
             macro_env.set(el.startsWith("...") ? el.substring(3) : el, args[i])
           );
-          return evaluate(evaluate(macro.body, macro_env), macro.closure);
+          return evaluate(evaluate(macro.body, macro_env), env);
         } else if (fn.type === "internal") {
           try {
             const args = list.slice(1).map((el) => evaluate(el, env));
@@ -291,7 +292,9 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
       }
       break;
     case "identifier":
-      return env.get(expr.value as string) || kEmptyList;
+      const id = env.get(expr.value as string) || kEmptyList;
+      //console.log("   =", print(id));
+      return id;
     default:
       return expr;
   }

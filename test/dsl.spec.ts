@@ -327,5 +327,17 @@ describe("special forms", () => {
     ).to.equal(
       "#shape<scale: 2 #shape<ellipsoid: #<1 2 3> #<7 7 7>> #shape<ellipsoid: #<3 2 1> #<4 4 4>>>"
     );
+
+    expect(
+      print(basicEval("(union (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
+    ).to.equal(
+      "#shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>"
+    );
+
+    expect(
+      print(basicEval("(union 0.1 (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
+    ).to.equal(
+      "#shape<smooth: 0.1 #shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>>"
+    );
   });
 });

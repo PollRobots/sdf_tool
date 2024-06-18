@@ -646,6 +646,21 @@ const kLambdas: MacroDef[] = [
 
 const kShapes: MacroDef[] = [
   {
+    name: "union",
+    symbols: ["k", "...c"],
+    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape union ,@c)) (shape union kval ,@c)))",
+  },
+  {
+    name: "intersect",
+    symbols: ["k:number?", "...c"],
+    body: "`(shape intersect ,k ,@c)",
+  },
+  {
+    name: "difference",
+    symbols: ["k:number?", "a b"],
+    body: "`(shape union ,k ,a ,b)",
+  },
+  {
     name: "scale",
     symbols: ["s", "...c"],
     body: "`(shape scale ,s ,@c)",
