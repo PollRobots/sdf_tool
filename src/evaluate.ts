@@ -178,7 +178,7 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
               if (!splicing) {
                 return res;
               }
-              if (res.type !== "list" && test.type !== "null") {
+              if (res.type !== "list" && res.type !== "null") {
                 return {
                   type: "error",
                   value: `unquote-splicing can only splice a list`,
@@ -205,6 +205,7 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
                   }
                   return el;
                 })
+                .filter((el) => !Array.isArray(el) || el.length > 0)
                 .flat();
 
             if (list[1].type === "list") {
@@ -247,14 +248,35 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
         } else if (fn.type === "macro") {
           const args = list.slice(1);
           const macro = fn.value as Macro;
-          if (args.length != macro.symbols.length) {
+          const last_symbol =
+            macro.symbols.length > 0
+              ? macro.symbols[macro.symbols.length - 1]
+              : "";
+          if (last_symbol.startsWith("...")) {
+            if (args.length < macro.symbols.length - 1) {
+              return {
+                type: "error",
+                value: `macro expected at least ${
+                  macro.symbols.length - 1
+                } args, got ${args.length}`,
+              };
+            }
+            const tail = args.splice(macro.symbols.length - 1);
+            if (tail.length > 0) {
+              args.push({ type: "list", value: tail });
+            } else {
+              args.push(kEmptyList);
+            }
+          } else if (args.length != macro.symbols.length) {
             return {
               type: "error",
               value: `macro expected ${macro.symbols.length} args, got ${args.length}`,
             };
           }
           const macro_env = new Env(env);
-          macro.symbols.forEach((el, i) => macro_env.set(el, args[i]));
+          macro.symbols.forEach((el, i) =>
+            macro_env.set(el.startsWith("...") ? el.substring(3) : el, args[i])
+          );
           return evaluate(evaluate(macro.body, macro_env), macro.closure);
         } else if (fn.type === "internal") {
           try {

@@ -30,9 +30,8 @@ export const print = (expr: Expression): string => {
       }
       return `#<${expr.value.x} ${expr.value.y} ${expr.value.z}>`;
     case "shape":
-      return `#shape<${expr.type}: ${(expr.value as Shape).args
-        .map(print)
-        .join(" ")}>`;
+      const shape = expr.value as Shape;
+      return `#shape<${shape.type}: ${shape.args.map(print).join(" ")}>`;
     case "internal":
       return `#internal<${(expr.value as Internal).name}>`;
     case "lambda":

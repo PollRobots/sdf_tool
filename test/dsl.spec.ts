@@ -298,5 +298,34 @@ describe("special forms", () => {
     expect(print(res)).to.equal("0");
     expect(print(env.get("left"))).to.equal("1");
     expect(print(env.get("right"))).to.equal("0");
+
+    const resOr = basicEval(
+      `(begin
+        (set! left 0)
+        (set! right 0)
+        (or
+            (begin
+                (set! left 1)
+                left)
+            (begin
+                (set! right 2)
+                right)))`,
+      env
+    );
+    expect(print(resOr)).to.equal("1");
+    expect(print(env.get("left"))).to.equal("1");
+    expect(print(env.get("right"))).to.equal("0");
+  });
+
+  it("should handle variable length macro args", () => {
+    expect(print(basicEval("(scale 2)"))).to.equal("#shape<scale: 2>");
+    expect(print(basicEval("(scale 2 (sphere #<1 2 3> 7))"))).to.equal(
+      "#shape<scale: 2 #shape<ellipsoid: #<1 2 3> #<7 7 7>>>"
+    );
+    expect(
+      print(basicEval("(scale 2 (sphere #<1 2 3> 7) (sphere #<3 2 1> 4))"))
+    ).to.equal(
+      "#shape<scale: 2 #shape<ellipsoid: #<1 2 3> #<7 7 7>> #shape<ellipsoid: #<3 2 1> #<4 4 4>>>"
+    );
   });
 });

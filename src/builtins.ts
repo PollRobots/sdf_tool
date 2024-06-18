@@ -207,6 +207,18 @@ const kBuiltins: Internal[] = [
     },
   },
   {
+    name: "null?",
+    impl: (args) => {
+      requireArity("null?", 1, args);
+      const arg = args[0];
+      if (arg.type === "null") {
+        return kTrue;
+      } else {
+        return kEmptyList;
+      }
+    },
+  },
+  {
     name: "list?",
     impl: (args) => {
       requireArity("list?", 1, args);
@@ -594,13 +606,13 @@ interface MacroDef {
 const kMacros: MacroDef[] = [
   {
     name: "and",
-    symbols: ["a", "b"],
-    body: "`(let ((aa ,a)) (if aa ,b aa))",
+    symbols: ["a", "...b"],
+    body: "`(let ((aa ,a)) (if (null? (quote ,b)) aa (if aa (and ,@b) aa)))",
   },
   {
     name: "or",
-    symbols: ["a", "b"],
-    body: "`(let ((aa ,a)) (if aa aa ,b))",
+    symbols: ["a", "...b"],
+    body: "`(let ((aa ,a)) (if (null? (quote ,b)) aa (if aa aa (or ,@b))))",
   },
 ];
 
@@ -629,6 +641,74 @@ const kLambdas: MacroDef[] = [
     name: "length",
     symbols: ["a"],
     body: "(sqrt (dot a))",
+  },
+];
+
+const kShapes: MacroDef[] = [
+  {
+    name: "scale",
+    symbols: ["s", "...c"],
+    body: "`(shape scale ,s ,@c)",
+  },
+  {
+    name: "translate",
+    symbols: ["v", "...c"],
+    body: "`(shape translate ,v ,@c)",
+  },
+  {
+    name: "translate-x",
+    symbols: ["x", "...c"],
+    body: "`(shape translate (vec ,x 0 0) ,@c)",
+  },
+  {
+    name: "translate-y",
+    symbols: ["z", "...c"],
+    body: "`(shape translate (vec 0 ,y 0) ,@c)",
+  },
+  {
+    name: "translate-z",
+    symbols: ["z", "...c"],
+    body: "`(shape translate (vec 0 0 ,y) ,@c)",
+  },
+  {
+    name: "rotate",
+    symbols: ["a", "theta", "...c"],
+    body: "`(shape rotate ,a ,theta ,@c)",
+  },
+  {
+    name: "rotate-x",
+    symbols: ["theta", "...c"],
+    body: "`(shape rotate #<1 0 0> ,theta ,@c)",
+  },
+  {
+    name: "rotate-y",
+    symbols: ["theta", "...c"],
+    body: "`(shape rotate #<0 1 0> ,theta ,@c)",
+  },
+  {
+    name: "rotate-z",
+    symbols: ["theta", "...c"],
+    body: "`(shape rotate #<0 0 1> ,theta ,@c)",
+  },
+  {
+    name: "smooth",
+    symbols: ["k", "...c"],
+    body: "`(shape smooth ,k ,@c)",
+  },
+  {
+    name: "discrete",
+    symbols: ["...c"],
+    body: "`(shape smooth 0 ,@c)",
+  },
+  {
+    name: "ellipsoid",
+    symbols: ["p", "r"],
+    body: "`(shape ellipsoid ,p ,r)",
+  },
+  {
+    name: "sphere",
+    symbols: ["p", "r"],
+    body: "`(shape ellipsoid ,p (splat ,r))",
   },
 ];
 
@@ -662,6 +742,7 @@ export const addBuiltins = (env: Env) => {
       throw new Error(`Error adding macro '${b.name}': ${err}`);
     }
   }
+
   for (const b of kLambdas) {
     try {
       env.set(b.name, {
@@ -675,6 +756,22 @@ export const addBuiltins = (env: Env) => {
       });
     } catch (err) {
       throw new Error(`Error adding lambda '${b.name}': ${err}`);
+    }
+  }
+
+  for (const b of kShapes) {
+    try {
+      env.set(b.name, {
+        type: "macro",
+        value: {
+          name: b.name,
+          symbols: b.symbols,
+          body: readOne(b.name, b.body),
+          closure: env,
+        },
+      });
+    } catch (err) {
+      throw new Error(`Error adding shape '${b.name}': ${err}`);
     }
   }
 };
