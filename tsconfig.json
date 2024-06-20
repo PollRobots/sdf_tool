@@ -7,6 +7,9 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "sourceMap": true,
-    "jsx": "react"
-  }
+    "jsx": "react",
+    "allowSyntheticDefaultImports": true,
+    "types": ["@webgpu/types"]
+  },
+  "exclude": ["*.wgsl"]
 }
