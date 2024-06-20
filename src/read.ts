@@ -16,7 +16,14 @@ export const tokenize = (input: string): Token[] => {
       repeat = false;
       switch (mode) {
         case "base":
-          if (ch == "(" || ch == ")" || ch == "'" || ch == "`" || ch == ",") {
+          if (
+            ch == "(" ||
+            ch == ")" ||
+            ch == "'" ||
+            ch == "`" ||
+            ch == "," ||
+            ch == ":"
+          ) {
             tokens.push({ type: "punctuation", offset: offset, value: ch });
           } else if (ch == "@") {
             const top = tokens.pop();
@@ -206,6 +213,8 @@ export const parse = (tokens: Token[]): Expression[] => {
           currReaderMacro = "unquote";
         } else if (curr.value === ",@") {
           currReaderMacro = "unquote-splicing";
+        } else if (curr.value === ":") {
+          currReaderMacro = "placeholder";
         } else {
           throw new Error(
             `Unknown punctuation '${curr.value}' at ${curr.offset}`

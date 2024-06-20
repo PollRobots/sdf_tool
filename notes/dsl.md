@@ -10,8 +10,6 @@ lisp like syntax
 
 ## Grouping operations
 
-In all of these, the optional `k` parameter is a smoothing factor between 0 and 1
-
 - `(union [k] ...)` &mdash; union of two or more children
 - `(intersect [k] ...)` &mdash; intersection of two or more children
 - `(difference [k] a b)` &mdash; Difference between shape `a` and `b` (i.e. shape `a` with shape `b` cut away)

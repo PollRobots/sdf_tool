@@ -154,16 +154,18 @@ describe("special forms", () => {
   };
 
   it("'if' evaluates first branch if truthy", () => {
-    const res = basicEval("(if 1 2 3)");
-    expect(print(res)).to.equal("2");
+    expect(print(basicEval("(if 1 2 3)"))).to.equal("2");
+    expect(print(basicEval("(if t 2)"))).to.equal("2");
   });
 
   it("'if' evaluates second branch if falsy", () => {
-    const res_empty = basicEval("(if () 2 3)");
-    expect(print(res_empty)).to.equal("3");
+    expect(print(basicEval("(if () 2 3)"))).to.equal("3");
+    expect(print(basicEval("(if 0 2 3)"))).to.equal("3");
+  });
 
-    const res_zero = basicEval("(if 0 2 3)");
-    expect(print(res_zero)).to.equal("3");
+  it("'if' returns () if two arguments and falsy", () => {
+    expect(print(basicEval("(if () 2)"))).to.equal("()");
+    expect(print(basicEval("(if 0 2)"))).to.equal("()");
   });
 
   it("'define' adds to env", () => {
@@ -217,7 +219,7 @@ describe("special forms", () => {
   });
 
   it("\"'\" is a reader-macro for 'quote'", () => {
-    expect(print(read("'(1 2 3)")[0])).to.equal("(quote (1 2 3))");
+    expect(print(read("'(1 2 3)")[0], false)).to.equal("(quote (1 2 3))");
     const res = basicEval("'(1 2 3)");
     expect(print(res)).to.equal("(1 2 3)");
   });
@@ -228,7 +230,7 @@ describe("special forms", () => {
   });
 
   it("\"`\" is a reader-macro for 'quasi-quote'", () => {
-    expect(print(read("`(1 2 3)")[0])).to.equal("(quasi-quote (1 2 3))");
+    expect(print(read("`(1 2 3)")[0], false)).to.equal("(quasi-quote (1 2 3))");
     const res = basicEval("`(1 2 3)");
     expect(print(res)).to.equal("(1 2 3)");
   });
@@ -239,7 +241,7 @@ describe("special forms", () => {
   });
 
   it("\",\" is a reader-macro for 'unquote'", () => {
-    expect(print(read("`(1 ,(+ 2 3) 4)")[0])).to.equal(
+    expect(print(read("`(1 ,(+ 2 3) 4)")[0], false)).to.equal(
       "(quasi-quote (1 (unquote (+ 2 3)) 4))"
     );
     const res = basicEval("`(1 ,(+ 2 3) 4)");
@@ -339,5 +341,120 @@ describe("special forms", () => {
     ).to.equal(
       "#shape<smooth: 0.1 #shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>>"
     );
+
+    expect(
+      print(
+        basicEval(
+          "(let ((k 0.1)) (union k (sphere #<1 1 1> 1) (sphere #<2 1 1> 1)))"
+        )
+      )
+    ).to.equal(
+      "#shape<smooth: 0.1 #shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>>"
+    );
+  });
+
+  describe("placeholders", () => {
+    it("prevent complete evaluation", () => {
+      expect(print(basicEval("(+ 1 :x 2)"))).to.equal(
+        "(placeholder (+ 1 :x 2))"
+      );
+
+      expect(print(basicEval("(+ (* :x :x) (* 3 3))"))).to.equal(
+        "(placeholder (+ (* :x :x) 9))"
+        // (lambda (_x) (+ (* _x _x) 9))
+      );
+    });
+
+    it("escape from lambdas", () => {
+      expect(
+        print(
+          basicEval(`(begin
+            (define incr (lambda (x) (+ x 1)))
+            (incr :y))`)
+        )
+      ).to.equal("(placeholder (+ :y 1))");
+    });
+
+    describe("in if", () => {
+      it("prevent evaluation in test expr", () => {
+        expect(print(basicEval("(if :x 1 2)"))).to.equal(
+          "(placeholder (if :x 1 2))"
+        );
+      });
+      it("ignored in unchosen branch", () => {
+        expect(print(basicEval("(if t 1 :x)"))).to.equal("1");
+        expect(print(basicEval("(if () :x 2)"))).to.equal("2");
+      });
+      it("result in chosen branch", () => {
+        expect(print(basicEval("(if t :x 2)"))).to.equal(":x");
+        expect(print(basicEval("(if () 1 :y)"))).to.equal(":y");
+      });
+    });
+
+    describe("in define or set!", () => {
+      it("propagate to evaluation", () => {
+        expect(
+          print(
+            basicEval(`(begin
+                (define a :x)
+                (+ a 2)
+                )`)
+          )
+        ).to.equal("(placeholder (+ :x 2))");
+        expect(
+          print(
+            basicEval(`(begin
+                (define p 2)
+                (define q (+ p 1))
+                (set! p :p)
+                (+ q p)
+                )`)
+          )
+        ).to.equal("(placeholder (+ 3 :p))");
+        // (lambda (_p) (+ 3 _p))
+      });
+    });
+
+    describe("in lambda", () => {
+      it("propagate to result from body", () => {
+        expect(print(basicEval(`((lambda (x) (+ x :inc)) 7)`))).to.equal(
+          "(placeholder (+ 7 :inc))"
+        );
+      });
+      it("propagate to result from args", () => {
+        expect(print(basicEval(`((lambda (x) (+ x 1)) :y)`))).to.equal(
+          "(placeholder (+ :y 1))"
+        );
+        expect(print(basicEval(`((lambda (x) (if x x 0)) :y)`))).to.equal(
+          "(placeholder (let ((x :y)) (if :y x 0)))"
+        );
+      });
+      it("cause an error when used in symbol list", () => {
+        expect(print(basicEval(`((lambda (:x) (+ :x :inc)) 7)`)))
+          .to.match(/^#error\</)
+          .and.match(/list of symbols/);
+      });
+    });
+
+    describe("in quasi-quote", () => {
+      it("are untouched in the quoted portion", () => {
+        expect(print(basicEval("`(+ 1 :x ,(- 4 1))"))).to.equal("(+ 1 :x 3)");
+      });
+      it("prevent evaluation in the unquoted portion", () => {
+        expect(print(basicEval("`(+ 1 2 ,(- :x 1))"))).to.equal(
+          "(+ 1 2 (placeholder (- :x 1)))"
+        );
+      });
+    });
+
+    describe("in macro", () => {
+      it("capture the state of the expanded macro when the placeholder needed evaluation", () => {
+        expect(print(basicEval("(and 1 2 0 :x 3)"))).to.equal("0");
+        expect(print(basicEval("(and 1 2 :x 0)"))).to.equal(
+          "(placeholder (let ((aa :x)) (if :x (and 0) aa)))"
+          // (lambda (_x) ((lambda (aa) (if _x (and 0) aa)) _x))
+        );
+      });
+    });
   });
 });

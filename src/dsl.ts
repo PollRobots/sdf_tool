@@ -1,4 +1,5 @@
 import { Env } from "./env";
+import { print } from "./print";
 
 export interface Token {
   type: "punctuation" | "identifier" | "number";
@@ -46,8 +47,10 @@ export interface Expression {
     | "lambda"
     | "internal"
     | "macro"
+    | "placeholder"
     | "error";
   value:
+    | Expression
     | Expression[]
     | string
     | Vector
@@ -57,6 +60,15 @@ export interface Expression {
     | Internal
     | Macro;
 }
+
+export const isExpression = (obj: any): obj is Expression => {
+  return (
+    obj &&
+    typeof obj === "object" &&
+    typeof obj.type === "string" &&
+    Reflect.has(obj, "value")
+  );
+};
 
 export interface Lambda {
   symbols: string[];
@@ -85,4 +97,82 @@ export interface Macro {
 
 export const isTruthy = (expr: Expression): boolean => {
   return expr.type !== "null" && !(expr.type === "number" && expr.value === 0);
+};
+
+export const isPlaceholder = (expr: Expression): boolean =>
+  expr.type === "placeholder";
+
+export const isPlaceholderVar = (expr: Expression): boolean =>
+  expr.type === "placeholder" && isIdentifier(expr.value as Expression);
+
+export const makePlaceholder = (expr: Expression): Expression => ({
+  type: "placeholder",
+  value: expr,
+});
+
+export const isIdentifier = (expr: Expression): boolean =>
+  expr.type === "identifier";
+
+export const makeIdentifier = (symbol: string): Expression => ({
+  type: "identifier",
+  value: symbol,
+});
+
+export const isList = (expr: Expression): boolean =>
+  expr.type === "null" || expr.type === "list";
+
+export const makeList = (exprs: Expression[]): Expression =>
+  exprs.length === 0
+    ? kEmptyList
+    : {
+        type: "list",
+        value: exprs,
+      };
+
+export const makeIdList = (
+  symbol: string,
+  exprs: Expression[]
+): Expression => ({
+  type: "list",
+  value: [makeIdentifier(symbol), ...exprs],
+});
+
+export const isIdList = (expr: Expression, id: string): boolean =>
+  id === getIdList(expr);
+
+export const getIdList = (expr: Expression): string | false => {
+  if (isList(expr)) {
+    const list = expr.value as Expression[];
+    if (list.length > 0) {
+      if (isIdentifier(list[0])) {
+        return list[0].value as string;
+      }
+    }
+  }
+  return false;
+};
+
+export const makeError = (msg: string): Expression => ({
+  type: "error",
+  value: msg,
+});
+
+export const dslError = (
+  strings: TemplateStringsArray,
+  ...exprs: any[]
+): Expression => {
+  const result: string[] = [];
+
+  for (let i = 0; i < exprs.length; i++) {
+    result.push(strings[i]);
+    const curr = exprs[i];
+    if (isExpression(curr)) {
+      result.push(print(curr));
+    } else {
+      result.push(curr.toString());
+    }
+  }
+  result.push(strings[exprs.length]);
+
+  return makeError(result.join(""));
 };
