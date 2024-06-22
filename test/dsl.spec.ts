@@ -322,24 +322,24 @@ describe("special forms", () => {
   it("should handle variable length macro args", () => {
     expect(print(basicEval("(scale 2)"))).to.equal("#shape<scale: 2>");
     expect(print(basicEval("(scale 2 (sphere #<1 2 3> 7))"))).to.equal(
-      "#shape<scale: 2 #shape<ellipsoid: #<1 2 3> #<7 7 7>>>"
+      "#shape<scale: 2 #shape<sphere: #<1 2 3> 7>>"
     );
     expect(
       print(basicEval("(scale 2 (sphere #<1 2 3> 7) (sphere #<3 2 1> 4))"))
     ).to.equal(
-      "#shape<scale: 2 #shape<ellipsoid: #<1 2 3> #<7 7 7>> #shape<ellipsoid: #<3 2 1> #<4 4 4>>>"
+      "#shape<scale: 2 #shape<sphere: #<1 2 3> 7> #shape<sphere: #<3 2 1> 4>>"
     );
 
     expect(
       print(basicEval("(union (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
     ).to.equal(
-      "#shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>"
+      "#shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>"
     );
 
     expect(
       print(basicEval("(union 0.1 (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
     ).to.equal(
-      "#shape<smooth: 0.1 #shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>>"
+      "#shape<smooth: 0.1 #shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>>"
     );
 
     expect(
@@ -349,7 +349,7 @@ describe("special forms", () => {
         )
       )
     ).to.equal(
-      "#shape<smooth: 0.1 #shape<union: #shape<ellipsoid: #<1 1 1> #<1 1 1>> #shape<ellipsoid: #<2 1 1> #<1 1 1>>>>"
+      "#shape<smooth: 0.1 #shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>>"
     );
   });
 
