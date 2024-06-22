@@ -75,5 +75,7 @@ export const print = (
       }
     case "error":
       return `#error<${expr.value}>`;
+    case "generated":
+      return `#generated<${expr.value}>`;
   }
 };

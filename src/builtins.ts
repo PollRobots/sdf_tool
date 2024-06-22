@@ -4,12 +4,19 @@ import {
   Value,
   Vector,
   isValue,
+  isNumber,
   isVector,
   kEmptyList,
+  makeNumber,
+  makeVector,
+  makeGenerated,
+  Generated,
+  GeneratedType,
 } from "./dsl";
 import { print } from "./print";
 import { Env } from "./env";
 import { read } from "./read";
+import { hasVectors, coerce } from "./generate";
 
 const kTrue: Expression = {
   type: "identifier",
@@ -77,27 +84,30 @@ const getValueAsVector = (value: Value): Vector => {
   }
 };
 
-const fnOfOne = (
-  name: string,
-  args: Expression[],
-  impl: (x: number) => number
-): Expression => {
-  requireArity(name, 1, args);
-  const values = requireValueArgs(name, args);
-  const a = values[0];
-  if (a.type === "number") {
-    return {
-      type: "number",
-      value: impl(a.value as number),
-    };
-  } else {
-    const vec = values[0].value as Vector;
-    return {
-      type: "vector",
-      value: { x: impl(vec.x), y: impl(vec.y), z: impl(vec.z) },
-    };
-  }
-};
+const fnOfOne = (name: string, impl: (x: number) => number): Internal => ({
+  name: name,
+  impl: (args: Expression[]) => {
+    requireArity(name, 1, args);
+    const values = requireValueArgs(name, args);
+    const a = values[0];
+    if (a.type === "number") {
+      return {
+        type: "number",
+        value: impl(a.value as number),
+      };
+    } else {
+      const vec = values[0].value as Vector;
+      return {
+        type: "vector",
+        value: { x: impl(vec.x), y: impl(vec.y), z: impl(vec.z) },
+      };
+    }
+  },
+  generate: (args) => ({
+    code: `${name}(${args.map((el) => el.code).join(", ")})`,
+    type: args[0].type,
+  }),
+});
 
 const makeComparison = (
   name: string,
@@ -135,6 +145,22 @@ const makeComparison = (
         return kTrue;
       }
     },
+    generate: (args) => {
+      if (hasVectors(args)) {
+        args = args.map((el) => coerce(el, "vec"));
+      }
+      return {
+        code: args.reduce((accum, el, i, arr) => {
+          if (i == arr.length - 1) {
+            return accum;
+          }
+          return i > 0
+            ? `${accum} && ${el.code} ${name} ${arr[i + 1].code}`
+            : `${el.code} ${name} ${arr[i + 1].code}`;
+        }, ""),
+        type: args[0].type,
+      };
+    },
   };
 };
 
@@ -150,6 +176,10 @@ const makeSwizzle = (name: string): Internal => {
         value: { x: vec[name[0]], y: vec[name[1]], z: vec[name[2]] },
       };
     },
+    generate: (args) => ({
+      code: `${coerce(args[0], "vec").code}.${name}`,
+      type: "vec",
+    }),
   };
 };
 
@@ -315,6 +345,18 @@ const kBuiltins: Internal[] = [
       }
       return accum;
     },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "0.0", type: "float" };
+      } else if (args.length == 1) {
+        return args[0];
+      } else {
+        return {
+          code: args.map((el) => el.code).join(" + "),
+          type: hasVectors(args) ? "vec" : "float",
+        };
+      }
+    },
   },
 
   {
@@ -324,6 +366,15 @@ const kBuiltins: Internal[] = [
         return { type: "number", value: 0 };
       }
       const values = requireValueArgs("-", args);
+      if (args.length === 1) {
+        const head = values[0];
+        if (isNumber(head)) {
+          return makeNumber(-(head.value as number));
+        } else {
+          const vec = head.value as Vector;
+          return makeVector(-vec.x, -vec.y, -vec.z);
+        }
+      }
       const accum = { ...values[0] };
       for (const value of values.slice(1)) {
         if (accum.type === "number" && value.type === "number") {
@@ -341,6 +392,18 @@ const kBuiltins: Internal[] = [
         }
       }
       return accum;
+    },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "0.0", type: "float" };
+      } else if (args.length == 1) {
+        return { code: `-${args[0].code}`, type: args[0].type };
+      } else {
+        return {
+          code: args.map((el) => el.code).join(" - "),
+          type: hasVectors(args) ? "vec" : "float",
+        };
+      }
     },
   },
 
@@ -364,6 +427,18 @@ const kBuiltins: Internal[] = [
         }
       }
       return accum;
+    },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "1.0", type: "float" };
+      } else if (args.length == 1) {
+        return args[0];
+      } else {
+        return {
+          code: args.map((el) => el.code).join(" * "),
+          type: hasVectors(args) ? "vec" : "float",
+        };
+      }
     },
   },
 
@@ -396,6 +471,18 @@ const kBuiltins: Internal[] = [
       }
       return accum;
     },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "1.0", type: "float" };
+      } else if (args.length == 1) {
+        return { code: `1.0 / ${args[0].code}`, type: args[0].type };
+      } else {
+        return {
+          code: args.map((el) => el.code).join(" / "),
+          type: hasVectors(args) ? "vec" : "float",
+        };
+      }
+    },
   },
 
   {
@@ -409,6 +496,10 @@ const kBuiltins: Internal[] = [
 
       return { type: "number", value: a.x * b.x + a.y * b.y + a.z * b.z };
     },
+    generate: (args) => ({
+      code: `dot(${args[0].code}, ${args[1].code})`,
+      type: "float",
+    }),
   },
 
   {
@@ -429,26 +520,24 @@ const kBuiltins: Internal[] = [
         },
       };
     },
+    generate: (args) => ({
+      code: `cross(${args[0].code}, ${args[1].code})`,
+      type: "vec",
+    }),
   },
 
-  { name: "abs", impl: (args) => fnOfOne("abs", args, Math.abs) },
-  { name: "floor", impl: (args) => fnOfOne("floor", args, Math.floor) },
-  { name: "ceil", impl: (args) => fnOfOne("ceil", args, Math.ceil) },
-  { name: "sqrt", impl: (args) => fnOfOne("sqrt", args, Math.sqrt) },
-  { name: "sin", impl: (args) => fnOfOne("sin", args, Math.sin) },
-  { name: "cos", impl: (args) => fnOfOne("cos", args, Math.cos) },
-  { name: "tan", impl: (args) => fnOfOne("tan", args, Math.tan) },
-  { name: "asin", impl: (args) => fnOfOne("asin", args, Math.asin) },
-  { name: "acos", impl: (args) => fnOfOne("acos", args, Math.acos) },
-  { name: "atan", impl: (args) => fnOfOne("atan", args, Math.atan) },
-  {
-    name: "radians",
-    impl: (args) => fnOfOne("radians", args, (x) => (x * Math.PI) / 180),
-  },
-  {
-    name: "degrees",
-    impl: (args) => fnOfOne("degrees", args, (x) => (x * 180) / Math.PI),
-  },
+  fnOfOne("abs", Math.abs),
+  fnOfOne("floor", Math.floor),
+  fnOfOne("ceil", Math.ceil),
+  fnOfOne("sqrt", Math.sqrt),
+  fnOfOne("sin", Math.sin),
+  fnOfOne("cos", Math.cos),
+  fnOfOne("tan", Math.tan),
+  fnOfOne("asin", Math.asin),
+  fnOfOne("acos", Math.acos),
+  fnOfOne("atan", Math.atan),
+  fnOfOne("radians", (x) => (x * Math.PI) / 180),
+  fnOfOne("degrees", (x) => (x * 180) / Math.PI),
 
   {
     name: "min",
@@ -474,6 +563,28 @@ const kBuiltins: Internal[] = [
         }
       }
       return accum;
+    },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "0.0", type: "float" };
+      } else if (args.length == 1) {
+        return args[0];
+      } else {
+        if (hasVectors(args)) {
+          args = args.map((el) => coerce(el, "vec"));
+        }
+        return {
+          code: args
+            .slice(0, args.length - 2)
+            .reduceRight(
+              (accum, el) => `min(${el.code}, ${accum})`,
+              `min(${args[args.length - 2].code}, ${
+                args[args.length - 1].code
+              })`
+            ),
+          type: args[0].type,
+        };
+      }
     },
   },
 
@@ -502,6 +613,28 @@ const kBuiltins: Internal[] = [
       }
       return accum;
     },
+    generate: (args) => {
+      if (args.length == 0) {
+        return { code: "0.0", type: "float" };
+      } else if (args.length == 1) {
+        return args[0];
+      } else {
+        if (hasVectors(args)) {
+          args = args.map((el) => coerce(el, "vec"));
+        }
+        return {
+          code: args
+            .slice(0, args.length - 2)
+            .reduceRight(
+              (accum, el) => `max(${el.code}, ${accum})`,
+              `max(${args[args.length - 2].code}, ${
+                args[args.length - 1].code
+              })`
+            ),
+          type: args[0].type,
+        };
+      }
+    },
   },
 
   {
@@ -515,6 +648,7 @@ const kBuiltins: Internal[] = [
         value: vec.x,
       };
     },
+    generate: (args) => ({ code: `${args[0]}.x`, type: "float" }),
   },
 
   {
@@ -528,6 +662,7 @@ const kBuiltins: Internal[] = [
         value: vec.y,
       };
     },
+    generate: (args) => ({ code: `${args[0]}.y`, type: "float" }),
   },
 
   {
@@ -541,6 +676,7 @@ const kBuiltins: Internal[] = [
         value: vec.z,
       };
     },
+    generate: (args) => ({ code: `${args[0]}.z`, type: "float" }),
   },
 
   {
@@ -557,6 +693,19 @@ const kBuiltins: Internal[] = [
           y: args[1].value as number,
           z: args[2].value as number,
         },
+      };
+    },
+    generate: (args) => {
+      const first = args[0].code;
+      if (args.every((el) => el.code === first)) {
+        return {
+          code: `vec3<f32>(${first})`,
+          type: "vec",
+        };
+      }
+      return {
+        code: `vec3<f32>(${args.map((el) => el.code).join(", ")})`,
+        type: "vec",
       };
     },
   },
@@ -584,6 +733,12 @@ const kBuiltins: Internal[] = [
           },
         };
       }
+    },
+    generate: (args) => {
+      if (hasVectors(args)) {
+        args = args.map((el) => coerce(el, "vec"));
+      }
+      return { code: `pow(${args.join(", ")})`, type: args[0].type };
     },
   },
 
@@ -723,7 +878,7 @@ const kShapes: MacroDef[] = [
   {
     name: "sphere",
     symbols: ["p", "r"],
-    body: "`(shape ellipsoid ,p (splat ,r))",
+    body: "`(shape sphere ,p ,r)",
   },
 ];
 

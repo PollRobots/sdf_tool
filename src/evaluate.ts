@@ -18,13 +18,9 @@ import {
   makeIdentifier,
   isIdList,
   isPlaceholderVar,
+  isSpecial,
 } from "./dsl";
 import { print } from "./print";
-
-const isSpecial = (name: string): boolean =>
-  !!name.match(
-    /^(if|define|set\!|lambda|let|begin|quote|quasi-quote|shape|placeholder)$/
-  );
 
 const getUnresolved = (expr: Expression): Set<string> => {
   const syms = new Set<string>();

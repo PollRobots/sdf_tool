@@ -48,7 +48,8 @@ export interface Expression {
     | "internal"
     | "macro"
     | "placeholder"
-    | "error";
+    | "error"
+    | "generated";
   value:
     | Expression
     | Expression[]
@@ -58,7 +59,8 @@ export interface Expression {
     | Shape
     | Lambda
     | Internal
-    | Macro;
+    | Macro
+    | Generated;
 }
 
 export const isExpression = (obj: any): obj is Expression => {
@@ -79,6 +81,7 @@ export interface Lambda {
 export interface Internal {
   name: string;
   impl: (args: Expression[]) => Expression;
+  generate?: (args: Generated[]) => Generated;
 }
 
 export const kEmptyList: Expression = { type: "null", value: [] };
@@ -95,8 +98,30 @@ export interface Macro {
   closure: Env;
 }
 
+export type GeneratedType = "float" | "vec" | "void";
+
+export interface Generated {
+  code: string;
+  type: GeneratedType;
+}
+
 export const isTruthy = (expr: Expression): boolean => {
   return expr.type !== "null" && !(expr.type === "number" && expr.value === 0);
+};
+
+export const isSpecial = (name: string): boolean =>
+  !!name.match(
+    /^(if|define|set\!|lambda|let|begin|quote|quasi-quote|shape|placeholder)$/
+  );
+
+export const isNumber = (expr: Expression): boolean => expr.type === "number";
+
+export const makeNumber = (value: number): Expression => {
+  return { type: "number", value: value };
+};
+
+export const makeVector = (x: number, y: number, z: number): Expression => {
+  return { type: "vector", value: { x: x, y: y, z: z } };
 };
 
 export const isPlaceholder = (expr: Expression): boolean =>
@@ -151,6 +176,17 @@ export const getIdList = (expr: Expression): string | false => {
   }
   return false;
 };
+
+export const makeGenerated = (
+  value: string,
+  type: GeneratedType
+): Expression => ({
+  type: "generated",
+  value: {
+    code: value,
+    type: type,
+  },
+});
 
 export const makeError = (msg: string): Expression => ({
   type: "error",
