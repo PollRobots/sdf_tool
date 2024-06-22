@@ -235,11 +235,25 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
                 `shape must have an identifier as the first argument`
               );
             }
-            const shape: Shape = {
-              type: list[1].value as string,
-              args: list.slice(2).map((expr) => evaluate(expr, env)),
-            };
-            return { type: "shape", value: shape };
+            const args = list.slice(2).map((expr) => evaluate(expr, env));
+            if (args.some(isPlaceholder)) {
+              return makePlaceholder(
+                makeIdList("shape", [
+                  list[1],
+                  ...args.map((arg) =>
+                    isPlaceholder(arg) && !isPlaceholderVar(arg)
+                      ? (arg.value as Expression)
+                      : arg
+                  ),
+                ])
+              );
+            } else {
+              const shape: Shape = {
+                type: list[1].value as string,
+                args: args,
+              };
+              return { type: "shape", value: shape };
+            }
           case "placeholder":
             if (list.length !== 2 || list[1].type !== "identifier") {
               return makeError(
@@ -332,17 +346,16 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
             const internal = fn.value as Internal;
             const args = list.slice(1).map((el) => evaluate(el, env));
             if (args.some((el) => isPlaceholder(el))) {
-              return makePlaceholder({
-                type: "list",
-                value: [
-                  { type: "identifier", value: internal.name },
-                  ...args.map((arg) =>
+              return makePlaceholder(
+                makeIdList(
+                  internal.name,
+                  args.map((arg) =>
                     isPlaceholder(arg) && !isPlaceholderVar(arg)
                       ? (arg.value as Expression)
                       : arg
-                  ),
-                ],
-              });
+                  )
+                )
+              );
             }
             return internal.impl(args);
           } catch (err) {

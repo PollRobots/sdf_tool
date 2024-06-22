@@ -12,11 +12,12 @@ interface WebGPUCanvasProps {
 
 export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
-  const [gpu, setGpu] = React.useState<Foo>();
+  const timerHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
+  const gpu = React.useRef<WebGpuWidget>(null);
+  const [running, setRunning] = React.useState(false);
+  const [fps, setFps] = React.useState(0);
   const [xAngle, setXAngle] = React.useState(15);
   const [yAngle, setYAngle] = React.useState(0);
-  const [multiplier, setMultiplier] = React.useState(1);
-  const [sampler, setSampler] = React.useState("nearest");
   const [initialPt, setInitialPt] = React.useState({
     x: 0,
     y: 0,
@@ -24,16 +25,45 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     ya: 0,
   });
   const [leftButton, setLeftButton] = React.useState(false);
+  const [tick, setTick] = React.useState(0);
+
+  const timerFn = (t: number) => {
+    setTick(t + 1);
+  };
 
   React.useEffect(() => {
-    if (!canvasRef.current || gpu) {
+    if (!tick) {
       return;
     }
 
-    const new_gpu = new Foo(canvasRef.current);
-    setGpu(new_gpu);
+    if (gpu.current) {
+      if (running != gpu.current.running) {
+        setRunning(!running);
+      }
+      if (fps != Math.round(gpu.current.fps)) {
+        setFps(Math.round(gpu.current.fps));
+      }
+    }
+    timerHandle.current = setTimeout(() => timerFn(tick + 1), 250);
+  }, [tick]);
 
-    new_gpu
+  React.useEffect(() => {
+    timerHandle.current = setTimeout(() => timerFn(tick), 250);
+    return () => {
+      if (timerHandle.current) {
+        clearTimeout(timerHandle.current);
+      }
+    };
+  }, ["once"]);
+
+  React.useEffect(() => {
+    if (!canvasRef.current || gpu.current) {
+      return;
+    }
+
+    gpu.current = new WebGpuWidget(canvasRef.current);
+
+    gpu.current
       .init(props.shader, props.vertexShader, props.fragmentShader)
       .then(() => console.log("initialized"))
       .catch((err) => {
@@ -42,8 +72,8 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   }, [canvasRef.current]);
 
   React.useEffect(() => {
-    if (gpu) {
-      gpu.angles(xAngle, yAngle);
+    if (gpu.current) {
+      gpu.current.angles(xAngle, yAngle);
     }
   }, [gpu, yAngle, xAngle]);
 
@@ -85,6 +115,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       style={{
         display: "grid",
         width: "fit-content",
+        height: "fit-content",
         alignItems: "center",
         justifyItems: "center",
         gap: "0.5em",
@@ -108,7 +139,9 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         value={xAngle}
         onChange={(e) => setXAngle(e.target.valueAsNumber || 0)}
         style={{
-          height: props.height,
+          height: props.style
+            ? props.style.height || props.height
+            : props.height,
           writingMode: "vertical-rl",
           direction: "rtl",
         }}
@@ -119,63 +152,46 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         max={180}
         value={yAngle}
         onChange={(e) => setYAngle(e.target.valueAsNumber || 0)}
-        style={{ width: props.width }}
+        style={{
+          width: props.style ? props.style.width || props.width : props.width,
+        }}
       />
 
       <div
         style={{
           gridArea: "3/1/4/3",
-          display: "grid",
+          display: "flex",
           gap: "0.5em",
           width: "fit-content",
-          gridTemplateColumns: "5em 5em 5em 5em",
         }}
       >
         <button
-          disabled={!gpu || gpu.running}
+          disabled={running}
           onClick={() => {
-            if (gpu) {
-              gpu.start();
+            if (gpu.current) {
+              gpu.current.start();
             }
           }}
         >
           start
         </button>
         <button
-          disabled={!gpu || !gpu.running}
+          disabled={!running}
           onClick={() => {
-            if (gpu) {
-              gpu.stop();
+            if (gpu.current) {
+              gpu.current.stop();
             }
           }}
         >
           stop
         </button>
-        <input
-          type="number"
-          value={multiplier}
-          min={1}
-          max={4}
-          onChange={(e) => {
-            const value = Number(e.target.value) || 1;
-            setMultiplier(Math.min(Math.max(1, value), 4));
-          }}
-        />
-        <select
-          value={sampler}
-          onChange={(e) =>
-            setSampler(e.target.value === "nearest" ? "nearest" : "linear")
-          }
-        >
-          <option>nearest</option>
-          <option>linear</option>
-        </select>
+        <span>{fps} FPS</span>
       </div>
     </div>
   );
 };
 
-class Foo {
+class WebGpuWidget {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: GPUCanvasContext;
   device?: GPUDevice;
@@ -188,10 +204,13 @@ class Foo {
   y: number = 0;
   multiplier: number = 1;
   sampler: number = 0;
+  fps: number = 0;
+  fc: number = 0;
+  fs: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("webgpu") as GPUCanvasContext;
+    this.ctx = canvas.getContext("webgpu") as unknown as GPUCanvasContext;
   }
 
   async init(shaderSrc: string, vertex: string, fragment: string) {
@@ -257,7 +276,7 @@ class Foo {
   start() {
     if (!this.running) {
       this.running = true;
-      requestAnimationFrame(() => this.frame());
+      requestAnimationFrame((n) => this.frame(n));
     }
   }
 
@@ -265,10 +284,18 @@ class Foo {
     this.running = false;
   }
 
-  frame() {
+  frame(timestamp: number) {
     if (!this.uniformBindGroup) {
       this.running = false;
       return;
+    }
+
+    if (this.fc >= 10) {
+      this.fps = (this.fc * 1000) / (timestamp - this.fs);
+      this.fc = 0;
+      this.fs = timestamp;
+    } else {
+      this.fc++;
     }
 
     const uniformData = new ArrayBuffer(this.uniformBufferSize);
@@ -310,7 +337,7 @@ class Foo {
 
     this.device?.queue.submit([encoder.finish()]);
     if (this.running) {
-      requestAnimationFrame(() => this.frame());
+      requestAnimationFrame((n) => this.frame(n));
     }
   }
 
@@ -320,8 +347,8 @@ class Foo {
 
   set xAngle(value: number) {
     this.x = value;
-    if (this.running) {
-      this.frame();
+    if (!this.running) {
+      requestAnimationFrame((n) => this.frame(n));
     }
   }
 
@@ -331,16 +358,16 @@ class Foo {
 
   set yAngle(value: number) {
     this.y = value;
-    if (this.running) {
-      this.frame();
+    if (!this.running) {
+      requestAnimationFrame((n) => this.frame(n));
     }
   }
 
   angles(x: number, y: number) {
     this.x = x;
     this.y = y;
-    if (this.running) {
-      this.frame();
+    if (!this.running) {
+      requestAnimationFrame((n) => this.frame(n));
     }
   }
 }

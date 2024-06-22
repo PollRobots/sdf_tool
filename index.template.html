@@ -32,5 +32,26 @@
   </head>
   <body style="font-family: Roboto, Arial, Helvetica, sans-serif;" }>
     <div id="app"></div>
-  </body>
+  <script src="./vs/loader.js"></script>
+  <script>
+    const baseUrl = location.origin + location.pathname.split('/').slice(0, -1).join('/');
+    require.config({ paths: { vs: `${baseUrl}/vs` } });
+    window.MonacoEnvironment = {
+      getWorkerUrl: () => baseUrl + "/vs/base/worker/workerMain.js"
+    };
+
+    function getMonaco() {
+      return new Promise((resolve, reject) => {
+        require(["vs/editor/editor.main"], function (monaco) {
+          window.monaco = monaco;
+          console.log("Loaded editor.main");
+          resolve();
+        }, (err) => {
+          console.error("Error loading monaco:", err);
+          reject(err) ;
+        });
+      });
+    }
+  </script>
+<  </body>
 </html>

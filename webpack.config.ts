@@ -1,6 +1,7 @@
 import path from "path";
 import webpack from "webpack";
 import "webpack-dev-server";
+import CopyWebpackPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import TerserWebpackPlugin from "terser-webpack-plugin";
@@ -66,7 +67,26 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
             }
           : false,
       }),
+      new CopyWebpackPlugin({
+        patterns: [
+          {
+            from: "./node_modules/monaco-editor/min/vs",
+            to: "vs",
+            globOptions: {
+              ignore: ["**/basic-languages/**", "**/language/**"],
+            },
+          },
+          {
+            from: "./node_modules/monaco-editor/min-maps",
+            to: "min-maps",
+          },
+        ],
+      }),
     ],
+
+    externals: {
+      "monaco-editor": [],
+    },
 
     optimization: {
       minimize: isProduction,

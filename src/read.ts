@@ -7,9 +7,16 @@ export const tokenize = (input: string): Token[] => {
 
   let offset = 0;
   let start = 0;
-  let mode: "base" | "comment" | "pound" | "number" | "identifier" | "vector" =
-    "base";
+  let mode:
+    | "base"
+    | "single-comment"
+    | "multi-comment"
+    | "pound"
+    | "number"
+    | "identifier"
+    | "vector" = "base";
   let accum = "";
+  let multiCount = 0;
   for (const ch of input + " ") {
     let repeat = true;
     while (repeat) {
@@ -43,7 +50,7 @@ export const tokenize = (input: string): Token[] => {
           } else if (ch.match(/\s/)) {
             // skip whitespace
           } else if (ch == ";") {
-            mode = "comment";
+            mode = "single-comment";
           } else if (ch == "#") {
             mode = "pound";
             start = offset;
@@ -59,13 +66,34 @@ export const tokenize = (input: string): Token[] => {
             throw new Error(`Unexpected character '${ch}' at ${offset}`);
           }
           break;
-        case "comment":
+        case "single-comment":
           if (ch == "\n") {
             mode = "base";
           }
           break;
+        case "multi-comment":
+          if (ch != "#" && ch != "|") {
+            // ignore everything except #| and |#
+          }
+          accum += ch;
+          if (accum.endsWith("#|")) {
+            multiCount++;
+            accum = "";
+          } else if (accum.endsWith("|#")) {
+            multiCount--;
+            accum = "";
+            if (multiCount == 0) {
+              mode = "base";
+            }
+          }
+          break;
         case "pound":
-          if (ch == "<") {
+          if (ch == "|") {
+            mode = "multi-comment";
+            multiCount = 1;
+            start = offset;
+            accum = "";
+          } else if (ch == "<") {
             mode = "vector";
             accum = "#<";
           } else {
@@ -159,13 +187,16 @@ export const tokenize = (input: string): Token[] => {
     offset++;
   }
 
+  if (mode === "multi-comment" && multiCount > 0) {
+    throw new Error(`Unterminated comment starting at ${start}`);
+  }
+
   return tokens;
 };
 
 export const parse = (tokens: Token[]): Expression[] => {
   const res: Expression[] = [];
   const lists: Expression[][] = [];
-  type ReaderMacro = (expr: Expression) => Expression;
   const readerMacros: string[] = [];
   let currReaderMacro: string | undefined = undefined;
 
@@ -198,6 +229,11 @@ export const parse = (tokens: Token[]): Expression[] => {
           // pop current list and add to result
           if (lists.length == 0) {
             throw new Error(`Unexpected ')' at ${curr.offset}`);
+          }
+          if (currReaderMacro !== undefined) {
+            throw new Error(
+              `Reader macro '${currReaderMacro}' without argument at ${curr.offset}`
+            );
           }
           const top = lists.pop();
           currReaderMacro = readerMacros.pop();

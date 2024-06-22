@@ -711,7 +711,7 @@ const kShapes: MacroDef[] = [
     body: "`(shape smooth ,k ,@c)",
   },
   {
-    name: "discrete",
+    name: "abrupt",
     symbols: ["...c"],
     body: "`(shape smooth 0 ,@c)",
   },
