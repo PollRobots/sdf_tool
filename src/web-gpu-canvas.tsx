@@ -134,6 +134,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       />
       <input
         type="range"
+        className="vertical"
         min={5}
         max={85}
         value={xAngle}
@@ -142,8 +143,6 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           height: props.style
             ? props.style.height || props.height
             : props.height,
-          writingMode: "vertical-rl",
-          direction: "rtl",
         }}
       />
       <input

@@ -5,6 +5,7 @@ import {
   Internal,
   Lambda,
   isIdentifier,
+  Macro,
 } from "./dsl";
 
 export const print = (
@@ -66,6 +67,9 @@ export const print = (
       return `#internal<${(expr.value as Internal).name}>`;
     case "lambda":
       return `#lambda<${(expr.value as Lambda).symbols.join(" ")}>`;
+    case "macro":
+      const macro = expr.value as Macro;
+      return `#macro<${macro.name}: ${macro.symbols.join(" ")}>`;
     case "placeholder":
       const retained = expr.value as Expression;
       if (undoReaderMacros && retained.type === "identifier") {

@@ -34,7 +34,7 @@ export const IconButton: React.FC<React.PropsWithChildren<IconButtonProps>> = (
         opacity: props.disabled ? 0.7 : 1,
         borderWidth: 1,
         borderStyle: "solid",
-        borderColor: "#0008",
+        borderColor: editorTheme.base00,
         display: "flex",
         width: props.size,
         height: props.size,

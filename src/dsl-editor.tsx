@@ -13,10 +13,13 @@ import { print } from "./print";
 import { evaluate } from "./evaluate";
 import { Env } from "./env";
 import { addBuiltins } from "./builtins";
+import { generate, makeContext } from "./generate";
 
 interface DslEditorProps {
   fontSize: number;
   line: string;
+  style?: React.CSSProperties;
+  onGenerating: (line: string) => void;
   onDoneEditing: (line: string) => void;
 }
 
@@ -82,19 +85,37 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     if (raw.trim() === "") {
       return;
     }
+
+    const lines: string[] = [];
+    const log: string[] = [];
     try {
       const parsed = read(raw);
-      console.log("Parsed: ", parsed);
+
+      lines.push("Parsed:");
+      lines.push(...parsed.map((el) => print(el)));
+
       const env = new Env();
       addBuiltins(env);
       const res = parsed
         .map((expr) => evaluate(expr, env))
-        .filter((expr) => expr.type !== "null")
-        .map((expr) => print(expr));
-      console.log("Evaluated:", res);
+        .filter((expr) => expr.type !== "null");
+
+      lines.push("", "Evaluated:");
+      lines.push(...res.map((el) => print(el)));
+
+      const ctx = makeContext({
+        log: (...args) => log.push(args.map((el) => el.toString()).join(" ")),
+      });
+      const generated = res.map((expr) => generate(expr, env, ctx));
+      lines.push("", "Generated:");
+      lines.push(...generated.map((el) => el.code));
     } catch (err) {
-      console.error("Error parsing: ", err);
+      if (log.length > 0) {
+        lines.unshift(`Generator log:`, ...log, "");
+      }
+      lines.unshift(`Error parsing: ${err}`, "");
     }
+    props.onGenerating(lines.join("\n"));
   };
 
   React.useEffect(() => {
@@ -121,6 +142,8 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                 style={{
                   color: editorTheme.foreground,
                   background: editorTheme.background,
+                  ...(props.style || {}),
+                  border: `solid 1px ${editorTheme.base00}`,
                 }}
               >
                 <div

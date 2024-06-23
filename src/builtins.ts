@@ -68,7 +68,12 @@ const requireVector = (name: string, pos: number, arg: Expression): void => {
 
 const requireNumber = (name: string, pos: number, arg: Expression): void => {
   if (arg.type !== "number") {
-    throw new Error(`${name} requires ${pos} arg to be a number`);
+    throw new Error(
+      `${name} requires ${pos} arg to be a number, found ${print(arg).slice(
+        0,
+        32
+      )}`
+    );
   }
 };
 
@@ -195,6 +200,20 @@ const makeAllSwizzles = (): Internal[] => {
     }
   }
   return swizzles;
+};
+
+const trySplitVec = (code: string): [string, string, string] | undefined => {
+  const m = code.match(/^vec3\<f32\>\((.+),\s(.+),\s(.+)\)$/);
+  if (!m) {
+    return;
+  }
+  const x = m[1];
+  const y = m[2];
+  const z = m[3];
+  if (x.includes(" ") || y.includes(" ") || z.includes(" ")) {
+    return;
+  }
+  return [x, y, z];
 };
 
 const kBuiltins: Internal[] = [
@@ -503,6 +522,47 @@ const kBuiltins: Internal[] = [
   },
 
   {
+    name: "normalize",
+    impl: (args) => {
+      requireArity("normalize", 1, args);
+      requireVector("normalize", 0, args[0]);
+      const a = args[0].value as Vector;
+
+      const length = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+      return {
+        type: "vector",
+        value: {
+          x: a.x / length,
+          y: a.y / length,
+          z: a.z / length,
+        },
+      };
+    },
+    generate: (args) => ({
+      code: `normalize(${args[0].code})`,
+      type: "vec",
+    }),
+  },
+
+  {
+    name: "length",
+    impl: (args) => {
+      requireArity("length", 1, args);
+      requireVector("length", 0, args[0]);
+      const a = args[0].value as Vector;
+
+      return {
+        type: "number",
+        value: Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+      };
+    },
+    generate: (args) => ({
+      code: `length(${args[0].code})`,
+      type: "float",
+    }),
+  },
+
+  {
     name: "cross",
     impl: (args) => {
       requireArity("cross", 2, args);
@@ -648,7 +708,14 @@ const kBuiltins: Internal[] = [
         value: vec.x,
       };
     },
-    generate: (args) => ({ code: `${args[0]}.x`, type: "float" }),
+    generate: (args) => {
+      const vec = args[0].code;
+      const parts = trySplitVec(vec);
+      if (parts) {
+        return { code: `${parts[0]}`, type: "float" };
+      }
+      return { code: `${vec}.x`, type: "float" };
+    },
   },
 
   {
@@ -662,7 +729,14 @@ const kBuiltins: Internal[] = [
         value: vec.y,
       };
     },
-    generate: (args) => ({ code: `${args[0]}.y`, type: "float" }),
+    generate: (args) => {
+      const vec = args[0].code;
+      const parts = trySplitVec(vec);
+      if (parts) {
+        return { code: `${parts[1]}`, type: "float" };
+      }
+      return { code: `${vec}.y`, type: "float" };
+    },
   },
 
   {
@@ -676,12 +750,30 @@ const kBuiltins: Internal[] = [
         value: vec.z,
       };
     },
-    generate: (args) => ({ code: `${args[0]}.z`, type: "float" }),
+    generate: (args) => {
+      const vec = args[0].code;
+      const parts = trySplitVec(vec);
+      if (parts) {
+        return { code: `${parts[2]}`, type: "float" };
+      }
+      return { code: `${vec}.z`, type: "float" };
+    },
   },
 
   {
     name: "vec",
     impl: (args) => {
+      if (args.length === 1) {
+        requireNumber("vec", 0, args[0]);
+        return {
+          type: "vector",
+          value: {
+            x: args[0].value as number,
+            y: args[0].value as number,
+            z: args[0].value as number,
+          },
+        };
+      }
       requireArity("vec", 3, args);
       requireNumber("vec", 0, args[0]);
       requireNumber("vec", 1, args[1]);
@@ -787,16 +879,6 @@ const kLambdas: MacroDef[] = [
     symbols: ["v"],
     body: "(max (get-x v) (get-y v) (get-z v))",
   },
-  {
-    name: "normalize",
-    symbols: ["v"],
-    body: "(/ v length(v))",
-  },
-  {
-    name: "length",
-    symbols: ["a"],
-    body: "(sqrt (dot a))",
-  },
 ];
 
 const kShapes: MacroDef[] = [
@@ -807,68 +889,68 @@ const kShapes: MacroDef[] = [
   },
   {
     name: "intersect",
-    symbols: ["k:number?", "...c"],
-    body: "`(shape intersect ,k ,@c)",
+    symbols: ["k", "...c"],
+    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape intersect ,@c)) (shape intersect kval ,@c)))",
   },
   {
     name: "difference",
-    symbols: ["k:number?", "a b"],
-    body: "`(shape union ,k ,a ,b)",
+    symbols: ["k", "...c"],
+    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape difference ,@c)) (shape difference kval ,@c)))",
   },
   {
     name: "scale",
-    symbols: ["s", "...c"],
-    body: "`(shape scale ,s ,@c)",
+    symbols: ["s", "c"],
+    body: "`(shape scale ,s ,c)",
   },
   {
     name: "translate",
-    symbols: ["v", "...c"],
-    body: "`(shape translate ,v ,@c)",
+    symbols: ["v", "c"],
+    body: "`(shape translate ,v ,c)",
   },
   {
     name: "translate-x",
-    symbols: ["x", "...c"],
-    body: "`(shape translate (vec ,x 0 0) ,@c)",
+    symbols: ["x", "c"],
+    body: "`(let ((xval ,x) (cval ,c)) (shape translate (vec xval 0 0) cval))",
   },
   {
     name: "translate-y",
-    symbols: ["z", "...c"],
-    body: "`(shape translate (vec 0 ,y 0) ,@c)",
+    symbols: ["y", "c"],
+    body: "`(let ((yval ,y) (cval ,c)) (shape translate (vec 0 yval 0) cval))",
   },
   {
     name: "translate-z",
-    symbols: ["z", "...c"],
-    body: "`(shape translate (vec 0 0 ,y) ,@c)",
+    symbols: ["z", "c"],
+    body: "`(let ((zval ,z) (cval ,c)) (shape translate (vec 0 0 zval) cval))",
   },
   {
     name: "rotate",
-    symbols: ["a", "theta", "...c"],
-    body: "`(shape rotate ,a ,theta ,@c)",
+    symbols: ["a", "theta", "c"],
+    body: "`(shape rotate ,a ,theta ,c)",
   },
   {
     name: "rotate-x",
-    symbols: ["theta", "...c"],
-    body: "`(shape rotate #<1 0 0> ,theta ,@c)",
+    symbols: ["theta", "c"],
+    body: "`(shape rotate #<1 0 0> ,theta ,c)",
   },
   {
     name: "rotate-y",
-    symbols: ["theta", "...c"],
-    body: "`(shape rotate #<0 1 0> ,theta ,@c)",
+    symbols: ["theta", "c"],
+    body: "`(shape rotate #<0 1 0> ,theta ,c)",
   },
   {
     name: "rotate-z",
-    symbols: ["theta", "...c"],
-    body: "`(shape rotate #<0 0 1> ,theta ,@c)",
+    symbols: ["theta", "c"],
+    body: "`(shape rotate #<0 0 1> ,theta ,c)",
   },
   {
     name: "smooth",
-    symbols: ["k", "...c"],
-    body: "`(shape smooth ,k ,@c)",
+    symbols: ["k", "c"],
+    body: "`(shape smooth ,k ,c)",
   },
   {
     name: "abrupt",
-    symbols: ["...c"],
-    body: "`(shape smooth 0 ,@c)",
+    symbols: [".c"],
+    body: "`(shape smooth 0 ,c)",
   },
   {
     name: "ellipsoid",

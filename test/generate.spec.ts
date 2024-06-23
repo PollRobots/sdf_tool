@@ -149,20 +149,51 @@ describe("generate", () => {
     const shape = evaluate(read("(sphere #<1 2 3> 4)")[0], env);
     expect(generate(shape, env, ctx)).to.have.property(
       "code",
-      "sdfSphere(vec3<f32>(1, 2, 3), 4)"
+      "sdfSphere(p, t, k, vec3<f32>(1, 2, 3), 4)"
     );
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
 
-  it("if generates conditional", () => {
+  it("shape special form expands in placeholder", () => {
     const env = new Env();
     addBuiltins(env);
+    const ctx = makeContext({});
+    const shape = evaluate(read("(sphere #<1 :x 3> 4)")[0], env);
+    expect(generate(shape, env, ctx)).to.have.property(
+      "code",
+      "sdfSphere(p, t, k, vec3<f32>(1, uniforms.values[0], 3), 4)"
+    );
+    expect(ctx.dependencies).to.have.key("sdfSphere");
+  });
+
+  it("if generates conditional when both branches are immediate", () => {
+    const env = new Env();
+    addBuiltins(env);
+    const ctx = makeContext({});
 
     const cond = read("(if (< 1 :x) (splat 3) 4)")[0];
-    const ctx = makeContext({ log: console.log });
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
       "1 < uniforms.values[0] ? vec3<f32>(3) : vec3<f32>(4)"
+    );
+  });
+
+  it("if generates if when either branch is not immediate", () => {
+    const env = new Env();
+    addBuiltins(env);
+    const ctx = makeContext({});
+
+    const cond = read(
+      "(if (< 1 :x) (smooth 0.1 (sphere #<1> 1)) (sphere #<2> 2))"
+    )[0];
+    expect(generate(cond, env, ctx)).to.have.property(
+      "code",
+      `if (1 < uniforms.values[0]) {
+  var k = 0.1;
+  res = sdfSphere(p, t, k, vec3<f32>(1), 1);
+} else {
+  res = sdfSphere(p, t, k, vec3<f32>(2), 2);
+}`
     );
   });
 });

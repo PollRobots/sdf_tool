@@ -124,6 +124,19 @@ export const makeVector = (x: number, y: number, z: number): Expression => {
   return { type: "vector", value: { x: x, y: y, z: z } };
 };
 
+export const isShape = (expr: Expression): boolean => expr.type === "shape";
+export const isTransform = (expr: Expression): boolean => {
+  if (isShape(expr)) {
+    const shape = expr.value as Shape;
+    return (
+      shape.type === "scale" ||
+      shape.type === "rotate" ||
+      shape.type === "translate"
+    );
+  }
+  return false;
+};
+
 export const isPlaceholder = (expr: Expression): boolean =>
   expr.type === "placeholder";
 

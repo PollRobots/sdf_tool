@@ -320,16 +320,6 @@ describe("special forms", () => {
   });
 
   it("should handle variable length macro args", () => {
-    expect(print(basicEval("(scale 2)"))).to.equal("#shape<scale: 2>");
-    expect(print(basicEval("(scale 2 (sphere #<1 2 3> 7))"))).to.equal(
-      "#shape<scale: 2 #shape<sphere: #<1 2 3> 7>>"
-    );
-    expect(
-      print(basicEval("(scale 2 (sphere #<1 2 3> 7) (sphere #<3 2 1> 4))"))
-    ).to.equal(
-      "#shape<scale: 2 #shape<sphere: #<1 2 3> 7> #shape<sphere: #<3 2 1> 4>>"
-    );
-
     expect(
       print(basicEval("(union (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
     ).to.equal(

@@ -1,9 +1,9 @@
-import { Token, Expression, kEmptyList } from "./dsl";
+import { Token, Expression, kEmptyList, isIdentifier } from "./dsl";
 
 export const tokenize = (input: string): Token[] => {
   const tokens: Token[] = [];
 
-  const identifier_re = /^[a-zA-Z0-9_+\-*\/<>=!?]+$/;
+  const identifier_re = /^[a-zA-Z0-9_+\-*\/<>=!?.]+$/;
 
   let offset = 0;
   let start = 0;
@@ -101,7 +101,7 @@ export const tokenize = (input: string): Token[] => {
           }
           break;
         case "number":
-          if (ch.match(/[\s();]/)) {
+          if (ch.match(/[\s(),;]/)) {
             if (accum == "+" || accum == "-") {
               mode = "identifier";
               repeat = true;
@@ -174,7 +174,9 @@ export const tokenize = (input: string): Token[] => {
               });
               mode = "base";
             } catch (err) {
-              throw new Error(`Error parsing vector '${accum}' at ${start}`);
+              throw new Error(
+                `Error parsing vector '${accum}' at ${start}: ${err}`
+              );
             }
           } else {
             accum += ch;
@@ -199,8 +201,12 @@ export const parse = (tokens: Token[]): Expression[] => {
   const lists: Expression[][] = [];
   const readerMacros: string[] = [];
   let currReaderMacro: string | undefined = undefined;
+  let isVector = false;
 
   const addExpression = (expr: Expression) => {
+    if (isVector && currReaderMacro === "unquote") {
+      currReaderMacro = undefined;
+    }
     if (currReaderMacro) {
       expr = {
         type: "list",
@@ -225,6 +231,7 @@ export const parse = (tokens: Token[]): Expression[] => {
           lists.push([]);
           readerMacros.push(currReaderMacro);
           currReaderMacro = undefined;
+          isVector = false;
         } else if (curr.value === ")") {
           // pop current list and add to result
           if (lists.length == 0) {
@@ -256,12 +263,30 @@ export const parse = (tokens: Token[]): Expression[] => {
             `Unknown punctuation '${curr.value}' at ${curr.offset}`
           );
         }
+        isVector = false;
+        if (lists.length !== 0) {
+          const currTop = lists[lists.length - 1];
+          if (
+            currTop.length > 0 &&
+            isIdentifier(currTop[0]) &&
+            currTop[0].value === "vec"
+          ) {
+            isVector = true;
+          }
+        }
         break;
       case "identifier":
         addExpression({
           type: "identifier",
           value: curr.value,
         });
+        if (
+          curr.value === "vec" &&
+          lists.length !== 0 &&
+          lists[lists.length - 1].length === 1
+        ) {
+          isVector = true;
+        }
         break;
       case "number":
         addExpression({ type: "number", value: curr.value });
