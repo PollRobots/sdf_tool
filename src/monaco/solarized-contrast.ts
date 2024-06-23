@@ -1,5 +1,6 @@
 import monaco from "monaco-editor";
 import { BaseColors, Theme } from "./theme";
+import { kSolarizedNamedColors } from "./solarized";
 
 const kSolarizedContrastColors: BaseColors = {
   base03: "#001014", // 'brblack',
@@ -10,14 +11,7 @@ const kSolarizedContrastColors: BaseColors = {
   base1: "#adb8b8", // 'brcyan',
   base2: "#f5f1e6", // 'white'
   base3: "#fefaf1", // 'brwhite'
-  yellow: "#b58900", // 'yellow',
-  orange: "#cb4b16", // 'brred',
-  red: "#dc322f", // 'red',
-  magenta: "#d33682", // 'magenta',
-  violet: "#6c71c4", // 'brmagenta',
-  blue: "#268bd2", // 'blue',
-  cyan: "#2aa198", // 'cyan',
-  green: "#859900", // 'green',
+  ...kSolarizedNamedColors,
 };
 
 export const kSolarizedContrastDark: Theme = {
@@ -39,8 +33,10 @@ export const kSolarizedContrastLight: Theme = {
 };
 
 export function defineThemes() {
-  // @ts-ignore
-  window.monaco.editor.defineTheme(kSolarizedContrastDark.name, {
+  const defineTheme: typeof monaco.editor.defineTheme = (window as any).monaco
+    .editor.defineTheme;
+
+  defineTheme(kSolarizedContrastDark.name, {
     base: "vs-dark",
     inherit: false,
     rules: [
@@ -68,8 +64,8 @@ export function defineThemes() {
       "editorLineNumber.foreground": kSolarizedContrastColors.base00,
     },
   });
-  // @ts-ignore
-  window.monaco.editor.defineTheme(kSolarizedContrastLight.name, {
+
+  defineTheme(kSolarizedContrastLight.name, {
     base: "vs",
     inherit: false,
     rules: [
@@ -80,7 +76,7 @@ export function defineThemes() {
       { token: "string.character", foreground: kSolarizedContrastLight.cyan },
       { token: "string", foreground: kSolarizedContrastLight.cyan },
       { token: "number", foreground: kSolarizedContrastLight.blue },
-      { token: "comment", foreground: kSolarizedContrastLight.base1 },
+      { token: "comment", foreground: kSolarizedContrastLight.base01 },
       { token: "operators", foreground: kSolarizedContrastLight.green },
       { token: "delimiter", foreground: kSolarizedContrastLight.base01 },
       { token: "variable", foreground: kSolarizedContrastLight.green },

@@ -2,7 +2,8 @@ import React from "react";
 import monaco from "monaco-editor";
 import { registerLanguage } from "./monaco/language";
 import * as solarized from "./monaco/solarized";
-import * as solarizedContrast from "./monaco/solarized";
+import * as solarizedContrast from "./monaco/solarized-contrast";
+import * as terminal from "./monaco/terminal";
 
 export interface EditorProps {
   style?: React.CSSProperties;
@@ -49,6 +50,7 @@ export const Editor: React.FC<EditorProps> = (props) => {
     registerLanguage();
     solarized.defineThemes();
     solarizedContrast.defineThemes();
+    terminal.defineThemes();
 
     const editor = createEditor(ref.current, {
       language: props.defaultLanguage,

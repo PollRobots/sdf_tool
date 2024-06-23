@@ -23,6 +23,15 @@ interface DslEditorProps {
   onDoneEditing: (line: string) => void;
 }
 
+const checkForForcedTheme = (name: string): string => {
+  if (window.matchMedia("(forced-colors: active)").matches) {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "hc-dark"
+      : "hc-light";
+  }
+  return name;
+};
+
 const DslEditor: React.FC<DslEditorProps> = (props) => {
   const timeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
   const [canPaste, setCanPaste] = React.useState(true);
@@ -137,6 +146,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
         <EditorThemeContext.Consumer>
           {(maybeTheme) => {
             const editorTheme = maybeTheme || theme;
+            const themeName = checkForForcedTheme(editorTheme.name);
             return (
               <div
                 style={{
@@ -355,7 +365,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     minWidth: "50vw",
                     maxWidth: "calc(95vw - 8rem)",
                   }}
-                  theme={editorTheme.name}
+                  theme={themeName}
                   defaultLanguage={kLanguageId}
                   defaultValue={props.line}
                   onMount={(mounted: monaco.editor.IStandaloneCodeEditor) =>

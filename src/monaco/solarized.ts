@@ -1,5 +1,16 @@
 import monaco from "monaco-editor";
-import { BaseColors, Theme } from "./theme";
+import { BaseColors, NamedColors, Theme } from "./theme";
+
+export const kSolarizedNamedColors: NamedColors = {
+  yellow: "#b58900", // 'yellow',
+  orange: "#cb4b16", // 'brred',
+  red: "#dc322f", // 'red',
+  magenta: "#d33682", // 'magenta',
+  violet: "#6c71c4", // 'brmagenta',
+  blue: "#268bd2", // 'blue',
+  cyan: "#2aa198", // 'cyan',
+  green: "#859900", // 'green',
+};
 
 const kSolarizedColors: BaseColors = {
   base03: "#002b36", // 'brblack',
@@ -10,14 +21,7 @@ const kSolarizedColors: BaseColors = {
   base1: "#93a1a1", // 'brcyan',
   base2: "#eee8d5", // 'white'
   base3: "#fdf6e3", // 'brwhite'
-  yellow: "#b58900", // 'yellow',
-  orange: "#cb4b16", // 'brred',
-  red: "#dc322f", // 'red',
-  magenta: "#d33682", // 'magenta',
-  violet: "#6c71c4", // 'brmagenta',
-  blue: "#268bd2", // 'blue',
-  cyan: "#2aa198", // 'cyan',
-  green: "#859900", // 'green',
+  ...kSolarizedNamedColors,
 };
 
 export const kSolarizedDark: Theme = {
@@ -39,8 +43,10 @@ export const kSolarizedLight: Theme = {
 };
 
 export function defineThemes() {
-  // @ts-ignore
-  window.monaco.editor.defineTheme(kSolarizedDark.name, {
+  const defineTheme: typeof monaco.editor.defineTheme = (window as any).monaco
+    .editor.defineTheme;
+
+  defineTheme(kSolarizedDark.name, {
     base: "vs-dark",
     inherit: false,
     rules: [
@@ -68,8 +74,8 @@ export function defineThemes() {
       "editorLineNumber.foreground": kSolarizedColors.base00,
     },
   });
-  // @ts-ignore
-  window.monaco.editor.defineTheme(kSolarizedLight.name, {
+
+  defineTheme(kSolarizedLight.name, {
     base: "vs",
     inherit: false,
     rules: [
@@ -80,7 +86,7 @@ export function defineThemes() {
       { token: "string.character", foreground: kSolarizedLight.cyan },
       { token: "string", foreground: kSolarizedLight.cyan },
       { token: "number", foreground: kSolarizedLight.blue },
-      { token: "comment", foreground: kSolarizedLight.base1 },
+      { token: "comment", foreground: kSolarizedLight.base01 },
       { token: "operators", foreground: kSolarizedLight.green },
       { token: "delimiter", foreground: kSolarizedLight.base01 },
       { token: "variable", foreground: kSolarizedLight.green },
