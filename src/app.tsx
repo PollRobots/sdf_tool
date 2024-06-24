@@ -17,6 +17,7 @@ import { evaluate } from "./evaluate";
 import { generate, indent, makeContext } from "./generate";
 import { getShapeFn } from "./shapes";
 import wgslTemplate from "./sdf/map.wgsl";
+import { Uniform, UniformEditor, kDefaultUniform } from "./uniform";
 
 const DslEditor = React.lazy(async () => {
   await ((window as any).getMonaco as () => Promise<void>)();
@@ -51,7 +52,7 @@ export const App: React.FC = () => {
   const [generated, setGenerated] = React.useState("");
   const [errors, setErrors] = React.useState("");
   const [uniforms, setUniforms] = React.useState<string[]>([]);
-  const [values, setValues] = React.useState<Map<string, number>>(new Map());
+  const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
 
   const currTheme = kEditorThemes.get(theme) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
@@ -60,10 +61,9 @@ export const App: React.FC = () => {
     updateStyleSheet(currTheme);
   }
 
-  const setUniformValue = (name: string, value: string) => {
-    const updated = new Map<string, number>(values.entries());
-    const num = Number(value);
-    updated.set(name, isNaN(num) ? 0 : num);
+  const setUniformValue = (name: string, value: Uniform) => {
+    const updated = new Map(values.entries());
+    updated.set(name, value);
     setValues(updated);
   };
 
@@ -207,21 +207,12 @@ ${el.code}
               }}
             >
               {uniforms.map((el) => (
-                <React.Fragment key={el}>
-                  <div style={{ fontWeight: "bolder" }}>{el}:</div>
-                  <input
-                    type="range"
-                    value={values.get(el) || 0}
-                    onChange={(e) => setUniformValue(el, e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    placeholder={`value of ${el}`}
-                    value={values.get(el) || 0}
-                    onChange={(e) => setUniformValue(el, e.target.value)}
-                  />
-                  <div />
-                </React.Fragment>
+                <UniformEditor
+                  key={el}
+                  name={el}
+                  {...(values.get(el) || kDefaultUniform)}
+                  onChange={(v) => setUniformValue(el, v)}
+                />
               ))}
             </div>
           )}
