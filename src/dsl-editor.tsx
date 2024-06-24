@@ -90,41 +90,12 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     if (!editor) {
       return;
     }
-    const raw = editor.getValue();
-    if (raw.trim() === "") {
+    const raw = editor.getValue().trim();
+    if (raw === "") {
       return;
     }
 
-    const lines: string[] = [];
-    const log: string[] = [];
-    try {
-      const parsed = read(raw);
-
-      lines.push("Parsed:");
-      lines.push(...parsed.map((el) => print(el)));
-
-      const env = new Env();
-      addBuiltins(env);
-      const res = parsed
-        .map((expr) => evaluate(expr, env))
-        .filter((expr) => expr.type !== "null");
-
-      lines.push("", "Evaluated:");
-      lines.push(...res.map((el) => print(el)));
-
-      const ctx = makeContext({
-        log: (...args) => log.push(args.map((el) => el.toString()).join(" ")),
-      });
-      const generated = res.map((expr) => generate(expr, env, ctx));
-      lines.push("", "Generated:");
-      lines.push(...generated.map((el) => el.code));
-    } catch (err) {
-      if (log.length > 0) {
-        lines.unshift(`Generator log:`, ...log, "");
-      }
-      lines.unshift(`Error parsing: ${err}`, "");
-    }
-    props.onGenerating(lines.join("\n"));
+    props.onGenerating(raw);
   };
 
   React.useEffect(() => {

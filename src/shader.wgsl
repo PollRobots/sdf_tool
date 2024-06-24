@@ -34,12 +34,17 @@ fn opUnion(a: vec4<f32>, b: vec4<f32>) -> vec4<f32> {
     return select(b, a, a.x < b.x);
 }
 
-fn map(pos: vec3<f32>) -> vec4<f32> {
+fn map(pos: vec3<f32>) -> f32 {
     //var res = vec4<f32>(pos.y, 0, 0, 0);
 
     // res = opUnion(res, vec4<f32>(sdSphere(pos - vec3<f32>(-2, 0.25, 0), 0.25), 1, 0 ,0));
-    var res = vec4<f32>(sdSphere(pos - vec3<f32>(-0, 0.25, 0), 0.25), 0.3, 0 ,0);
+    var res = sdSphere(pos - vec3<f32>(0, 1, 0), 1);
     return res;
+}
+
+
+fn colormap(pos: vec3<f32>) -> vec4<f32> {
+    return vec4<f32>(map(pos), 0.3, 0, 0);
 }
 
 fn raycast(ro:vec3<f32>, rd:vec3<f32>) -> vec4<f32> {
@@ -56,7 +61,7 @@ fn raycast(ro:vec3<f32>, rd:vec3<f32>) -> vec4<f32> {
 
     var t = tmin;
     for (var i = 0; i < 70 && t < tmax; i++) {
-        var h = map(ro + rd * t);
+        var h = colormap(ro + rd * t);
         if (abs(h.x) < 1e-4 * t) {
             return vec4<f32>(t, h.y, h.z, h.w);
         }
@@ -78,7 +83,7 @@ fn calcSoftShadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, tmax: f32) -> f32
     var res = 1.0;
     var t = mint;
     for (var i = 0; i < 24; i++) {
-        var h = map(ro+rd*t).x;
+        var h = map(ro+rd*t);
         var s = clamp(8.0* h / t, 0, 1);
         res = min(res, s);
         t += clamp(h, 0.01, 0.2);
@@ -91,10 +96,10 @@ fn calcSoftShadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, tmax: f32) -> f32
 }
 
 fn calcNormal(pos: vec3<f32>) -> vec3<f32> {
-    return normalize(EPSILON.xyy * map(pos + EPSILON.xyy).x +
-                     EPSILON.yyx * map(pos + EPSILON.yyx).x +
-                     EPSILON.yxy * map(pos + EPSILON.yxy).x +
-                     EPSILON.xxx * map(pos + EPSILON.xxx).x);
+    return normalize(EPSILON.xyy * map(pos + EPSILON.xyy) +
+                     EPSILON.yyx * map(pos + EPSILON.yyx) +
+                     EPSILON.yxy * map(pos + EPSILON.yxy) +
+                     EPSILON.xxx * map(pos + EPSILON.xxx));
 }
 
 fn calcAO(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
@@ -102,7 +107,7 @@ fn calcAO(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
     var sca: f32 = 0;
     for (var i = 0; i < 5; i++) {
         var h = 0.01 + 0.12*f32(1) / 4;
-        var d= map(pos + h * nor).x;
+        var d = map(pos + h * nor);
         occ += (h - d) * sca;
         sca *= 0.95;
         if (occ > 0.35) {
@@ -178,7 +183,7 @@ fn render(ro: vec3<f32>, rd:vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<f
         // sss?
         {
             var dif = pow(saturate(1 + dot(nor, rd)), 2);
-            // occ?
+            dif *= occ;
             lin += col * 0.25 * dif;
         }
 
@@ -215,7 +220,7 @@ fn frag_main(
     var fragCoord = frag.uv * uniforms.resolution.xy;
     var p = (2.0 * fragCoord - uniforms.resolution.xy) / uniforms.resolution.y;
 
-    const fl:f32 = 2.5;
+    const fl:f32 = 1;
     var rd = ca * normalize(vec3<f32>(p, fl));
     var px = (2 * (fragCoord + vec2<f32>(1,0)) - uniforms.resolution.xy) / uniforms.resolution.y;
     var py = (2 * (fragCoord + vec2<f32>(0,1)) - uniforms.resolution.xy) / uniforms.resolution.y;

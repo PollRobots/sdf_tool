@@ -47,15 +47,14 @@ export interface GenerateContext {
 
 export const makeContext = (
   ctx: Partial<GenerateContext>
-): GenerateContext => ({ ...kDefaultContext, ...ctx });
-
-const kDefaultContext: GenerateContext = {
+): GenerateContext => ({
   log: () => {},
   dependencies: new Set(),
   uniforms: [],
-};
+  ...ctx,
+});
 
-const indent = (code: string, strip?: boolean): string[] => {
+export const indent = (code: string, strip?: boolean): string[] => {
   const lines = code.split("\n");
   if (strip) {
     if (lines[0] === "{" && lines[lines.length - 1] === "}") {
@@ -422,13 +421,14 @@ const generateImpl = (
       );
   }
 };
+
 export const generate = (
   expr: Expression,
   env: Env,
   ctx?: GenerateContext
 ): Generated => {
   if (!ctx) {
-    ctx = { ...kDefaultContext };
+    ctx = makeContext({});
   }
 
   ctx.log("Generate:", print(expr));

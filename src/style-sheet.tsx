@@ -95,6 +95,15 @@ export const updateStyleSheet = (theme: Theme) => {
         clip-path: unset;
     }
 `);
+  styles.push(`
+    input[type="text"] {
+        background-color: ${theme.boldBackground};
+        color: ${theme.foreground};
+        padding: 0.25em 0.5em;
+        border: 2px solid ${theme.base00};
+        border-radius: 4px;
+    }
+`);
   new CSSStyleSheet()
     .replace(styles.join("\n"))
     .then((sheet) => {
