@@ -98,7 +98,7 @@ export interface Macro {
   closure: Env;
 }
 
-export type GeneratedType = "float" | "vec" | "void";
+export type GeneratedType = "float" | "vec" | "sdf" | "void";
 
 export interface Generated {
   code: string;

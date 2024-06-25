@@ -98,7 +98,7 @@ const generateImpl = (
                   case "void":
                     lines.push(...indent(branch.code, true));
                     break;
-                  case "float":
+                  case "sdf":
                     lines.push(`  res = ${branch.code};`);
                     break;
                   default:
@@ -189,7 +189,7 @@ const generateImpl = (
           );
           const smoothed = generate(shape.args[1], env, ctx);
           switch (smoothed.type) {
-            case "float":
+            case "sdf":
               lines.push(`  res = ${smoothed.code};`);
               break;
             case "void":
@@ -217,7 +217,7 @@ const generateImpl = (
             .map((el) => generate(el, env, ctx))
             .forEach((el, i) => {
               switch (el.type) {
-                case "float":
+                case "sdf":
                   lines.push(
                     i == 0
                       ? `  res = ${el.code};`
@@ -260,17 +260,17 @@ const generateImpl = (
           ctx.dependencies.add("sdfDifferences");
           const diff_left = generate(shape.args[0], env, ctx);
           const diff_right = generate(shape.args[1], env, ctx);
-          if (diff_left.type === "float" && diff_right.type === "float") {
+          if (diff_left.type === "sdf" && diff_right.type === "sdf") {
             return {
               code: `sdfDifference(p, t, k, ${diff_left.code}, ${diff_right.code})`,
-              type: "float",
+              type: "sdf",
             };
           }
           lines.push("{");
           [diff_left, diff_right].forEach((el, i) => {
             const diff_var = i == 0 ? "diff_left" : "diff_right";
             switch (el.type) {
-              case "float":
+              case "sdf":
                 lines.push(`  var ${diff_var} = ${el.code};`);
                 break;
               case "void":
@@ -318,7 +318,7 @@ const generateImpl = (
           }
           const scale_target = generate(shape.args[1], env, ctx);
           switch (scale_target.type) {
-            case "float":
+            case "sdf":
               lines.push(`  res = ${scale_target.code};`);
               break;
             case "void":
@@ -359,7 +359,7 @@ const generateImpl = (
           );
           const rotate_target = generate(shape.args[2], env, ctx);
           switch (rotate_target.type) {
-            case "float":
+            case "sdf":
               lines.push(`  res = ${rotate_target.code};`);
               break;
             case "void":
@@ -386,7 +386,7 @@ const generateImpl = (
             code: `${name}(p, t, k, ${shape_args
               .map((el) => el.code)
               .join(", ")})`,
-            type: "float",
+            type: "sdf",
           };
       }
     case "placeholder":
