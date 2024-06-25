@@ -121,23 +121,54 @@ interface UniformSettingsProps extends UniformSettings {
 }
 
 const kPresetsMap: Map<string, UniformSettings> = new Map([
-  ["one", { min: 0, max: 1, step: 0.05, logarithmic: false }],
-  ["two", { min: 0, max: 2, step: 0.05, logarithmic: false }],
-  ["five", { min: 0, max: 5, step: 0.05, logarithmic: false }],
-  ["ten", { min: 0, max: 10, step: 0.5, logarithmic: false }],
-  ["twenty", { min: 0, max: 20, step: 0.5, logarithmic: false }],
-  ["fifty", { min: 0, max: 50, step: 0.5, logarithmic: false }],
-  ["hundred", { min: 0, max: 100, step: 5, logarithmic: false }],
-  ["pm_one", { min: -1, max: 1, step: 0.1, logarithmic: false }],
-  ["pm_two", { min: -2, max: 2, step: 0.1, logarithmic: false }],
-  ["pm_five", { min: -5, max: 5, step: 0.1, logarithmic: false }],
-  ["pm_ten", { min: -10, max: 10, step: 1, logarithmic: false }],
-  ["pm_twenty", { min: -20, max: 20, step: 1, logarithmic: false }],
-  ["pm_fifty", { min: -50, max: 50, step: 1, logarithmic: false }],
-  ["pm_hundred", { min: -100, max: 100, step: 10, logarithmic: false }],
+  ["k", { min: 0, max: 0.2, step: 0.001, logarithmic: false }],
+  ["theta", { min: -180, max: 180, step: 1, logarithmic: false }],
+  ["one", { min: 0, max: 1, step: 0.01, logarithmic: false }],
+  ["two", { min: 0, max: 2, step: 0.01, logarithmic: false }],
+  ["five", { min: 0, max: 5, step: 0.01, logarithmic: false }],
+  ["ten", { min: 0, max: 10, step: 0.1, logarithmic: false }],
+  ["twenty", { min: 0, max: 20, step: 0.1, logarithmic: false }],
+  ["fifty", { min: 0, max: 50, step: 0.1, logarithmic: false }],
+  ["hundred", { min: 0, max: 100, step: 1, logarithmic: false }],
+  ["pm_one", { min: -1, max: 1, step: 0.01, logarithmic: false }],
+  ["pm_two", { min: -2, max: 2, step: 0.01, logarithmic: false }],
+  ["pm_five", { min: -5, max: 5, step: 0.01, logarithmic: false }],
+  ["pm_ten", { min: -10, max: 10, step: 0.1, logarithmic: false }],
+  ["pm_twenty", { min: -20, max: 20, step: 0.1, logarithmic: false }],
+  ["pm_fifty", { min: -50, max: 50, step: 0.1, logarithmic: false }],
+  ["pm_hundred", { min: -100, max: 100, step: 1, logarithmic: false }],
 ]);
 
+const makeUniform = (settings: UniformSettings): Uniform => {
+  if (!settings) {
+    settings = kDefaultUniform;
+  }
+  return {
+    value:
+      0 >= settings.min && 0 <= settings.max
+        ? 0
+        : (settings.min + settings.max) / 2,
+    ...settings,
+  };
+};
+
+export const getDefaultUniform = (name: string): Uniform => {
+  if (name === "k") {
+    return makeUniform(kPresetsMap.get("k"));
+  } else if (
+    name === "theta" ||
+    name === "alpha" ||
+    name === "beta" ||
+    name === "phi"
+  ) {
+    return makeUniform(kPresetsMap.get("theta"));
+  }
+  return kDefaultUniform;
+};
+
 const kPresetsNames: Map<string, string> = new Map([
+  ["k", "smooth"],
+  ["theta", "degrees"],
   ["one", "0 → 1"],
   ["two", "0 → 2"],
   ["five", "0 → 5"],

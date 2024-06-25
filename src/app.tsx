@@ -17,7 +17,12 @@ import { evaluate } from "./evaluate";
 import { generate, indent, makeContext } from "./generate";
 import { getShapeFn } from "./shapes";
 import wgslTemplate from "./sdf/map.wgsl";
-import { Uniform, UniformEditor, kDefaultUniform } from "./uniform";
+import {
+  Uniform,
+  UniformEditor,
+  getDefaultUniform,
+  kDefaultUniform,
+} from "./uniform";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 
 const DslEditor = React.lazy(async () => {
@@ -227,7 +232,7 @@ ${el.code}
                 <UniformEditor
                   key={el}
                   name={el}
-                  {...(values.get(el) || kDefaultUniform)}
+                  {...(values.get(el) || getDefaultUniform(el))}
                   onChange={(v) => setUniformValue(el, v)}
                 />
               ))}

@@ -12,6 +12,26 @@ import {
 import { Env } from "./env";
 import { evaluate } from "./evaluate";
 import { print } from "./print";
+import {
+  generateConstAngleRotationMatrix,
+  generateConstAxisRotationMatrix,
+  generateConstRotationMatrix,
+} from "./rotate";
+
+const isConstNumber = (value: Generated) =>
+  value.type === "float" && !isNaN(Number(value.code));
+
+const isConstVector = (value: Generated) => {
+  if (value.type !== "vec") {
+    return false;
+  }
+  const m = value.code.match(/^vec3\<f32\>\(([^)]*)\)$/);
+  if (!m) {
+    return false;
+  }
+  var parts = m[1].split(",");
+  return parts.length == 3 && parts.every((el) => !isNaN(Number(el)));
+};
 
 export const coerce = (value: Generated, type: GeneratedType): Generated => {
   if (value.type === type) {
@@ -54,14 +74,19 @@ export const makeContext = (
   ...ctx,
 });
 
-export const indent = (code: string, strip?: boolean): string[] => {
+interface IndentOptions {
+  pad?: string;
+  strip?: boolean;
+}
+
+export const indent = (code: string, options: IndentOptions = {}): string[] => {
   const lines = code.split("\n");
-  if (strip) {
+  if (options.strip) {
     if (lines[0] === "{" && lines[lines.length - 1] === "}") {
       return lines.slice(1, lines.length - 1);
     }
   } else {
-    return code.split("\n").map((el) => "  " + el);
+    return code.split("\n").map((el) => (options.pad || "  ") + el);
   }
 };
 
@@ -96,7 +121,7 @@ const generateImpl = (
               branches.forEach((branch, i) => {
                 switch (branch.type) {
                   case "void":
-                    lines.push(...indent(branch.code, true));
+                    lines.push(...indent(branch.code, { strip: true }));
                     break;
                   case "sdf":
                     lines.push(`  res = ${branch.code};`);
@@ -194,7 +219,10 @@ const generateImpl = (
               break;
             case "void":
               lines.push(
-                ...removeDeclarations("k", indent(smoothed.code, true))
+                ...removeDeclarations(
+                  "k",
+                  indent(smoothed.code, { strip: true })
+                )
               );
               break;
             default:
@@ -250,8 +278,8 @@ const generateImpl = (
                   lines.push(...indent(el.code));
                   lines.push(
                     zeroK
-                      ? "  res = ${ui_op}(tmp_res, res)"
-                      : "  res = ${ui_op}(k, tmp_res, res);"
+                      ? `  res = ${ui_op}(tmp_res, res);`
+                      : `  res = ${ui_op}(k, tmp_res, res);`
                   );
                 }
                 break;
@@ -274,7 +302,7 @@ const generateImpl = (
               `difference must have two or three arguments, found ${shape.args.length}`
             );
           }
-          ctx.dependencies.add("sdfDifferences");
+          ctx.dependencies.add("sdfDifference");
           const diff_args = shape.args.map((el) => generate(el, env, ctx));
           let diff_k = "k";
           if (diff_args.length == 3) {
@@ -288,11 +316,15 @@ const generateImpl = (
             diff_k = diff_args[0].code;
             diff_args.shift();
           }
-          const diff_left = generate(shape.args[0], env, ctx);
-          const diff_right = generate(shape.args[1], env, ctx);
+          const diff_left = diff_args[0];
+          const diff_right = diff_args[1];
           if (diff_left.type === "sdf" && diff_right.type === "sdf") {
             return {
-              code: `sdfDifference(${diff_k}, ${diff_left.code}, ${diff_right.code})`,
+              code: [
+                `sdfDifference(${diff_k},`,
+                `    ${diff_left.code},`,
+                `    ${diff_right.code})`,
+              ].join("\n"),
               type: "sdf",
             };
           }
@@ -323,6 +355,67 @@ const generateImpl = (
             type: "void",
           };
         case "scale":
+          if (shape.args.length !== 2) {
+            throw new Error(
+              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
+            );
+          }
+          const scale_factor = generate(shape.args[0], env, ctx);
+          if (scale_factor.type !== "float") {
+            throw new Error(
+              `scale factor must be a number, found ${print(shape.args[0])}`
+            );
+          }
+          const scale_target = generate(shape.args[1], env, ctx);
+          const scale = Number(scale_factor.code);
+          lines.push("{");
+          if (!isNaN(scale)) {
+            if (scale == 0) {
+              return {
+                type: "sdf",
+                code: "1e5",
+              };
+            }
+            lines.push(`    var p = p / ${scale_factor.code};`);
+            switch (scale_target.type) {
+              case "sdf":
+                lines.push(
+                  `    res = ${scale_factor.code} * ${scale_target.code};`
+                );
+                break;
+              case "void":
+                lines.push(...indent(scale_factor.code, { strip: true }));
+                lines.push("  res *= scale;");
+              default:
+                throw new Error(
+                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
+                );
+            }
+          } else {
+            lines.push(`  var scale = ${scale_factor.code};`);
+            lines.push("  if (scale == 0) {", "    res = 1e5;", "  } else {");
+            lines.push(`    var p = p / scale;`);
+            switch (scale_target.type) {
+              case "sdf":
+                lines.push(`    res = scale * ${scale_target.code};`);
+                break;
+              case "void":
+                lines.push(...indent(scale_factor.code, { pad: "    " }));
+                lines.push("    res *= scale;");
+                break;
+              default:
+                throw new Error(
+                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
+                );
+            }
+            lines.push("  }");
+          }
+          lines.push("}");
+          return {
+            code: lines.join("\n"),
+            type: "void",
+          };
+
         case "translate":
           if (shape.args.length !== 2) {
             throw new Error(
@@ -330,33 +423,20 @@ const generateImpl = (
             );
           }
           lines.push("{");
-          if (shape.type === "scale") {
-            const scale_factor = generate(shape.args[0], env, ctx);
-            if (scale_factor.type !== "float") {
-              throw new Error(
-                `scale factor must be a number, found ${print(shape.args[0])}`
-              );
-            }
-            lines.push(`  var t = sdfScale(t, ${scale_factor.code});`);
-            ctx.dependencies.add("sdfScale");
-          } else {
-            const translation = generate(shape.args[0], env, ctx);
-            if (translation.type !== "vec") {
-              throw new Error(
-                `translation must be a vector, found ${print(shape.args[0])}`
-              );
-            }
-            lines.push(`  var t = sdfTranslate(t, ${translation.code});`);
-            ctx.dependencies.add("sdfTranslate");
+          const translation = generate(shape.args[0], env, ctx);
+          if (translation.type !== "vec") {
+            throw new Error(
+              `translation must be a vector, found ${print(shape.args[0])}`
+            );
           }
-          const scale_target = generate(shape.args[1], env, ctx);
-          switch (scale_target.type) {
+          lines.push(`  var p = p - ${translation.code};`);
+          const translation_target = generate(shape.args[1], env, ctx);
+          switch (translation_target.type) {
             case "sdf":
-              lines.push(`  res = ${scale_target.code};`);
+              lines.push(`  res = ${translation_target.code};`);
               break;
             case "void":
-              const inner = indent(scale_target.code, true);
-              lines.push(...removeDeclarations("t", inner));
+              lines.push(...indent(translation_target.code));
               break;
             default:
               throw new Error(
@@ -387,17 +467,46 @@ const generateImpl = (
             );
           }
           lines.push("{");
-          lines.push(
-            `  var t = sdfRotate(t, ${rotate_axis.code}, ${rotate_angle.code});`
-          );
+          const axisIsConst = isConstVector(rotate_axis);
+          const angleIsConst = isConstNumber(rotate_angle);
+          if (axisIsConst && angleIsConst) {
+            lines.push(
+              ...generateConstRotationMatrix(
+                rotate_axis.code,
+                Number(rotate_angle.code)
+              ),
+              `  var p = rot * p;`
+            );
+          } else if (axisIsConst) {
+            lines.push(
+              ...generateConstAxisRotationMatrix(
+                rotate_axis.code,
+                rotate_angle.code
+              ),
+              `  var p = rot * p;`
+            );
+          } else if (angleIsConst) {
+            lines.push(
+              ...generateConstAngleRotationMatrix(
+                rotate_axis.code,
+                Number(rotate_angle.code)
+              ),
+              "  var p = rot * p;"
+            );
+          } else {
+            lines.push(
+              `  var p = sdfRotate(p, ${rotate_axis.code}, ${rotate_angle.code});`
+            );
+            ctx.dependencies.add("sdfRotate");
+          }
           const rotate_target = generate(shape.args[2], env, ctx);
           switch (rotate_target.type) {
             case "sdf":
               lines.push(`  res = ${rotate_target.code};`);
               break;
             case "void":
-              const inner = indent(rotate_target.code, true);
-              lines.push(...removeDeclarations("t", inner));
+              const inner = indent(rotate_target.code, { strip: true });
+              lines.push(...removeDeclarations("p", inner));
               break;
             default:
               throw new Error(
