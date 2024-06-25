@@ -39,7 +39,7 @@ const requireValueArgs = (name: string, args: Expression[]): Value[] => {
 const requireArity = (
   name: string,
   arity: number,
-  args: Expression[]
+  args: Expression[] | Generated[]
 ): void => {
   if (args.length !== arity) {
     throw new Error(
@@ -51,7 +51,7 @@ const requireArity = (
 const requireMinArity = (
   name: string,
   arity: number,
-  args: Expression[]
+  args: Expression[] | Generated[]
 ): void => {
   if (args.length < arity) {
     throw new Error(
@@ -844,7 +844,10 @@ const kBuiltins: Internal[] = [
       if (hasVectors(args)) {
         args = args.map((el) => coerce(el, "vec"));
       }
-      return { code: `pow(${args.join(", ")})`, type: args[0].type };
+      return {
+        code: `pow(${args.map((el) => el.code).join(", ")})`,
+        type: args[0].type,
+      };
     },
   },
 
@@ -856,6 +859,52 @@ const kBuiltins: Internal[] = [
   makeComparison("neq", (a, b) => (a != b ? 1 : 0)),
 
   ...makeAllSwizzles(),
+
+  {
+    name: "smoothstep",
+    impl: (args) => {
+      requireArity("smoothstep", 3, args);
+      const values = requireValueArgs("smoothstep", args);
+      if (values.some((v) => v.type == "vector")) {
+        const vecs = values.map((v) => getValueAsVector(v));
+        const edge0 = vecs[0];
+        const edge1 = vecs[1];
+        const x = vecs[2];
+        const t: Vector = {
+          x: Math.max(0, Math.min((x.x - edge0.x) / (edge1.x - edge0.x), 1.0)),
+          y: Math.max(0, Math.min((x.y - edge0.y) / (edge1.y - edge0.y), 1.0)),
+          z: Math.max(0, Math.min((x.z - edge0.z) / (edge1.z - edge0.z), 1.0)),
+        };
+        return {
+          type: "vector",
+          value: {
+            x: t.x * t.x * (3 - 2 * t.x),
+            y: t.y * t.y * (3 - 2 * t.y),
+            z: t.z * t.z * (3 - 2 * t.z),
+          },
+        };
+      } else {
+        const edge0 = values[0].value as number;
+        const edge1 = values[1].value as number;
+        const x = values[2].value as number;
+        const t = Math.max(0, Math.min((x - edge0) / (edge1 - edge0), 1.0));
+        return {
+          type: "number",
+          value: t * t * (3 - 2 * t),
+        };
+      }
+    },
+    generate: (args) => {
+      requireArity("smoothstep", 3, args);
+      if (hasVectors(args)) {
+        args = args.map((el) => coerce(el, "vec"));
+      }
+      return {
+        code: `smoothstep(${args.map((el) => el.code).join(", ")})`,
+        type: args[0].type,
+      };
+    },
+  },
 ];
 
 interface MacroDef {
