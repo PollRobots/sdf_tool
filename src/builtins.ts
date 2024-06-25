@@ -344,6 +344,20 @@ const kBuiltins: Internal[] = [
     },
   },
   {
+    name: "sdf",
+    impl: (args) => {
+      requireArity("sdf", 1, args);
+      requireNumber("sdf", 0, args[0]);
+      return args[0];
+    },
+    generate: (args) => {
+      return {
+        code: args[0].code,
+        type: "sdf",
+      };
+    },
+  },
+  {
     name: "+",
     impl: (args) => {
       const accum: Value = { type: "number", value: 0 };
@@ -884,18 +898,18 @@ const kLambdas: MacroDef[] = [
 const kShapes: MacroDef[] = [
   {
     name: "union",
-    symbols: ["k", "...c"],
-    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape union ,@c)) (shape union kval ,@c)))",
+    symbols: ["...c"],
+    body: "`(shape union ,@c)",
   },
   {
     name: "intersect",
-    symbols: ["k", "...c"],
-    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape intersect ,@c)) (shape intersect kval ,@c)))",
+    symbols: ["...c"],
+    body: "`(shape intersect ,@c)",
   },
   {
     name: "difference",
-    symbols: ["k", "...c"],
-    body: "`(let ((kval ,k)) (if (number? kval) (smooth kval (shape difference ,@c)) (shape difference kval ,@c)))",
+    symbols: ["...c"],
+    body: "`(shape difference ,@c)",
   },
   {
     name: "scale",

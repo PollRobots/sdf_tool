@@ -63,6 +63,7 @@ export const UniformEditor: React.FC<UniformProps> = (props) => {
         columnGap: "0.5em",
         gridTemplateColumns: `2em auto 3em ${showProps ? "auto" : "2em"}`,
         gridTemplateRows: "auto auto",
+        alignItems: "center",
       }}
     >
       <div style={{ fontWeight: "bolder" }}>{props.name}:</div>
@@ -93,7 +94,10 @@ export const UniformEditor: React.FC<UniformProps> = (props) => {
           onCancel={() => setShowProps(false)}
         />
       ) : (
-        <button style={{ padding: 0 }} onClick={() => setShowProps(true)}>
+        <button
+          style={{ padding: 0, aspectRatio: 1.2 }}
+          onClick={() => setShowProps(true)}
+        >
           &hellip;
         </button>
       )}
@@ -250,7 +254,13 @@ const UniformSettingsEditor: React.FC<UniformSettingsProps> = (props) => {
         onChange={(e) => setStep(e.target.value)}
       />
       <button
-        style={{ padding: 0, width: "2em", height: "2em" }}
+        style={{
+          padding: 0,
+          width: "2em",
+          height: "2em",
+          fontWeight: "bolder",
+          borderWidth: 1.25,
+        }}
         disabled={!isValid()}
         title="Accept these values"
         onClick={() => commit()}
@@ -258,7 +268,13 @@ const UniformSettingsEditor: React.FC<UniformSettingsProps> = (props) => {
         ✓
       </button>
       <button
-        style={{ padding: 0, width: "2em", height: "2em" }}
+        style={{
+          padding: 0,
+          width: "2em",
+          height: "2em",
+          fontWeight: "bolder",
+          borderWidth: 1.25,
+        }}
         onClick={() => discard()}
         title="Cancel"
       >

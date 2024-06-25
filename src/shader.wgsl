@@ -1,6 +1,7 @@
 struct Uniforms {
     resolution: vec4<f32>,
     rotation: vec4<f32>,
+    //UNIFORM-VALUES//
 }
 
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
@@ -26,22 +27,7 @@ fn vertex_main(
     );
 }
 
-fn sdSphere(p: vec3<f32>, s: f32) -> f32 {
-    return length(p) - s;
-}
-
-fn opUnion(a: vec4<f32>, b: vec4<f32>) -> vec4<f32> {
-    return select(b, a, a.x < b.x);
-}
-
-fn map(pos: vec3<f32>) -> f32 {
-    //var res = vec4<f32>(pos.y, 0, 0, 0);
-
-    // res = opUnion(res, vec4<f32>(sdSphere(pos - vec3<f32>(-2, 0.25, 0), 0.25), 1, 0 ,0));
-    var res = sdSphere(pos - vec3<f32>(0, 1, 0), 1);
-    return res;
-}
-
+//MAP-FUNCTION//
 
 fn colormap(pos: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(map(pos), 0.3, 0, 0);

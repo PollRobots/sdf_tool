@@ -5,6 +5,7 @@ interface WebGPUCanvasProps {
   shader: string;
   vertexShader: string;
   fragmentShader: string;
+  uniformValues: number[];
   width: number;
   height: number;
   style?: React.CSSProperties;
@@ -70,6 +71,25 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         console.error("Initialization error:", err);
       });
   }, [canvasRef.current]);
+
+  React.useEffect(() => {
+    if (!gpu.current || !gpu.current.device || !props.shader) {
+      return;
+    }
+
+    gpu.current.setUniformValues(props.uniformValues);
+    gpu.current
+      .updateShader(props.shader, props.vertexShader, props.fragmentShader)
+      .then(() => console.log("Updated shader"))
+      .catch((err) => console.error("Error updating shader:", err));
+  }, [props.shader]);
+
+  React.useEffect(() => {
+    if (!gpu.current) {
+      return;
+    }
+    gpu.current.setUniformValues(props.uniformValues);
+  }, [props.uniformValues]);
 
   React.useEffect(() => {
     if (gpu.current) {
@@ -196,6 +216,7 @@ class WebGpuWidget {
   device?: GPUDevice;
   pipeline?: GPURenderPipeline;
   running = false;
+  uniformValues: number[] = [];
   uniformBufferSize: number = 0;
   uniformBuffer?: GPUBuffer;
   uniformBindGroup?: GPUBindGroup;
@@ -216,6 +237,8 @@ class WebGpuWidget {
     const adapter = await navigator.gpu.requestAdapter();
     this.device = await adapter!.requestDevice();
 
+    await this.updateShader(shaderSrc, vertex, fragment);
+
     const devicePixelRatio = window.devicePixelRatio;
     this.canvas.width = this.canvas.clientWidth * devicePixelRatio;
     this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
@@ -228,6 +251,16 @@ class WebGpuWidget {
       alphaMode: "premultiplied",
     });
 
+    this.running = false;
+    this.start();
+  }
+
+  setUniformValues(values: number[]) {
+    this.uniformValues = [...values];
+  }
+
+  async updateShader(shaderSrc: string, vertex: string, fragment: string) {
+    const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
     const shader = this.device.createShaderModule({ code: shaderSrc });
 
     this.pipeline = await this.device.createRenderPipelineAsync({
@@ -250,7 +283,8 @@ class WebGpuWidget {
       },
     });
 
-    this.uniformBufferSize = 2 * 4 * 4;
+    this.uniformBufferSize =
+      2 * 4 * 4 + 4 * ((this.uniformValues.length + 15) & ~0xf);
     this.uniformBuffer = this.device.createBuffer({
       size: this.uniformBufferSize,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -267,9 +301,6 @@ class WebGpuWidget {
         },
       ],
     });
-
-    this.running = false;
-    this.start();
   }
 
   start() {
@@ -304,6 +335,8 @@ class WebGpuWidget {
     floats[1] = this.canvas.height;
     floats[4] = this.x;
     floats[5] = this.y;
+
+    this.uniformValues.forEach((el, i) => (floats[8 + i] = el));
 
     this.device?.queue.writeBuffer(
       this.uniformBuffer!,

@@ -18,6 +18,7 @@ import { generate, indent, makeContext } from "./generate";
 import { getShapeFn } from "./shapes";
 import wgslTemplate from "./sdf/map.wgsl";
 import { Uniform, UniformEditor, kDefaultUniform } from "./uniform";
+import wgslPlaceholder from "./sdf/placeholder.wgsl";
 
 const DslEditor = React.lazy(async () => {
   await ((window as any).getMonaco as () => Promise<void>)();
@@ -45,6 +46,16 @@ const kThemeNames = new Map([
 const getBrowserColorScheme = () =>
   window.matchMedia("(prefers-color-scheme: dark").matches ? "dark" : "light";
 
+const makeShader = (template: string, generated: string, valueCount: number) =>
+  template
+    .replace(
+      "//UNIFORM-VALUES//",
+      valueCount == 0
+        ? ""
+        : `values: array<vec4<f32>, ${((valueCount + 15) & ~0xf) / 4}>,`
+    )
+    .replace("//MAP-FUNCTION//", generated || wgslPlaceholder);
+
 export const App: React.FC = () => {
   const [theme, setTheme] = React.useState(getBrowserColorScheme());
   const width = Math.round(window.visualViewport.width / 2);
@@ -66,6 +77,11 @@ export const App: React.FC = () => {
     updated.set(name, value);
     setValues(updated);
   };
+
+  const uniformValues = (): number[] =>
+    uniforms
+      .map((el) => values.get(el) || kDefaultUniform)
+      .map((el) => el.value);
 
   const generateWgsl = (raw: string) => {
     const lines: string[] = [];
@@ -104,7 +120,7 @@ export const App: React.FC = () => {
       }
       generated.forEach((el, i) => {
         switch (el.type) {
-          case "float":
+          case "sdf":
             if (i == generated.length - 1) {
               wgsl.push(`  return ${el.code};`);
             } else if (i == 0) {
@@ -116,13 +132,13 @@ export const App: React.FC = () => {
           case "void":
             wgsl.push(...indent(el.code));
             break;
-          case "vec":
+          default:
             throw new Error(`Cannot use...
 ${el.code}
     ...in map function.`);
         }
       });
-      if (generated[generated.length - 1].type !== "float") {
+      if (generated[generated.length - 1].type !== "sdf") {
         wgsl.push("  return res;");
       }
       wgsl.push(wgslSuffix);
@@ -180,9 +196,10 @@ ${el.code}
           }}
           width={width}
           height={height}
-          shader={shader}
+          shader={makeShader(shader, generated, uniforms.length)}
           vertexShader="vertex_main"
           fragmentShader="frag_main"
+          uniformValues={uniformValues()}
         />
         <React.Suspense fallback={"loading..."}>
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
@@ -200,10 +217,10 @@ ${el.code}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "auto auto 5em 1fr",
                 gap: "0.5em",
                 padding: "0.5em 0",
                 alignItems: "center",
+                maxWidth: "40em",
               }}
             >
               {uniforms.map((el) => (
