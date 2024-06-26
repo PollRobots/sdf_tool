@@ -83,15 +83,39 @@ export const App: React.FC = () => {
     setValues(updated);
   };
 
-  const uniformValues = (): number[] =>
-    uniforms
-      .map((el) => values.get(el) || kDefaultUniform)
-      .map((el) => el.value);
+  const readDefaultUniformValues = (input: string) => {
+    const start = input.indexOf("#|start-interactive-values");
+    const end = input.indexOf("end-interactive-values|#");
+    if (start < 0 || end < 0) {
+      return;
+    }
+
+    const updated = new Map(values.entries());
+    const lines = input.substring(start, end).split("\n");
+    lines.forEach((line) => {
+      const m = line.match(/^\s*([^\s]+)\s*=\s*([^\s]+)\s*$/);
+      if (!m) {
+        return;
+      }
+      const name = m[1];
+      if (updated.has(name)) {
+        return;
+      }
+      const value = Number(m[2]);
+      if (isNaN(value)) {
+        return;
+      }
+
+      updated.set(name, getDefaultUniform(name, value));
+    });
+    setValues(updated);
+  };
 
   const generateWgsl = (raw: string) => {
     const lines: string[] = [];
     const log: string[] = [];
     try {
+      readDefaultUniformValues(raw);
       const parsed = read(raw);
 
       lines.push("Parsed:");
@@ -143,7 +167,10 @@ ${el.code}
     ...in map function.`);
         }
       });
-      if (generated[generated.length - 1].type !== "sdf") {
+
+      if (generated.length === 0) {
+        wgsl.push("  return 1e5;");
+      } else if (generated[generated.length - 1].type !== "sdf") {
         wgsl.push("  return res;");
       }
       wgsl.push(wgslSuffix);
@@ -204,7 +231,9 @@ ${el.code}
           shader={makeShader(shader, generated, uniforms.length)}
           vertexShader="vertex_main"
           fragmentShader="frag_main"
-          uniformValues={uniformValues()}
+          uniformValues={uniforms
+            .map((el) => values.get(el) || kDefaultUniform)
+            .map((el) => el.value)}
           onShaderError={(shaderError) => setErrors(shaderError)}
         />
         <React.Suspense fallback={"loading..."}>
@@ -213,6 +242,7 @@ ${el.code}
               style={{ gridArea: "1/2/3/3" }}
               fontSize={16}
               line=""
+              uniforms={values}
               onGenerating={(s: string) => generateWgsl(s)}
             />
           </EditorThemeProvider>
@@ -228,14 +258,16 @@ ${el.code}
                 maxWidth: "40em",
               }}
             >
-              {uniforms.map((el) => (
-                <UniformEditor
-                  key={el}
-                  name={el}
-                  {...(values.get(el) || getDefaultUniform(el))}
-                  onChange={(v) => setUniformValue(el, v)}
-                />
-              ))}
+              {uniforms.map((el) => {
+                return (
+                  <UniformEditor
+                    key={el}
+                    name={el}
+                    {...(values.get(el) || getDefaultUniform(el))}
+                    onChange={(v) => setUniformValue(el, v)}
+                  />
+                );
+              })}
             </div>
           )}
           <code>

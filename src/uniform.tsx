@@ -12,7 +12,7 @@ export const kDefaultUniform: Uniform = {
   value: 0,
   min: 0,
   max: 1,
-  step: 0.05,
+  step: 0.01,
   logarithmic: false,
 };
 
@@ -139,29 +139,36 @@ const kPresetsMap: Map<string, UniformSettings> = new Map([
   ["pm_hundred", { min: -100, max: 100, step: 1, logarithmic: false }],
 ]);
 
-const makeUniform = (settings: UniformSettings): Uniform => {
+const makeUniform = (settings: UniformSettings, value: number): Uniform => {
   if (!settings) {
     settings = kDefaultUniform;
   }
   return {
     value:
-      0 >= settings.min && 0 <= settings.max
-        ? 0
-        : (settings.min + settings.max) / 2,
+      value == 0
+        ? 0 >= settings.min && 0 <= settings.max
+          ? 0
+          : (settings.min + settings.max) / 2
+        : value,
     ...settings,
   };
 };
 
-export const getDefaultUniform = (name: string): Uniform => {
+export const getDefaultUniform = (name: string, value: number = 0): Uniform => {
   if (name === "k") {
-    return makeUniform(kPresetsMap.get("k"));
+    return makeUniform(kPresetsMap.get("k"), value);
   } else if (
     name === "theta" ||
     name === "alpha" ||
     name === "beta" ||
     name === "phi"
   ) {
-    return makeUniform(kPresetsMap.get("theta"));
+    return makeUniform(kPresetsMap.get("theta"), value);
+  }
+  for (const settings of kPresetsMap.values()) {
+    if (value >= settings.min && value <= settings.max) {
+      return makeUniform(settings, value);
+    }
   }
   return kDefaultUniform;
 };

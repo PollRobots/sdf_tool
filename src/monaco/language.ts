@@ -196,10 +196,9 @@ const kLanguage: monaco.languages.IMonarchLanguage = {
 export const kLanguageId = "sdf-tool-dsl";
 
 export const registerLanguage = () => {
-  // @ts-ignore
-  window.monaco.languages.register({ id: kLanguageId });
-  // @ts-ignore
-  window.monaco.languages.setMonarchTokensProvider(kLanguageId, kLanguage);
-  // @ts-ignore
-  window.monaco.languages.setLanguageConfiguration(kLanguageId, kConf);
+  const m = (window as any).monaco as typeof monaco;
+
+  m.languages.register({ id: kLanguageId });
+  m.languages.setMonarchTokensProvider(kLanguageId, kLanguage);
+  m.languages.setLanguageConfiguration(kLanguageId, kConf);
 };

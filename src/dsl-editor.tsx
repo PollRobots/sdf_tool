@@ -13,11 +13,14 @@ import { Env } from "./env";
 import { addBuiltins } from "./builtins";
 import { DslGeneratorError, Expression } from "./dsl";
 import { generate, makeContext } from "./generate";
+import { Uniform } from "./uniform";
+import { HintProvider } from "./hint-provider";
 
 interface DslEditorProps {
   fontSize: number;
   line: string;
   style?: React.CSSProperties;
+  uniforms: Map<string, Uniform>;
   onGenerating: (line: string) => void;
 }
 
@@ -54,6 +57,8 @@ const getErrors = (expr: Expression): Expression[] => {
 
 const DslEditor: React.FC<DslEditorProps> = (props) => {
   const timeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
+  const hintTimeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
+  const hintProvider = React.useRef(new HintProvider());
   const [canPaste, setCanPaste] = React.useState(true);
   const [currentVersion, setCurrentVersion] = React.useState(0);
   const [initialVersion, setInitialVersion] = React.useState(0);
@@ -83,6 +88,9 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       setCurrentVersion(ver);
       setHighVersion(Math.max(ver, highVersion));
     });
+    (
+      (window as any).monaco as typeof monaco
+    ).languages.registerInlayHintsProvider(kLanguageId, hintProvider.current);
     setEditor(editor);
   };
 
@@ -111,22 +119,24 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       addBuiltins(env);
 
       const markers: monaco.editor.IMarkerData[] = [];
-      const evaluated = exprs.map((expr) => {
-        const res = evaluate(expr, env);
-        getErrors(res).forEach((error) => {
-          const start = model.getPositionAt(error.offset);
-          const end = model.getPositionAt(error.offset + error.length);
-          markers.push({
-            message: error.value as string,
-            severity: ErrorSeverity,
-            startLineNumber: start.lineNumber,
-            endLineNumber: end.lineNumber,
-            startColumn: start.column,
-            endColumn: end.column,
+      const evaluated = exprs
+        .map((expr) => {
+          const res = evaluate(expr, env);
+          getErrors(res).forEach((error) => {
+            const start = model.getPositionAt(error.offset);
+            const end = model.getPositionAt(error.offset + error.length);
+            markers.push({
+              message: error.value as string,
+              severity: ErrorSeverity,
+              startLineNumber: start.lineNumber,
+              endLineNumber: end.lineNumber,
+              startColumn: start.column,
+              endColumn: end.column,
+            });
           });
-        });
-        return res;
-      });
+          return res;
+        })
+        .filter((expr) => expr.type !== "null");
       if (markers.length === 0) {
         const ctx = makeContext({});
         evaluated.map((expr) => {
@@ -170,15 +180,50 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     }
   };
 
+  const updateHints = () => {
+    hintTimeoutHandle.current = null;
+
+    if (!editor || !hintProvider.current) {
+      return;
+    }
+    const raw = editor.getValue().trim();
+    if (raw === "") {
+      hintProvider.current.updateParsed([]);
+      return;
+    }
+
+    try {
+      const env = new Env();
+      addBuiltins(env);
+      const parsed = read(raw);
+      const evaled = parsed.map((el) => evaluate(el, env));
+      hintProvider.current.updateParsed(evaled);
+    } catch (err) {}
+  };
+
+  React.useEffect(() => {
+    if (hintProvider.current) {
+      hintProvider.current.updateUniforms(props.uniforms);
+    }
+  }, [props.uniforms]);
+
   React.useEffect(() => {
     if (timeoutHandle.current) {
       clearTimeout(timeoutHandle.current);
       timeoutHandle.current = null;
     }
+    if (hintTimeoutHandle.current) {
+      clearTimeout(hintTimeoutHandle.current);
+      hintTimeoutHandle.current = null;
+    }
     timeoutHandle.current = setTimeout(() => parseCheck(), 1000);
+    hintTimeoutHandle.current = setTimeout(() => updateHints(), 250);
     return () => {
       if (timeoutHandle.current) {
         clearTimeout(timeoutHandle.current);
+      }
+      if (hintTimeoutHandle.current) {
+        clearTimeout(hintTimeoutHandle.current);
       }
     };
   }, [currentVersion]);

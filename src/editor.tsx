@@ -8,7 +8,7 @@ import * as terminal from "./monaco/terminal";
 export interface EditorProps {
   style?: React.CSSProperties;
   theme?: string;
-  defaultLanguage?: string;
+  defaultLanguage: string;
   defaultValue?: string;
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }

@@ -38,7 +38,7 @@ export const generateConstRotationMatrix = (
 ): string[] => {
   const axis_vec = parseWgslConstVector(axis);
   const length = Math.sqrt(
-    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z
+    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z + axis_vec.z
   );
   const u: Vector = {
     x: axis_vec.x / length,
@@ -66,7 +66,7 @@ export const generateConstAxisRotationMatrix = (
 ): string[] => {
   const axis_vec = parseWgslConstVector(axis);
   const length = Math.sqrt(
-    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z
+    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z * axis_vec.z
   );
   const u: Vector = {
     x: axis_vec.x / length,
@@ -84,7 +84,7 @@ export const generateConstAxisRotationMatrix = (
     } else if (Math.abs(b - 1) < 1e-10) {
       return a;
     } else {
-      return `a * ${b}`;
+      return `${a} * ${b}`;
     }
   };
 
