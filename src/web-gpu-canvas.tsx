@@ -9,6 +9,7 @@ interface WebGPUCanvasProps {
   width: number;
   height: number;
   style?: React.CSSProperties;
+  onShaderError: (error: string) => void;
 }
 
 export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
@@ -80,7 +81,11 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     gpu.current.setUniformValues(props.uniformValues);
     gpu.current
       .updateShader(props.shader, props.vertexShader, props.fragmentShader)
-      .then(() => console.log("Updated shader"))
+      .then((shaderError) => {
+        if (shaderError) {
+          props.onShaderError(shaderError.message);
+        }
+      })
       .catch((err) => console.error("Error updating shader:", err));
   }, [props.shader]);
 
@@ -259,48 +264,87 @@ class WebGpuWidget {
     this.uniformValues = [...values];
   }
 
-  async updateShader(shaderSrc: string, vertex: string, fragment: string) {
-    const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
-    const shader = this.device.createShaderModule({ code: shaderSrc });
+  async updateShader(
+    shaderSrc: string,
+    vertex: string,
+    fragment: string
+  ): Promise<GPUError> {
+    this.device.pushErrorScope("validation");
+    try {
+      const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+      const shader = this.device.createShaderModule({ code: shaderSrc });
+      const compilationInfo = await shader.getCompilationInfo();
+      const errors = compilationInfo.messages
+        .filter((el) => el.type !== "info")
+        .map((el) => {
+          if (el.lineNum == 0) {
+            return el.message;
+          }
+          const line = shaderSrc.split("\n")[el.lineNum - 1];
+          return `Line ${el.lineNum}:${el.linePos} ${el.type}: ${el.message}
+${line}
+${"^".padStart(el.linePos)}`;
+        });
+      if (errors.length != 0) {
+        return new GPUValidationError(errors.join("\n\n"));
+      }
 
-    this.pipeline = await this.device.createRenderPipelineAsync({
-      layout: "auto",
-      vertex: {
-        module: shader,
-        entryPoint: vertex,
-      },
-      fragment: {
-        module: shader,
-        entryPoint: fragment,
-        targets: [
+      const pipeline = await this.device.createRenderPipelineAsync({
+        layout: "auto",
+        vertex: {
+          module: shader,
+          entryPoint: vertex,
+        },
+        fragment: {
+          module: shader,
+          entryPoint: fragment,
+          targets: [
+            {
+              format: presentationFormat,
+            },
+          ],
+        },
+        primitive: {
+          topology: "triangle-list",
+        },
+      });
+
+      const uniformBufferSize =
+        2 * 4 * 4 + 4 * ((this.uniformValues.length + 15) & ~0xf);
+      const uniformBuffer = this.device.createBuffer({
+        size: uniformBufferSize,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+
+      const uniformBindGroup = this.device!.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
           {
-            format: presentationFormat,
+            binding: 0,
+            resource: {
+              buffer: uniformBuffer,
+            },
           },
         ],
-      },
-      primitive: {
-        topology: "triangle-list",
-      },
-    });
+      });
 
-    this.uniformBufferSize =
-      2 * 4 * 4 + 4 * ((this.uniformValues.length + 15) & ~0xf);
-    this.uniformBuffer = this.device.createBuffer({
-      size: this.uniformBufferSize,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-
-    this.uniformBindGroup = this.device!.createBindGroup({
-      layout: this.pipeline!.getBindGroupLayout(0),
-      entries: [
-        {
-          binding: 0,
-          resource: {
-            buffer: this.uniformBuffer!,
-          },
-        },
-      ],
-    });
+      const error = await this.device.popErrorScope();
+      if (error) {
+        return error;
+      } else {
+        this.pipeline = pipeline;
+        this.uniformBufferSize = uniformBufferSize;
+        this.uniformBuffer = uniformBuffer;
+        this.uniformBindGroup = uniformBindGroup;
+        return null;
+      }
+    } catch (err) {
+      const error = await this.device.popErrorScope();
+      if (error) {
+        return error;
+      }
+      throw err;
+    }
   }
 
   start() {

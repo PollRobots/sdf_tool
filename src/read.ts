@@ -1,4 +1,24 @@
-import { Token, Expression, kEmptyList, isIdentifier } from "./dsl";
+import {
+  Token,
+  Expression,
+  kEmptyList,
+  isIdentifier,
+  makeIdList,
+  makeIdentifier,
+  makeList,
+  makeNumber,
+} from "./dsl";
+
+export class DslParseError extends Error {
+  readonly offset: number;
+  readonly length: number;
+
+  constructor(msg: string, offset: number, length?: number) {
+    super(msg);
+    this.offset = offset;
+    this.length = length === undefined ? 0 : length;
+  }
+}
 
 export const tokenize = (input: string): Token[] => {
   const tokens: Token[] = [];
@@ -40,7 +60,11 @@ export const tokenize = (input: string): Token[] => {
                 top.value !== "," &&
                 top.offset != offset - 1)
             ) {
-              throw new Error(`Unexpected character '@' at ${offset}`);
+              throw new DslParseError(
+                `Unexpected character '@' (should only occur as part of ',@')`,
+                offset,
+                1
+              );
             }
             tokens.push({
               type: "punctuation",
@@ -63,7 +87,7 @@ export const tokenize = (input: string): Token[] => {
             start = offset;
             accum = ch;
           } else {
-            throw new Error(`Unexpected character '${ch}' at ${offset}`);
+            throw new DslParseError(`Unexpected character '${ch}'`, offset, 1);
           }
           break;
         case "single-comment":
@@ -97,7 +121,11 @@ export const tokenize = (input: string): Token[] => {
             mode = "vector";
             accum = "#<";
           } else {
-            throw new Error(`Unexpected reader sequence '#${ch}' at ${offset}`);
+            throw new DslParseError(
+              `Unexpected reader sequence '#${ch}'`,
+              offset,
+              2
+            );
           }
           break;
         case "number":
@@ -109,7 +137,11 @@ export const tokenize = (input: string): Token[] => {
             }
             const n = Number(accum);
             if (isNaN(n)) {
-              throw new Error(`Invalid number '${accum}' at ${start}`);
+              throw new DslParseError(
+                `Invalid number '${accum}'`,
+                start,
+                offset - start
+              );
             }
             tokens.push({
               type: "number",
@@ -126,7 +158,11 @@ export const tokenize = (input: string): Token[] => {
         case "identifier":
           if (ch.match(/[\s();]/)) {
             if (!accum.match(identifier_re)) {
-              throw new Error(`Invalid identifier '${accum}' at ${start}`);
+              throw new DslParseError(
+                `Invalid identifier '${accum}'`,
+                start,
+                offset - start
+              );
             }
             tokens.push({
               type: "identifier",
@@ -174,8 +210,10 @@ export const tokenize = (input: string): Token[] => {
               });
               mode = "base";
             } catch (err) {
-              throw new Error(
-                `Error parsing vector '${accum}' at ${start}: ${err}`
+              throw new DslParseError(
+                `Error parsing vector '${accum}': ${err}`,
+                start,
+                offset - start
               );
             }
           } else {
@@ -183,14 +221,22 @@ export const tokenize = (input: string): Token[] => {
           }
           break;
         default:
-          throw new Error(`Unknown internal state '${mode}'`);
+          throw new DslParseError(
+            `Unknown internal state '${mode}'`,
+            offset,
+            1
+          );
       }
     }
     offset++;
   }
 
   if (mode === "multi-comment" && multiCount > 0) {
-    throw new Error(`Unterminated comment starting at ${start}`);
+    throw new DslParseError(
+      `Unterminated multi-line comment`,
+      start,
+      input.length - start
+    );
   }
 
   return tokens;
@@ -199,6 +245,7 @@ export const tokenize = (input: string): Token[] => {
 export const parse = (tokens: Token[]): Expression[] => {
   const res: Expression[] = [];
   const lists: Expression[][] = [];
+  const endOffset = tokens[tokens.length - 1].offset;
   const readerMacros: string[] = [];
   let currReaderMacro: string | undefined = undefined;
   let isVector = false;
@@ -208,10 +255,7 @@ export const parse = (tokens: Token[]): Expression[] => {
       currReaderMacro = undefined;
     }
     if (currReaderMacro) {
-      expr = {
-        type: "list",
-        value: [{ type: "identifier", value: currReaderMacro }, expr],
-      };
+      expr = makeIdList(currReaderMacro, [expr]);
       currReaderMacro = undefined;
     }
 
@@ -235,18 +279,23 @@ export const parse = (tokens: Token[]): Expression[] => {
         } else if (curr.value === ")") {
           // pop current list and add to result
           if (lists.length == 0) {
-            throw new Error(`Unexpected ')' at ${curr.offset}`);
+            throw new DslParseError(
+              `Unexpected ')' at ${curr.offset}`,
+              curr.offset,
+              1
+            );
           }
           if (currReaderMacro !== undefined) {
-            throw new Error(
-              `Reader macro '${currReaderMacro}' without argument at ${curr.offset}`
+            throw new DslParseError(
+              `Reader macro '${currReaderMacro}' without argument at ${curr.offset}`,
+              curr.offset,
+              1
             );
           }
           const top = lists.pop();
           currReaderMacro = readerMacros.pop();
 
-          const list: Expression =
-            top.length == 0 ? kEmptyList : { type: "list", value: top };
+          const list: Expression = top.length == 0 ? kEmptyList : makeList(top);
           addExpression(list);
         } else if (curr.value === "'") {
           currReaderMacro = "quote";
@@ -259,8 +308,10 @@ export const parse = (tokens: Token[]): Expression[] => {
         } else if (curr.value === ":") {
           currReaderMacro = "placeholder";
         } else {
-          throw new Error(
-            `Unknown punctuation '${curr.value}' at ${curr.offset}`
+          throw new DslParseError(
+            `Unknown punctuation '${curr.value}' at ${curr.offset}`,
+            curr.offset,
+            (curr.value as string).length
           );
         }
         isVector = false;
@@ -276,10 +327,7 @@ export const parse = (tokens: Token[]): Expression[] => {
         }
         break;
       case "identifier":
-        addExpression({
-          type: "identifier",
-          value: curr.value,
-        });
+        addExpression(makeIdentifier(curr.value as string, curr.offset));
         if (
           curr.value === "vec" &&
           lists.length !== 0 &&
@@ -289,12 +337,18 @@ export const parse = (tokens: Token[]): Expression[] => {
         }
         break;
       case "number":
-        addExpression({ type: "number", value: curr.value });
+        addExpression(
+          makeNumber(
+            curr.value as number,
+            curr.offset,
+            curr.value.toString().length
+          )
+        );
         break;
     }
   }
   if (lists.length !== 0) {
-    throw new Error(`${lists.length} unterminated lists`);
+    throw new DslParseError(`${lists.length} unterminated lists`, endOffset);
   }
   return res;
 };

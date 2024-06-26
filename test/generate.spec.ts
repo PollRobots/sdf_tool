@@ -10,12 +10,15 @@ import { evaluate } from "../src/evaluate";
 describe("generate", () => {
   it("numbers as numbers", () => {
     const env = new Env();
-    expect(generate(makeNumber(7.2), env)).to.have.property("code", "7.2");
+    expect(generate(makeNumber(7.2, 0, 0), env)).to.have.property(
+      "code",
+      "7.2"
+    );
   });
 
   it("vectors as vectors", () => {
     const env = new Env();
-    expect(generate(makeVector(1, 2, 3), env)).to.have.property(
+    expect(generate(makeVector(1, 2, 3, 0, 0), env)).to.have.property(
       "code",
       "vec3<f32>(1, 2, 3)"
     );
@@ -149,7 +152,7 @@ describe("generate", () => {
     const shape = evaluate(read("(sphere #<1 2 3> 4)")[0], env);
     expect(generate(shape, env, ctx)).to.have.property(
       "code",
-      "sdfSphere(p, t, k, vec3<f32>(1, 2, 3), 4)"
+      "sdfSphere(p, t, vec3<f32>(1, 2, 3), 4)"
     );
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
@@ -161,7 +164,7 @@ describe("generate", () => {
     const shape = evaluate(read("(sphere #<1 :x 3> 4)")[0], env);
     expect(generate(shape, env, ctx)).to.have.property(
       "code",
-      "sdfSphere(p, t, k, vec3<f32>(1, uniforms.values[0], 3), 4)"
+      "sdfSphere(p, t, vec3<f32>(1, uniforms.values[0][0], 3), 4)"
     );
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
@@ -174,7 +177,7 @@ describe("generate", () => {
     const cond = read("(if (< 1 :x) (splat 3) 4)")[0];
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
-      "1 < uniforms.values[0] ? vec3<f32>(3) : vec3<f32>(4)"
+      "1 < uniforms.values[0][0] ? vec3<f32>(3) : vec3<f32>(4)"
     );
   });
 
@@ -188,11 +191,11 @@ describe("generate", () => {
     )[0];
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
-      `if (1 < uniforms.values[0]) {
+      `if (1 < uniforms.values[0][0]) {
   var k = 0.1;
-  res = sdfSphere(p, t, k, vec3<f32>(1), 1);
+  res = sdfSphere(p, t, vec3<f32>(1), 1);
 } else {
-  res = sdfSphere(p, t, k, vec3<f32>(2), 2);
+  res = sdfSphere(p, t, vec3<f32>(2), 2);
 }`
     );
   });

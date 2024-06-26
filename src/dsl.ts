@@ -1,6 +1,28 @@
 import { Env } from "./env";
 import { print } from "./print";
 
+export class DslEvalError extends Error {
+  readonly offset: number;
+  readonly length: number;
+
+  constructor(msg: string, offset: number, length?: number) {
+    super(msg);
+    this.offset = offset;
+    this.length = length === undefined ? 0 : length;
+  }
+}
+
+export class DslGeneratorError extends Error {
+  readonly offset: number;
+  readonly length: number;
+
+  constructor(msg: string, offset: number, length?: number) {
+    super(msg);
+    this.offset = offset;
+    this.length = length === undefined ? 0 : length;
+  }
+}
+
 export interface Token {
   type: "punctuation" | "identifier" | "number";
   offset: number;
@@ -27,6 +49,8 @@ export const isVector = (value: any): value is Vector => {
 export interface Value {
   type: "number" | "vector";
   value: number | Vector;
+  offset: number;
+  length: number;
 }
 
 export const isValue = (exp: Expression): exp is Value => {
@@ -61,6 +85,8 @@ export interface Expression {
     | Internal
     | Macro
     | Generated;
+  offset: number;
+  length: number;
 }
 
 export const isExpression = (obj: any): obj is Expression => {
@@ -84,7 +110,12 @@ export interface Internal {
   generate?: (args: Generated[]) => Generated;
 }
 
-export const kEmptyList: Expression = { type: "null", value: [] };
+export const kEmptyList: Expression = {
+  type: "null",
+  value: [],
+  offset: 0,
+  length: 0,
+};
 
 export interface Shape {
   type: string;
@@ -116,12 +147,27 @@ export const isSpecial = (name: string): boolean =>
 
 export const isNumber = (expr: Expression): boolean => expr.type === "number";
 
-export const makeNumber = (value: number): Expression => {
-  return { type: "number", value: value };
+export const makeNumber = (
+  value: number,
+  offset: number,
+  length: number
+): Value => {
+  return { type: "number", value: value, offset: offset, length: length };
 };
 
-export const makeVector = (x: number, y: number, z: number): Expression => {
-  return { type: "vector", value: { x: x, y: y, z: z } };
+export const makeVector = (
+  x: number,
+  y: number,
+  z: number,
+  offset: number,
+  length: number
+): Value => {
+  return {
+    type: "vector",
+    value: { x: x, y: y, z: z },
+    offset: offset,
+    length: length,
+  };
 };
 
 export const isShape = (expr: Expression): boolean => expr.type === "shape";
@@ -144,6 +190,7 @@ export const isPlaceholderVar = (expr: Expression): boolean =>
   expr.type === "placeholder" && isIdentifier(expr.value as Expression);
 
 export const makePlaceholder = (expr: Expression): Expression => ({
+  ...expr,
   type: "placeholder",
   value: expr,
 });
@@ -151,9 +198,11 @@ export const makePlaceholder = (expr: Expression): Expression => ({
 export const isIdentifier = (expr: Expression): boolean =>
   expr.type === "identifier";
 
-export const makeIdentifier = (symbol: string): Expression => ({
+export const makeIdentifier = (symbol: string, offset: number): Expression => ({
   type: "identifier",
   value: symbol,
+  offset: offset,
+  length: symbol.length,
 });
 
 export const isList = (expr: Expression): boolean =>
@@ -165,15 +214,18 @@ export const makeList = (exprs: Expression[]): Expression =>
     : {
         type: "list",
         value: exprs,
+        offset: exprs[0].offset,
+        length: exprs.reduce(
+          (best, el) => Math.max(best, el.offset + el.length),
+          0
+        ),
       };
 
-export const makeIdList = (
-  symbol: string,
-  exprs: Expression[]
-): Expression => ({
-  type: "list",
-  value: [makeIdentifier(symbol), ...exprs],
-});
+export const makeIdList = (symbol: string, exprs: Expression[]): Expression =>
+  makeList([
+    makeIdentifier(symbol, exprs.length > 0 ? exprs[0].offset : 0),
+    ...exprs,
+  ]);
 
 export const isIdList = (expr: Expression, id: string): boolean =>
   id === getIdList(expr);
@@ -190,20 +242,15 @@ export const getIdList = (expr: Expression): string | false => {
   return false;
 };
 
-export const makeGenerated = (
-  value: string,
-  type: GeneratedType
+export const makeError = (
+  msg: string,
+  offset: number,
+  length: number
 ): Expression => ({
-  type: "generated",
-  value: {
-    code: value,
-    type: type,
-  },
-});
-
-export const makeError = (msg: string): Expression => ({
   type: "error",
   value: msg,
+  offset: offset,
+  length: length,
 });
 
 export const dslError = (
@@ -211,17 +258,25 @@ export const dslError = (
   ...exprs: any[]
 ): Expression => {
   const result: string[] = [];
+  let start = 1e5;
+  let end = 0;
 
   for (let i = 0; i < exprs.length; i++) {
     result.push(strings[i]);
     const curr = exprs[i];
     if (isExpression(curr)) {
       result.push(print(curr));
+      start = Math.min(start, curr.offset);
+      end = Math.max(end, curr.offset + length);
     } else {
       result.push(curr.toString());
     }
   }
   result.push(strings[exprs.length]);
 
-  return makeError(result.join(""));
+  return makeError(
+    result.join(""),
+    end >= start ? start : 0,
+    end >= start ? end - start : 0
+  );
 };

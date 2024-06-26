@@ -9,9 +9,10 @@ import {
   kEmptyList,
   makeNumber,
   makeVector,
-  makeGenerated,
   Generated,
-  GeneratedType,
+  makeList,
+  DslEvalError,
+  isExpression,
 } from "./dsl";
 import { print } from "./print";
 import { Env } from "./env";
@@ -21,15 +22,19 @@ import { hasVectors, coerce } from "./generate";
 const kTrue: Expression = {
   type: "identifier",
   value: "t",
+  offset: -1,
+  length: 1,
 };
 
 const requireValueArgs = (name: string, args: Expression[]): Value[] => {
   return args.map((el) => {
     if (!isValue(el)) {
-      throw new Error(
+      throw new DslEvalError(
         `${name} requires arguments to be numbers or vectors, found ${print(
           el
-        )}`
+        )}`,
+        el.offset,
+        el.length
       );
     }
     return el as Value;
@@ -42,6 +47,14 @@ const requireArity = (
   args: Expression[] | Generated[]
 ): void => {
   if (args.length !== arity) {
+    if (args.length > 0 && isExpression(args[0])) {
+      const pos = getArgsPosition(args as Expression[]);
+      throw new DslEvalError(
+        `${name} requires ${arity} args, called with ${args.length}`,
+        pos.offset,
+        pos.length
+      );
+    }
     throw new Error(
       `${name} requires ${arity} args, called with ${args.length}`
     );
@@ -62,17 +75,23 @@ const requireMinArity = (
 
 const requireVector = (name: string, pos: number, arg: Expression): void => {
   if (arg.type !== "vector") {
-    throw new Error(`${name} requires ${pos} arg to be a vector`);
+    throw new DslEvalError(
+      `${name} requires ${pos} arg to be a vector`,
+      arg.offset,
+      arg.length
+    );
   }
 };
 
 const requireNumber = (name: string, pos: number, arg: Expression): void => {
   if (arg.type !== "number") {
-    throw new Error(
+    throw new DslEvalError(
       `${name} requires ${pos} arg to be a number, found ${print(arg).slice(
         0,
         32
-      )}`
+      )}`,
+      arg.offset,
+      arg.length
     );
   }
 };
@@ -96,16 +115,16 @@ const fnOfOne = (name: string, impl: (x: number) => number): Internal => ({
     const values = requireValueArgs(name, args);
     const a = values[0];
     if (a.type === "number") {
-      return {
-        type: "number",
-        value: impl(a.value as number),
-      };
+      return makeNumber(impl(a.value as number), a.offset, a.length);
     } else {
-      const vec = values[0].value as Vector;
-      return {
-        type: "vector",
-        value: { x: impl(vec.x), y: impl(vec.y), z: impl(vec.z) },
-      };
+      const vec = a.value as Vector;
+      return makeVector(
+        impl(vec.x),
+        impl(vec.y),
+        impl(vec.z),
+        a.offset,
+        a.length
+      );
     }
   },
   generate: (args) => ({
@@ -113,6 +132,27 @@ const fnOfOne = (name: string, impl: (x: number) => number): Internal => ({
     type: args[0].type,
   }),
 });
+
+const getArgsPosition = (
+  exprs: Expression[]
+): { offset: number; length: number } => {
+  if (exprs.length == 0) {
+    return { offset: 0, length: 0 };
+  }
+  const start = exprs.reduce(
+    (lowest, el) => (el.offset > 0 ? Math.min(lowest, el.offset) : lowest),
+    exprs[0].offset
+  );
+  const end = exprs.reduce(
+    (highest, el) => Math.max(highest, el.offset + el.length),
+    0
+  );
+
+  return {
+    offset: start,
+    length: end - start,
+  };
+};
 
 const makeComparison = (
   name: string,
@@ -136,7 +176,11 @@ const makeComparison = (
           }
           last = curr;
         }
-        return { type: "vector", value: res };
+        return {
+          type: "vector",
+          value: res,
+          ...getArgsPosition(args),
+        };
       } else {
         let last = values[0].value as number;
         for (const curr of values.slice(1)) {
@@ -172,14 +216,17 @@ const makeComparison = (
 const makeSwizzle = (name: string): Internal => {
   return {
     name: name,
-    impl: (args) => {
+    impl: (args): Expression => {
       requireArity(name, 1, args);
       requireVector(name, 0, args[0]);
       const vec = args[0].value as any;
-      return {
-        type: "vector",
-        value: { x: vec[name[0]], y: vec[name[1]], z: vec[name[2]] },
-      };
+      return makeVector(
+        vec[name[0]],
+        vec[name[1]],
+        vec[name[2]],
+        args[0].offset,
+        args[0].length
+      );
     },
     generate: (args) => ({
       code: `${coerce(args[0], "vec").code}.${name}`,
@@ -219,8 +266,7 @@ const trySplitVec = (code: string): [string, string, string] | undefined => {
 const kBuiltins: Internal[] = [
   {
     name: "list",
-    impl: (args) =>
-      args.length === 0 ? kEmptyList : { type: "list", value: args },
+    impl: (args) => (args.length === 0 ? kEmptyList : makeList(args)),
   },
   {
     name: "head",
@@ -232,7 +278,11 @@ const kBuiltins: Internal[] = [
       } else if (arg.type === "list") {
         return (arg.value as Expression[])[0];
       } else {
-        throw new Error(`head only works on lists`);
+        throw new DslEvalError(
+          `head only works on lists`,
+          arg.offset,
+          arg.length
+        );
       }
     },
   },
@@ -246,12 +296,13 @@ const kBuiltins: Internal[] = [
         if (list.length < 2) {
           return kEmptyList;
         }
-        return {
-          type: "list",
-          value: list.slice(1),
-        };
+        return makeList(list.slice(1));
       } else {
-        throw new Error(`tail only works on lists`);
+        throw new DslEvalError(
+          `tail only works on lists`,
+          arg.offset,
+          arg.length
+        );
       }
     },
   },
@@ -360,7 +411,11 @@ const kBuiltins: Internal[] = [
   {
     name: "+",
     impl: (args) => {
-      const accum: Value = { type: "number", value: 0 };
+      const accum: Value = {
+        type: "number",
+        value: 0,
+        ...getArgsPosition(args),
+      };
       for (const value of requireValueArgs("+", args)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = (accum.value as number) + (value.value as number);
@@ -396,19 +451,19 @@ const kBuiltins: Internal[] = [
     name: "-",
     impl: (args) => {
       if (args.length === 0) {
-        return { type: "number", value: 0 };
+        return { type: "number", value: 0, offset: 0, length: 0 };
       }
       const values = requireValueArgs("-", args);
       if (args.length === 1) {
         const head = values[0];
         if (isNumber(head)) {
-          return makeNumber(-(head.value as number));
+          return makeNumber(-(head.value as number), head.offset, head.length);
         } else {
           const vec = head.value as Vector;
-          return makeVector(-vec.x, -vec.y, -vec.z);
+          return makeVector(-vec.x, -vec.y, -vec.z, head.offset, head.length);
         }
       }
-      const accum = { ...values[0] };
+      const accum = { ...values[0], ...getArgsPosition(args) };
       for (const value of values.slice(1)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = (accum.value as number) - (value.value as number);
@@ -443,7 +498,11 @@ const kBuiltins: Internal[] = [
   {
     name: "*",
     impl: (args) => {
-      const accum: Value = { type: "number", value: 1 };
+      const accum: Value = {
+        type: "number",
+        value: 1,
+        ...getArgsPosition(args),
+      };
       for (const value of requireValueArgs("*", args)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = (accum.value as number) * (value.value as number);
@@ -479,14 +538,14 @@ const kBuiltins: Internal[] = [
     name: "/",
     impl: (args) => {
       if (args.length === 0) {
-        return { type: "number", value: 1 };
+        return { type: "number", value: 1, offset: 0, length: 0 };
       }
       const values = requireValueArgs("/", args);
       if (values.length === 1) {
         // (/ a) is equivalent to (/ 1 a)
-        values.unshift({ type: "number", value: 1 });
+        values.unshift(makeNumber(1, values[0].offset, values[0].length));
       }
-      const accum = { ...values[0] };
+      const accum = { ...values[0], ...getArgsPosition(args) };
       for (const value of values.slice(1)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = (accum.value as number) / (value.value as number);
@@ -527,7 +586,12 @@ const kBuiltins: Internal[] = [
       const a = args[0].value as Vector;
       const b = args[1].value as Vector;
 
-      return { type: "number", value: a.x * b.x + a.y * b.y + a.z * b.z };
+      const pos = getArgsPosition(args);
+      return makeNumber(
+        a.x * b.x + a.y * b.y + a.z * b.z,
+        pos.offset,
+        pos.length
+      );
     },
     generate: (args) => ({
       code: `dot(${args[0].code}, ${args[1].code})`,
@@ -543,14 +607,13 @@ const kBuiltins: Internal[] = [
       const a = args[0].value as Vector;
 
       const length = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
-      return {
-        type: "vector",
-        value: {
-          x: a.x / length,
-          y: a.y / length,
-          z: a.z / length,
-        },
-      };
+      return makeVector(
+        a.x / length,
+        a.y / length,
+        a.z / length,
+        args[0].offset,
+        args[0].length
+      );
     },
     generate: (args) => ({
       code: `normalize(${args[0].code})`,
@@ -565,10 +628,11 @@ const kBuiltins: Internal[] = [
       requireVector("length", 0, args[0]);
       const a = args[0].value as Vector;
 
-      return {
-        type: "number",
-        value: Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
-      };
+      return makeNumber(
+        Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+        args[0].offset,
+        args[0].length
+      );
     },
     generate: (args) => ({
       code: `length(${args[0].code})`,
@@ -585,14 +649,14 @@ const kBuiltins: Internal[] = [
       const a = args[0].value as Vector;
       const b = args[1].value as Vector;
 
-      return {
-        type: "vector",
-        value: {
-          x: a.y * b.z - b.y * a.z,
-          y: a.z * b.x - b.z * a.x,
-          z: a.x * b.y - b.x * a.y,
-        },
-      };
+      const pos = getArgsPosition(args);
+      return makeVector(
+        a.y * b.z - b.y * a.z,
+        a.z * b.x - b.z * a.x,
+        a.x * b.y - b.x * a.y,
+        pos.offset,
+        pos.length
+      );
     },
     generate: (args) => ({
       code: `cross(${args[0].code}, ${args[1].code})`,
@@ -617,10 +681,10 @@ const kBuiltins: Internal[] = [
     name: "min",
     impl: (args) => {
       if (args.length === 0) {
-        return { type: "number", value: 0 };
+        return makeNumber(0, 0, 0);
       }
       const values = requireValueArgs("min", args);
-      const accum = { ...values[0] };
+      const accum = { ...values[0], ...getArgsPosition(args) };
       for (const value of values.slice(1)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = Math.min(accum.value as number, value.value as number);
@@ -666,10 +730,10 @@ const kBuiltins: Internal[] = [
     name: "max",
     impl: (args) => {
       if (args.length === 0) {
-        return { type: "number", value: 0 };
+        return makeNumber(0, 0, 0);
       }
       const values = requireValueArgs("max", args);
-      const accum = { ...values[0] };
+      const accum = { ...values[0], ...getArgsPosition(args) };
       for (const value of values.slice(1)) {
         if (accum.type === "number" && value.type === "number") {
           accum.value = Math.max(accum.value as number, value.value as number);
@@ -717,10 +781,7 @@ const kBuiltins: Internal[] = [
       requireArity("get-x", 1, args);
       requireVector("get-x", 0, args[0]);
       const vec = args[0].value as Vector;
-      return {
-        type: "number",
-        value: vec.x,
-      };
+      return makeNumber(vec.x, args[0].offset, args[0].length);
     },
     generate: (args) => {
       const vec = args[0].code;
@@ -738,10 +799,7 @@ const kBuiltins: Internal[] = [
       requireArity("get-y", 1, args);
       requireVector("get-y", 0, args[0]);
       const vec = args[0].value as Vector;
-      return {
-        type: "number",
-        value: vec.y,
-      };
+      return makeNumber(vec.y, args[0].offset, args[0].length);
     },
     generate: (args) => {
       const vec = args[0].code;
@@ -759,10 +817,7 @@ const kBuiltins: Internal[] = [
       requireArity("get-z", 1, args);
       requireVector("get-z", 0, args[0]);
       const vec = args[0].value as Vector;
-      return {
-        type: "number",
-        value: vec.z,
-      };
+      return makeNumber(vec.z, args[0].offset, args[0].length);
     },
     generate: (args) => {
       const vec = args[0].code;
@@ -779,27 +834,26 @@ const kBuiltins: Internal[] = [
     impl: (args) => {
       if (args.length === 1) {
         requireNumber("vec", 0, args[0]);
-        return {
-          type: "vector",
-          value: {
-            x: args[0].value as number,
-            y: args[0].value as number,
-            z: args[0].value as number,
-          },
-        };
+        return makeVector(
+          args[0].value as number,
+          args[0].value as number,
+          args[0].value as number,
+          args[0].offset,
+          args[0].length
+        );
       }
       requireArity("vec", 3, args);
       requireNumber("vec", 0, args[0]);
       requireNumber("vec", 1, args[1]);
       requireNumber("vec", 2, args[2]);
-      return {
-        type: "vector",
-        value: {
-          x: args[0].value as number,
-          y: args[1].value as number,
-          z: args[2].value as number,
-        },
-      };
+      const pos = getArgsPosition(args);
+      return makeVector(
+        args[0].value as number,
+        args[1].value as number,
+        args[2].value as number,
+        pos.offset,
+        pos.length
+      );
     },
     generate: (args) => {
       const first = args[0].code;
@@ -821,23 +875,24 @@ const kBuiltins: Internal[] = [
     impl: (args) => {
       requireArity("pow", 2, args);
       const values = requireValueArgs("pow", args);
+      const pos = getArgsPosition(args);
       if (values[0].type === "number" && values[1].type === "number") {
-        return {
-          type: "number",
-          value: Math.pow(values[0].value as number, values[1].value as number),
-        };
+        return makeNumber(
+          Math.pow(values[0].value as number, values[1].value as number),
+          pos.offset,
+          pos.length
+        );
       } else {
         const a = getValueAsVector(values[0]);
         const b = getValueAsVector(values[1]);
 
-        return {
-          type: "vector",
-          value: {
-            x: Math.pow(a.x, b.x),
-            y: Math.pow(a.y, b.y),
-            z: Math.pow(a.z, b.z),
-          },
-        };
+        return makeVector(
+          Math.pow(a.x, b.x),
+          Math.pow(a.y, b.y),
+          Math.pow(a.z, b.z),
+          pos.offset,
+          pos.length
+        );
       }
     },
     generate: (args) => {
@@ -865,6 +920,7 @@ const kBuiltins: Internal[] = [
     impl: (args) => {
       requireArity("smoothstep", 3, args);
       const values = requireValueArgs("smoothstep", args);
+      const pos = getArgsPosition(args);
       if (values.some((v) => v.type == "vector")) {
         const vecs = values.map((v) => getValueAsVector(v));
         const edge0 = vecs[0];
@@ -875,23 +931,19 @@ const kBuiltins: Internal[] = [
           y: Math.max(0, Math.min((x.y - edge0.y) / (edge1.y - edge0.y), 1.0)),
           z: Math.max(0, Math.min((x.z - edge0.z) / (edge1.z - edge0.z), 1.0)),
         };
-        return {
-          type: "vector",
-          value: {
-            x: t.x * t.x * (3 - 2 * t.x),
-            y: t.y * t.y * (3 - 2 * t.y),
-            z: t.z * t.z * (3 - 2 * t.z),
-          },
-        };
+        return makeVector(
+          t.x * t.x * (3 - 2 * t.x),
+          t.y * t.y * (3 - 2 * t.y),
+          t.z * t.z * (3 - 2 * t.z),
+          pos.offset,
+          pos.length
+        );
       } else {
         const edge0 = values[0].value as number;
         const edge1 = values[1].value as number;
         const x = values[2].value as number;
         const t = Math.max(0, Math.min((x - edge0) / (edge1 - edge0), 1.0));
-        return {
-          type: "number",
-          value: t * t * (3 - 2 * t),
-        };
+        return makeNumber(t * t * (3 - 2 * t), pos.offset, pos.length);
       }
     },
     generate: (args) => {
@@ -1025,6 +1077,11 @@ const kShapes: MacroDef[] = [
     symbols: ["p", "r"],
     body: "`(shape sphere ,p ,r)",
   },
+  {
+    name: "box",
+    symbols: ["c", "s"],
+    body: "`(shape box ,c ,s)",
+  },
 ];
 
 const readOne = (name: string, input: string): Expression => {
@@ -1040,7 +1097,7 @@ const readOne = (name: string, input: string): Expression => {
 export const addBuiltins = (env: Env) => {
   env.set("t", kTrue);
   for (const b of kBuiltins) {
-    env.set(b.name, { type: "internal", value: b });
+    env.set(b.name, { type: "internal", value: b, offset: 0, length: 0 });
   }
   for (const b of kMacros) {
     try {
@@ -1052,6 +1109,8 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
         },
+        offset: 0,
+        length: 0,
       });
     } catch (err) {
       throw new Error(`Error adding macro '${b.name}': ${err}`);
@@ -1068,6 +1127,8 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
         },
+        offset: 0,
+        length: 0,
       });
     } catch (err) {
       throw new Error(`Error adding lambda '${b.name}': ${err}`);
@@ -1084,6 +1145,8 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
         },
+        offset: 0,
+        length: 0,
       });
     } catch (err) {
       throw new Error(`Error adding shape '${b.name}': ${err}`);

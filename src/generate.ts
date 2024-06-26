@@ -1,4 +1,5 @@
 import {
+  DslGeneratorError,
   Expression,
   Generated,
   GeneratedType,
@@ -151,7 +152,16 @@ const generateImpl = (
               type: list[1].value as string,
               args: list.slice(2),
             };
-            return generate({ type: "shape", value: shape }, env, ctx);
+            return generate(
+              {
+                type: "shape",
+                value: shape,
+                offset: expr.offset,
+                length: expr.length,
+              },
+              env,
+              ctx
+            );
         }
         throw new Error(`Special form ${head.value} is not implemented`);
       } else {
@@ -172,7 +182,12 @@ const generateImpl = (
             const lambda = proc.value as Lambda;
             const lambda_env = new Env(env);
             lambda.symbols.forEach((sym, i) =>
-              lambda_env.set(sym, { type: "generated", value: args[i] })
+              lambda_env.set(sym, {
+                type: "generated",
+                value: args[i],
+                offset: expr.offset,
+                length: expr.length,
+              })
             );
             return generate(lambda.body, lambda_env, ctx);
           default:
@@ -354,6 +369,62 @@ const generateImpl = (
             code: lines.join("\n"),
             type: "void",
           };
+
+        case "round":
+          if (shape.args.length !== 2) {
+            throw new Error(
+              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
+            );
+          }
+          const round_radius = generate(shape.args[0], env, ctx);
+          if (round_radius.type !== "float") {
+            throw new Error(
+              `rounding radius must be a number, found ${print(shape.args[0])}`
+            );
+          }
+          const round_target = generate(shape.args[1], env, ctx);
+          const round = Number(round_radius.code);
+          lines.push("{");
+          if (!isNaN(round)) {
+            if (round == 0) {
+              return round_target;
+            }
+            switch (round_target.type) {
+              case "sdf":
+                lines.push(
+                  `    res = ${round_target.code} - ${round_radius.code};`
+                );
+                break;
+              case "void":
+                lines.push(...indent(round_target.code, { strip: true }));
+                lines.push("  res -= ${round_radius.code};");
+              default:
+                throw new Error(
+                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
+                );
+            }
+          } else {
+            lines.push(`  var radius = ${round_radius.code};`);
+            switch (round_target.type) {
+              case "sdf":
+                lines.push(`  res = ${round_target.code} - radius;`);
+                break;
+              case "void":
+                lines.push(...indent(round_target.code));
+                lines.push("  res -= round;");
+                break;
+              default:
+                throw new Error(
+                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
+                );
+            }
+          }
+          lines.push("}");
+          return {
+            code: lines.join("\n"),
+            type: "void",
+          };
+
         case "scale":
           if (shape.args.length !== 2) {
             throw new Error(
@@ -376,16 +447,16 @@ const generateImpl = (
                 code: "1e5",
               };
             }
-            lines.push(`    var p = p / ${scale_factor.code};`);
+            lines.push(`  var p = p / ${scale_factor.code};`);
             switch (scale_target.type) {
               case "sdf":
                 lines.push(
-                  `    res = ${scale_factor.code} * ${scale_target.code};`
+                  `  res = ${scale_factor.code} * ${scale_target.code};`
                 );
                 break;
               case "void":
-                lines.push(...indent(scale_factor.code, { strip: true }));
-                lines.push("  res *= scale;");
+                lines.push(...indent(scale_target.code));
+                lines.push(`  res *= ${scale_factor.code};`);
               default:
                 throw new Error(
                   `Error: cannot ${shape.type} ${print(shape.args[1])}`
@@ -400,7 +471,7 @@ const generateImpl = (
                 lines.push(`    res = scale * ${scale_target.code};`);
                 break;
               case "void":
-                lines.push(...indent(scale_factor.code, { pad: "    " }));
+                lines.push(...indent(scale_target.code, { pad: "    " }));
                 lines.push("    res *= scale;");
                 break;
               default:
@@ -525,9 +596,7 @@ const generateImpl = (
           const shape_args = shape.args.map((el) => generate(el, env, ctx));
           ctx.dependencies.add(name);
           return {
-            code: `${name}(p, t, ${shape_args
-              .map((el) => el.code)
-              .join(", ")})`,
+            code: `${name}(p, ${shape_args.map((el) => el.code).join(", ")})`,
             type: "sdf",
           };
       }
@@ -574,7 +643,15 @@ export const generate = (
   }
 
   ctx.log("Generate:", print(expr));
-  const value = generateImpl(expr, env, ctx);
-  ctx.log(print(expr), "->", value.code);
-  return value;
+  try {
+    const value = generateImpl(expr, env, ctx);
+    ctx.log(print(expr), "->", value.code);
+    return value;
+  } catch (err) {
+    throw new DslGeneratorError(
+      err instanceof Error ? err.message : err.toString(),
+      expr.offset,
+      expr.length
+    );
+  }
 };

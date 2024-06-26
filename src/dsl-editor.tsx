@@ -7,12 +7,11 @@ import { Cut, Copy, Paste, Undo, Redo, Open, Save } from "./icons/icons";
 import { kLanguageId } from "./monaco/language";
 import { openFilePicker, saveFilePicker } from "./util";
 import { Editor } from "./editor";
-import { time } from "console";
-import { read } from "./read";
-import { print } from "./print";
+import { DslParseError, read } from "./read";
 import { evaluate } from "./evaluate";
 import { Env } from "./env";
 import { addBuiltins } from "./builtins";
+import { DslGeneratorError, Expression } from "./dsl";
 import { generate, makeContext } from "./generate";
 
 interface DslEditorProps {
@@ -20,7 +19,6 @@ interface DslEditorProps {
   line: string;
   style?: React.CSSProperties;
   onGenerating: (line: string) => void;
-  onDoneEditing: (line: string) => void;
 }
 
 const checkForForcedTheme = (name: string): string => {
@@ -30,6 +28,28 @@ const checkForForcedTheme = (name: string): string => {
       : "hc-light";
   }
   return name;
+};
+
+const getErrors = (expr: Expression): Expression[] => {
+  const errors: Expression[] = [];
+  const pending = [expr];
+
+  while (pending.length > 0) {
+    const curr = pending.pop();
+    switch (curr.type) {
+      case "error":
+        errors.push(curr);
+        break;
+      case "list":
+        pending.push(...(curr.value as Expression[]));
+        break;
+      case "placeholder":
+        pending.push(curr.value as Expression);
+        break;
+    }
+  }
+
+  return errors;
 };
 
 const DslEditor: React.FC<DslEditorProps> = (props) => {
@@ -42,26 +62,10 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     React.useState<monaco.editor.IStandaloneCodeEditor>(null);
 
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
-    // editor.updateOptions({ minimap: { enabled: false } });
-    const KeyMod: typeof monaco.KeyMod = (window as any).monaco.KeyMod;
-    const KeyCode: typeof monaco.KeyCode = (window as any).monaco.KeyCode;
-    editor.addAction({
-      id: "end-editing-scheme",
-      label: "End Editing",
-      keybindings: [
-        KeyMod.CtrlCmd | KeyCode.KeyE,
-        KeyMod.chord(
-          KeyMod.CtrlCmd | KeyCode.KeyK,
-          KeyMod.CtrlCmd | KeyCode.KeyD
-        ),
-      ],
-      contextMenuGroupId: "navigation",
-      contextMenuOrder: 1.5,
-      run: (ed: monaco.editor.IStandaloneCodeEditor) => {
-        props.onDoneEditing(ed.getValue());
-      },
+    editor.updateOptions({
+      fontSize: props.fontSize,
+      minimap: { enabled: false },
     });
-    editor.updateOptions({ fontSize: props.fontSize });
     editor.focus();
     const model = editor.getModel();
     if (model) {
@@ -94,8 +98,76 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     if (raw === "") {
       return;
     }
+    const setModelMarkers: typeof monaco.editor.setModelMarkers = (
+      window as any
+    ).monaco.editor.setModelMarkers;
+    const ErrorSeverity: typeof monaco.MarkerSeverity.Error = (window as any)
+      .monaco.MarkerSeverity.Error;
+    const model = editor.getModel();
 
-    props.onGenerating(raw);
+    try {
+      const exprs = read(raw);
+      const env = new Env();
+      addBuiltins(env);
+
+      const markers: monaco.editor.IMarkerData[] = [];
+      const evaluated = exprs.map((expr) => {
+        const res = evaluate(expr, env);
+        getErrors(res).forEach((error) => {
+          const start = model.getPositionAt(error.offset);
+          const end = model.getPositionAt(error.offset + error.length);
+          markers.push({
+            message: error.value as string,
+            severity: ErrorSeverity,
+            startLineNumber: start.lineNumber,
+            endLineNumber: end.lineNumber,
+            startColumn: start.column,
+            endColumn: end.column,
+          });
+        });
+        return res;
+      });
+      if (markers.length === 0) {
+        const ctx = makeContext({});
+        evaluated.map((expr) => {
+          try {
+            generate(expr, env, ctx);
+          } catch (err) {
+            if (err instanceof DslGeneratorError) {
+              const start = model.getPositionAt(err.offset);
+              const end = model.getPositionAt(err.offset + err.length);
+              markers.push({
+                message: err.message,
+                severity: ErrorSeverity,
+                startLineNumber: start.lineNumber,
+                endLineNumber: end.lineNumber,
+                startColumn: start.column,
+                endColumn: end.column,
+              });
+            }
+          }
+        });
+      }
+      setModelMarkers(editor.getModel(), "owner", markers);
+      if (markers.length === 0) {
+        props.onGenerating(raw);
+      }
+    } catch (err) {
+      if (err instanceof DslParseError) {
+        const start = model.getPositionAt(err.offset);
+        const end = model.getPositionAt(err.offset + err.length);
+        setModelMarkers(model, "owner", [
+          {
+            message: err.message,
+            severity: ErrorSeverity,
+            startLineNumber: start.lineNumber,
+            endLineNumber: end.lineNumber,
+            startColumn: start.column,
+            endColumn: end.column,
+          },
+        ]);
+      }
+    }
   };
 
   React.useEffect(() => {
@@ -307,28 +379,6 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     </IconButton>
                   </div>
                   <div />
-                  <button
-                    style={{
-                      fontSize: "inherit",
-                      minWidth: "6em",
-                      minHeight: "2em",
-                      margin: "0.25em",
-                      background: editorTheme.blue,
-                      border: `1px solid ${theme.base00}`,
-                      borderRadius: "0.25em",
-                      color: editorTheme.foreground,
-                    }}
-                    title={
-                      "Finish editing\nShortcuts:\n  · Ctrl+K Ctrl+D\n  · Ctrl+E"
-                    }
-                    onClick={() =>
-                      props.onDoneEditing(
-                        editor ? editor.getValue() : props.line
-                      )
-                    }
-                  >
-                    Run
-                  </button>
                 </div>
                 <Editor
                   style={{

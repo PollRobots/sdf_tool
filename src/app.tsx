@@ -205,6 +205,7 @@ ${el.code}
           vertexShader="vertex_main"
           fragmentShader="frag_main"
           uniformValues={uniformValues()}
+          onShaderError={(shaderError) => setErrors(shaderError)}
         />
         <React.Suspense fallback={"loading..."}>
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
@@ -213,7 +214,6 @@ ${el.code}
               fontSize={16}
               line=""
               onGenerating={(s: string) => generateWgsl(s)}
-              onDoneEditing={(s: string) => console.log(s)}
             />
           </EditorThemeProvider>
         </React.Suspense>

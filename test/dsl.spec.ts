@@ -329,7 +329,7 @@ describe("special forms", () => {
     expect(
       print(basicEval("(union 0.1 (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
     ).to.equal(
-      "#shape<smooth: 0.1 #shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>>"
+      "#shape<union: 0.1 #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>"
     );
 
     expect(
@@ -339,7 +339,7 @@ describe("special forms", () => {
         )
       )
     ).to.equal(
-      "#shape<smooth: 0.1 #shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>>"
+      "#shape<union: 0.1 #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>"
     );
   });
 
