@@ -183,6 +183,8 @@ export const isTransform = (expr: Expression): boolean => {
   return false;
 };
 
+export const isVectorName = (name: string) => !!name.match(/\.[xyz]$/);
+
 export const isPlaceholder = (expr: Expression): boolean =>
   expr.type === "placeholder";
 

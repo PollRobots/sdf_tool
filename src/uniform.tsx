@@ -61,7 +61,7 @@ export const UniformEditor: React.FC<UniformProps> = (props) => {
       style={{
         display: "grid",
         columnGap: "0.5em",
-        gridTemplateColumns: `2em auto 3em ${showProps ? "auto" : "2em"}`,
+        gridTemplateColumns: `10em auto 3em ${showProps ? "auto" : "2em"}`,
         gridTemplateRows: "auto auto",
         alignItems: "center",
       }}

@@ -6,6 +6,7 @@ interface WebGPUCanvasProps {
   vertexShader: string;
   fragmentShader: string;
   uniformValues: number[];
+  uniformOffsets: number[];
   width: number;
   height: number;
   style?: React.CSSProperties;
@@ -78,7 +79,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       return;
     }
 
-    gpu.current.setUniformValues(props.uniformValues);
+    gpu.current.setUniformValues(props.uniformValues, props.uniformOffsets);
     gpu.current
       .updateShader(props.shader, props.vertexShader, props.fragmentShader)
       .then((shaderError) => {
@@ -93,7 +94,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     if (!gpu.current) {
       return;
     }
-    gpu.current.setUniformValues(props.uniformValues);
+    gpu.current.setUniformValues(props.uniformValues, props.uniformOffsets);
   }, [props.uniformValues]);
 
   React.useEffect(() => {
@@ -222,6 +223,7 @@ class WebGpuWidget {
   pipeline?: GPURenderPipeline;
   running = false;
   uniformValues: number[] = [];
+  uniformOffsets: number[] = [];
   uniformBufferSize: number = 0;
   uniformBuffer?: GPUBuffer;
   uniformBindGroup?: GPUBindGroup;
@@ -260,8 +262,9 @@ class WebGpuWidget {
     this.start();
   }
 
-  setUniformValues(values: number[]) {
+  setUniformValues(values: number[], offsets: number[]) {
     this.uniformValues = [...values];
+    this.uniformOffsets = [...offsets];
   }
 
   async updateShader(
@@ -309,8 +312,12 @@ ${"^".padStart(el.linePos)}`;
         },
       });
 
-      const uniformBufferSize =
-        2 * 4 * 4 + 4 * ((this.uniformValues.length + 15) & ~0xf);
+      const maxOffset =
+        this.uniformOffsets.length == 0
+          ? 0
+          : this.uniformOffsets.reduce((ac, el) => Math.max(ac, el));
+
+      const uniformBufferSize = 2 * 4 * 4 + 4 * ((maxOffset + 4 + 15) & ~0xf);
       const uniformBuffer = this.device.createBuffer({
         size: uniformBufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -380,7 +387,9 @@ ${"^".padStart(el.linePos)}`;
     floats[4] = this.x;
     floats[5] = this.y;
 
-    this.uniformValues.forEach((el, i) => (floats[8 + i] = el));
+    this.uniformValues.forEach(
+      (el, i) => (floats[8 + this.uniformOffsets[i]] = el)
+    );
 
     this.device?.queue.writeBuffer(
       this.uniformBuffer!,

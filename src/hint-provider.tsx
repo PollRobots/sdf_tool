@@ -1,5 +1,5 @@
 import monaco from "monaco-editor";
-import { Expression, isIdentifier } from "./dsl";
+import { Expression, isIdentifier, isVectorName } from "./dsl";
 import { Uniform } from "./uniform";
 
 export class HintProvider implements monaco.languages.InlayHintsProvider {
@@ -118,5 +118,3 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
     };
   }
 }
-
-const isVectorName = (name: string) => !!name.match(/\.[xyz]$/);

@@ -68,6 +68,7 @@ export const App: React.FC = () => {
   const [generated, setGenerated] = React.useState("");
   const [errors, setErrors] = React.useState("");
   const [uniforms, setUniforms] = React.useState<string[]>([]);
+  const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
 
   const currTheme = kEditorThemes.get(theme) || kSolarizedDark;
@@ -93,7 +94,7 @@ export const App: React.FC = () => {
     const updated = new Map(values.entries());
     const lines = input.substring(start, end).split("\n");
     lines.forEach((line) => {
-      const m = line.match(/^\s*([^\s]+)\s*=\s*([^\s]+)\s*$/);
+      const m = line.match(/^\s*([^\s]+)\s*=\s*([^\s]+)\s*(\[([^\]]+)])?/);
       if (!m) {
         return;
       }
@@ -104,6 +105,20 @@ export const App: React.FC = () => {
       const value = Number(m[2]);
       if (isNaN(value)) {
         return;
+      }
+
+      if (m[3]) {
+        const parts = m[4].split(":").map(Number);
+        if (parts.every((el) => !isNaN(el))) {
+          updated.set(name, {
+            value: value,
+            min: parts[0],
+            max: parts[1],
+            step: parts[2],
+            logarithmic: false,
+          });
+          return;
+        }
       }
 
       updated.set(name, getDefaultUniform(name, value));
@@ -175,7 +190,10 @@ ${el.code}
       }
       wgsl.push(wgslSuffix);
 
+      ctx.applyUniforms(wgsl);
+
       setUniforms(ctx.uniforms);
+      setOffsets(ctx.offsets);
       setGenerated(wgsl.join("\n"));
       setErrors("");
     } catch (err) {
@@ -228,12 +246,19 @@ ${el.code}
           }}
           width={width}
           height={height}
-          shader={makeShader(shader, generated, uniforms.length)}
+          shader={makeShader(
+            shader,
+            generated,
+            offsets.length == 0
+              ? 0
+              : offsets.reduce((a, e) => Math.max(a, e)) + 4
+          )}
           vertexShader="vertex_main"
           fragmentShader="frag_main"
           uniformValues={uniforms
             .map((el) => values.get(el) || kDefaultUniform)
             .map((el) => el.value)}
+          uniformOffsets={offsets}
           onShaderError={(shaderError) => setErrors(shaderError)}
         />
         <React.Suspense fallback={"loading..."}>
