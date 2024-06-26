@@ -294,14 +294,46 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
               };
             }
           case "placeholder":
-            if (list.length !== 2 || list[1].type !== "identifier") {
+            if (list.length !== 2) {
               return makeError(
-                `placeholder must have an identifier as the first argument`,
+                `placeholder must have a single argument`,
                 expr.offset,
                 expr.length
               );
             }
-            return makePlaceholder(list[1]);
+            const placeholder_arg = list[1];
+            switch (placeholder_arg.type) {
+              case "identifier":
+                return makePlaceholder(placeholder_arg);
+              case "list":
+                const parts = placeholder_arg.value as Expression[];
+                if (
+                  parts.length == 2 &&
+                  parts[0].value === "vec" &&
+                  isIdentifier(parts[1])
+                ) {
+                  const name = parts[1].value as string;
+                  return makePlaceholder(
+                    makeIdList("vec", [
+                      makePlaceholder(
+                        makeIdentifier(`${name}.x`, placeholder_arg.offset)
+                      ),
+                      makePlaceholder(
+                        makeIdentifier(`${name}.y`, placeholder_arg.offset)
+                      ),
+                      makePlaceholder(
+                        makeIdentifier(`${name}.z`, placeholder_arg.offset)
+                      ),
+                    ])
+                  );
+                }
+              default:
+                return makeError(
+                  `${print(placeholder_arg)} is not a valid placeholder arg`,
+                  placeholder_arg.offset,
+                  placeholder_arg.length
+                );
+            }
           default:
             return makeError(
               `Unexpected special form: ${proc}`,
@@ -371,7 +403,7 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
           if (last_symbol.startsWith("...")) {
             if (args.length < macro.symbols.length - 1) {
               return makeError(
-                `macro expected at least ${
+                `${macro.name} macro expected at least ${
                   macro.symbols.length - 1
                 } args, got ${args.length}`,
                 expr.offset,
@@ -384,9 +416,15 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
             } else {
               args.push(kEmptyList);
             }
-          } else if (args.length != macro.symbols.length) {
+          } else if (args.length < macro.symbols.length) {
             return makeError(
-              `macro expected ${macro.symbols.length} args, got ${args.length}`,
+              `Too few arguments(${args.length}) for ${macro.name} macro, expected ${macro.symbols.length}`,
+              expr.offset,
+              expr.length
+            );
+          } else if (args.length > macro.symbols.length) {
+            return makeError(
+              `Too many arguments(${args.length}) for ${macro.name} macro, expected ${macro.symbols.length}`,
               expr.offset,
               expr.length
             );
@@ -426,9 +464,7 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
         }
       }
     case "identifier":
-      const id = env.get(expr.value as string) || kEmptyList;
-      //console.log("   =", print(id));
-      return id;
+      return env.getExpr(expr);
     default:
       return expr;
   }

@@ -1058,6 +1058,11 @@ const kShapes: MacroDef[] = [
     body: "`(shape rotate #<0 0 1> ,theta ,c)",
   },
   {
+    name: "rotate-xyz",
+    symbols: ["v", "c"],
+    body: "`(shape rotate #<1 0 0> (get-x ,v) (shape rotate #<0 1 0> (get-y ,v) (shape rotate #<0 0 1> (get-z ,v) ,c)))",
+  },
+  {
     name: "smooth",
     symbols: ["k", "c"],
     body: "`(shape smooth ,k ,c)",

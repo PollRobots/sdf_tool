@@ -48,6 +48,7 @@ const kBuiltins = [
   "get-z",
   "vec",
   "pow",
+  "smoothstep",
   "<",
   "<=",
   ">",
@@ -68,6 +69,7 @@ const kBuiltins = [
   "translate-x",
   "translate-y",
   "translate-z",
+  "translate-xyz",
   "rotate",
   "rotate-x",
   "rotate-y",
@@ -88,6 +90,7 @@ const kSpecial = [
   "and",
   "or",
   "begin",
+  "shape",
 ];
 const kConf: monaco.languages.LanguageConfiguration = {
   comments: {

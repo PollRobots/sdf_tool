@@ -70,18 +70,53 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
         return true;
       });
 
-    const hints: monaco.languages.InlayHint[] = placeholders.map((el) => ({
-      kind: m.languages.InlayHintKind.Type,
-      position: model.getPositionAt(el.offset + el.length),
-      label: `= ${this.uniforms.get(el.value as string).value}`,
-      paddingLeft: true,
-    }));
+    const vectorNames = new Set<string>(
+      Array.from(names)
+        .filter(isVectorName)
+        .map((n) => n.substring(0, n.length - 2))
+    );
 
-    console.log(hints);
+    const findNamedPlaceholder = (name: string) =>
+      placeholders.find((el) => el.value === name);
+
+    const getPlaceholderValue = (expr: Expression) =>
+      this.uniforms.get(expr.value as string).value;
+
+    // process vectors separately
+    const vectorHints: monaco.languages.InlayHint[] = Array.from(
+      vectorNames
+    ).map((name) => {
+      const x = findNamedPlaceholder(`${name}.x`);
+      const y = findNamedPlaceholder(`${name}.y`);
+      const z = findNamedPlaceholder(`${name}.z`);
+
+      const x_val = x ? getPlaceholderValue(x) : "0";
+      const y_val = y ? getPlaceholderValue(y) : "0";
+      const z_val = z ? getPlaceholderValue(z) : "0";
+
+      const el = x || y || z;
+      return {
+        kind: m.languages.InlayHintKind.Type,
+        position: model.getPositionAt(el.offset + el.length),
+        label: `= #<${x_val}, ${y_val}, ${z_val}>`,
+        paddingLeft: true,
+      };
+    });
+
+    const hints: monaco.languages.InlayHint[] = placeholders
+      .filter((el) => !isVectorName(el.value as string))
+      .map((el) => ({
+        kind: m.languages.InlayHintKind.Type,
+        position: model.getPositionAt(el.offset + el.length),
+        label: `= ${getPlaceholderValue(el)}`,
+        paddingLeft: true,
+      }));
 
     return {
-      hints: hints,
+      hints: [...vectorHints, ...hints],
       dispose: () => {},
     };
   }
 }
+
+const isVectorName = (name: string) => !!name.match(/\.[xyz]$/);

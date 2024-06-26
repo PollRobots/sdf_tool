@@ -1,4 +1,5 @@
-import { Expression } from "./dsl";
+import { Expression, isIdentifier, makeError } from "./dsl";
+import { print } from "./print";
 
 export class Env {
   parent?: Env;
@@ -16,6 +17,27 @@ export class Env {
     } else {
       return false;
     }
+  }
+
+  getExpr(expr: Expression): Expression {
+    if (!isIdentifier(expr)) {
+      return makeError(
+        `Cannot perform environment lookup for ${print(
+          expr
+        )}, it is not an identifier`,
+        expr.offset,
+        expr.length
+      );
+    }
+    const value = this.get(expr.value as string);
+    if (value === undefined) {
+      return makeError(
+        `${expr.value} is not defined`,
+        expr.offset,
+        expr.length
+      );
+    }
+    return value;
   }
 
   get(name: string): Expression | undefined {

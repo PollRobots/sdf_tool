@@ -576,7 +576,7 @@ const generateImpl = (
               lines.push(`  res = ${rotate_target.code};`);
               break;
             case "void":
-              const inner = indent(rotate_target.code, { strip: true });
+              const inner = indent(rotate_target.code);
               lines.push(...removeDeclarations("p", inner));
               break;
             default:
@@ -648,6 +648,9 @@ export const generate = (
     ctx.log(print(expr), "->", value.code);
     return value;
   } catch (err) {
+    if (err instanceof DslGeneratorError) {
+      throw err;
+    }
     throw new DslGeneratorError(
       err instanceof Error ? err.message : err.toString(),
       expr.offset,
