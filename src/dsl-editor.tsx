@@ -24,6 +24,7 @@ import { DslGeneratorError, Expression } from "./dsl";
 import { generate, makeContext } from "./generate";
 import { Uniform } from "./uniform";
 import { HintProvider } from "./hint-provider";
+import { HoverProvider } from "./hover-provider";
 
 interface DslEditorProps {
   fontSize: number;
@@ -69,6 +70,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const timeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
   const hintTimeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
   const hintProvider = React.useRef(new HintProvider());
+  const hoverProvider = React.useRef(null);
   const [canPaste, setCanPaste] = React.useState(true);
   const [currentVersion, setCurrentVersion] = React.useState(0);
   const [initialVersion, setInitialVersion] = React.useState(0);
@@ -106,9 +108,11 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       setCurrentVersion(ver);
       setHighVersion(Math.max(ver, highVersion));
     });
-    (
-      (window as any).monaco as typeof monaco
-    ).languages.registerInlayHintsProvider(kLanguageId, hintProvider.current);
+    const m = (window as any).monaco as typeof monaco;
+
+    hoverProvider.current = new HoverProvider(editor);
+    m.languages.registerHoverProvider(kLanguageId, hoverProvider.current);
+    m.languages.registerInlayHintsProvider(kLanguageId, hintProvider.current);
     setEditor(editor);
   };
 

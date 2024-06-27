@@ -232,6 +232,10 @@ const makeSwizzle = (name: string): Internal => {
       code: `${coerce(args[0], "vec").code}.${name}`,
       type: "vec",
     }),
+    docs: [
+      `(**${name}** *v*)`,
+      `_swizzles_ the vector *v* by rearranging its components in the order *${name}*.`,
+    ],
   };
 };
 
@@ -963,6 +967,7 @@ interface MacroDef {
   name: string;
   symbols: string[];
   body: string;
+  docs?: string[];
 }
 
 const kMacros: MacroDef[] = [
@@ -988,11 +993,19 @@ const kLambdas: MacroDef[] = [
     name: "min-vec",
     symbols: ["v"],
     body: "(min (get-x v) (get-y v) (get-z v))",
+    docs: [
+      "(**min-vec** *v*)",
+      "Gets the minimum component value of the vector *v*",
+    ],
   },
   {
     name: "max-vec",
     symbols: ["v"],
     body: "(max (get-x v) (get-y v) (get-z v))",
+    docs: [
+      "(**max-vec** *v*)",
+      "Gets the maximum component value of the vector *v*",
+    ],
   },
 ];
 
@@ -1001,76 +1014,180 @@ const kShapes: MacroDef[] = [
     name: "union",
     symbols: ["...c"],
     body: "`(shape union ,@c)",
+    docs: [
+      "(**union** *[k]* *...args*)",
+      "Creates a shape that is the union of the child shapes in *...args*.",
+      "If *k* is provided, then that sets the smoothing factor to be used in " +
+        "this union, and in the evaluation of the children.",
+      "If *k* is `0`, then no smoothing is applied, and the union is the " +
+        "simple minimum of the distance functions of the children.",
+    ],
   },
   {
     name: "intersect",
     symbols: ["...c"],
     body: "`(shape intersect ,@c)",
+    docs: [
+      "(**intersect** *[k]* *...args*)",
+      "Creates a shape that is the intersection of the child shapes in *...args*.",
+      "If *k* is provided, then that sets the smoothing factor to be used in " +
+        "this intersection, and in the evaluation of the children.",
+      "If *k* is `0`, then no smoothing is applied, and the intersection is the " +
+        "simple maximum of the distance functions of the children.",
+    ],
   },
   {
     name: "difference",
     symbols: ["...c"],
     body: "`(shape difference ,@c)",
+    docs: [
+      "(**difference** *[k]* *a* *b*)",
+      "Creates a shape that is the difference of the shapes *a* and *b*",
+      "If *k* is provided, then that sets the smoothing factor to be used in " +
+        "this difference, and in the evaluation of the children.",
+      "If *k* is `0`, then no smoothing is applied, and the difference is the " +
+        "simple maximum of the distance function of *a* and the inverse of the " +
+        "distance function of *b*",
+    ],
   },
   {
     name: "scale",
     symbols: ["s", "c"],
     body: "`(shape scale ,s ,c)",
+    docs: [
+      "(**scale** *s* *shape*)",
+      "Scales the child *shape* by a constant scaling factor *s*. ",
+      "*s* must be a numeric value.",
+    ],
   },
   {
     name: "translate",
     symbols: ["v", "c"],
     body: "`(shape translate ,v ,c)",
+    docs: [
+      "(**translate** *v* *shape*)",
+      "Translates the child *shape* by the vector *v*.",
+    ],
   },
   {
     name: "translate-x",
     symbols: ["x", "c"],
     body: "`(let ((xval ,x) (cval ,c)) (shape translate (vec xval 0 0) cval))",
+    docs: [
+      "(**translate-x** *x* *shape*)",
+      "Translates the child *shape* by the vector (*x*, 0, 0).",
+      "*x* must be a numeric value",
+    ],
   },
   {
     name: "translate-y",
     symbols: ["y", "c"],
     body: "`(let ((yval ,y) (cval ,c)) (shape translate (vec 0 yval 0) cval))",
+    docs: [
+      "(**translate-y** *y* *shape*)",
+      "Translates the child *shape* by the vector (0, *y*, 0).",
+      "*y* must be a numeric value",
+    ],
   },
   {
     name: "translate-z",
     symbols: ["z", "c"],
     body: "`(let ((zval ,z) (cval ,c)) (shape translate (vec 0 0 zval) cval))",
+    docs: [
+      "(**translate-z** *z* *shape*)",
+      "Translates the child *shape* by the vector (0, 0, *y*).",
+      "*z* must be a numeric value",
+    ],
   },
   {
     name: "rotate",
     symbols: ["a", "theta", "c"],
     body: "`(shape rotate ,a ,theta ,c)",
+    docs: [
+      "(**rotate** *axis* *angle* *shape*)",
+      "Rotates the child *shape* by *angle* radians about *axis*.",
+      "*axis* must be avector, *angle* must be a numeric value",
+      "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
+    ],
   },
   {
     name: "rotate-x",
     symbols: ["theta", "c"],
     body: "`(shape rotate #<1 0 0> ,theta ,c)",
+    docs: [
+      "(**rotate-x** *angle* *shape*)",
+      "Rotates the child *shape* by *angle* radians about the x-axis",
+      "*angle* must be a numeric value",
+      "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
+    ],
   },
   {
     name: "rotate-y",
     symbols: ["theta", "c"],
     body: "`(shape rotate #<0 1 0> ,theta ,c)",
+    docs: [
+      "(**rotate-y** *angle* *shape*)",
+      "Rotates the child *shape* by *angle* radians about the y-axis",
+      "*angle* must be a numeric value",
+      "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
+    ],
   },
   {
     name: "rotate-z",
     symbols: ["theta", "c"],
     body: "`(shape rotate #<0 0 1> ,theta ,c)",
+    docs: [
+      "(**rotate-z** *angle* *shape*)",
+      "Rotates the child *shape* by *angle* radians about the z-axis",
+      "*angle* must be a numeric value",
+      "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
+    ],
   },
   {
     name: "rotate-xyz",
     symbols: ["v", "c"],
     body: "`(shape rotate #<1 0 0> (get-x ,v) (shape rotate #<0 1 0> (get-y ,v) (shape rotate #<0 0 1> (get-z ,v) ,c)))",
+    docs: [
+      "(**rotate-xyz** *angle* *shape*)",
+      "Rotates the child *shape* by the x, y, and z components of *angle* vector about the respective component axes",
+      "*angle* must be a vector value",
+      "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
+      "`(rotate-xyz #<a b c> child)` is equivalent to calling `(rotate-x a (rotate-y b (rotate-z c child)))`",
+    ],
   },
   {
     name: "smooth",
     symbols: ["k", "c"],
     body: "`(shape smooth ,k ,c)",
+    docs: [
+      "(**smooth** *k* *shape*)",
+      "Sets the smoothing factor *k* used in any combining operations used " +
+        "to evaluate *shape*.",
+      "*k* must be a numeric value.",
+      "If *k* is `0`, then no smoothing is applied.",
+    ],
   },
   {
     name: "abrupt",
-    symbols: [".c"],
+    symbols: ["c"],
     body: "`(shape smooth 0 ,c)",
+    docs: [
+      "(**abrupt** *shape*)",
+      "Sets the smoothing factor used in any combining operations used " +
+        "to evaluate *shape* to 0. This means no smoothing will be applied.",
+      "This is equivalent to `(smooth 0 shape)`",
+    ],
+  },
+  {
+    name: "rounded",
+    symbols: ["r", "c"],
+    body: "`(shape round ,r ,c)",
+    docs: [
+      "(**rounded** *r* *shape*)",
+      "Rounds the edges of *shape* with a rounding radius of *r*.",
+      "*r* must be a numeric value.",
+      "If *r* is `0`, then no rounding is applied.",
+    ],
   },
   {
     name: "ellipsoid",
@@ -1081,46 +1198,125 @@ const kShapes: MacroDef[] = [
     name: "sphere",
     symbols: ["p", "r"],
     body: "`(shape sphere ,p ,r)",
+    docs: [
+      "(**sphere** *c* *r*)",
+      "Creates a sphere centered on *c* with radius *r*.",
+      "*c* must be a vector, and *r* must be a numeric value.",
+    ],
   },
   {
     name: "box",
     symbols: ["c", "s"],
     body: "`(shape box ,c ,s)",
+    docs: [
+      "(**box** *c* *s*)",
+      "Creates an axis aligned cuboid centered on *c* with size *s*. The box " +
+        "faces will be offset from *c* along each component-axis by the absolute " +
+        "value of the respective component of *s*.",
+      "Both *c* and *s* must be vectors.",
+      "-----",
+      "**Example:**",
+      "```\n(box #<0 0.5 0> #<0.5>)\n```",
+      "Will create a unit cube centered at `(0, 0.5, 0)`",
+    ],
   },
   {
     name: "rounded-box",
     symbols: ["c", "s", "r"],
     body: "`(shape rounded-box ,c ,s ,r)",
+    docs: [
+      "(**rounded-box** *c* *s* *r*)",
+      "Creates an axis aligned rounded cuboid centered on *c* with size *s*. The box " +
+        "faces will be offset from *c* along each component-axis by the absolute " +
+        "value of the respective component of *s*. The edges will be rounded with " +
+        "a radius of *r*.",
+      "Both *c* and *s* must be vectors, *r* must be a numeric value",
+      "-----",
+      "**Example:**",
+      "```\n(rounded-box #<0 0.5 0> #<0.5> 0.1)\n```",
+      "Will create a rounded unit cube centered at `(0, 0.5, 0)`, with edges rounded to a radius of `0.1`",
+    ],
   },
   {
     name: "torus",
     symbols: ["c", "maj", "min"],
     body: "`(shape torus ,c ,maj ,min)",
+    docs: [
+      "(**torus** *c* *major* *minor*)",
+      "Creates a torus centered on *c* with the *major* and *minor* radii " +
+        "respectively.",
+      "The torus is created parallel with the x-z plane.",
+      "*c* must be a vector, *major* and *minor* must be numeric values.",
+    ],
   },
   {
     name: "cone",
     symbols: ["c", "a", "h"],
     body: "`(shape cone ,c ,a ,h)",
+    docs: [
+      "(**cone** *c* *angle* *height*)",
+      "Creates a cone with thes point at *c*, specified by *angle* (in radians), and " +
+        "*height*. The cone is generated aligned with the y-axis.",
+      "*c* must be a vector, *angle* and *height* must be numeric values.",
+    ],
   },
   {
     name: "infinite-cone",
     symbols: ["c", "a"],
     body: "`(shape infinite-cone ,c ,a)",
+    docs: [
+      "(**infinite-cone** *c* *angle* *height*)",
+      "Creates an infinite cone with thes point at *c*, specified by *angle* " +
+        "(in radians). The cone is generated aligned with the y-axis.",
+      "*c* must be a vector, *angle* must be a numeric value.",
+    ],
   },
   {
     name: "infinite-cylinder",
     symbols: ["c", "d", "r"],
     body: "`(shape infinite-cylinder ,c ,d ,r)",
+    docs: [
+      "(**infinite-cylinder** *c* *dir* *radius*)",
+      "Creates an infinite cylinder, whose axis parallel to *dir* passes through *c*.",
+      "*c* and *dir* must be vectors, *radius* must be a numeric value.",
+    ],
   },
   {
     name: "hide",
     symbols: ["...c"],
     body: "(shape hide)",
+    docs: [
+      "(**hide** *...shapes*)",
+      "Prevents *shapes* from rendering. This is useful as a way of " +
+        '"commenting out" parts of a sketch.',
+    ],
   },
   {
     name: "reflect",
     symbols: ["v", "c"],
     body: "`(shape reflect ,v ,c)",
+    docs: [
+      "(**reflect** *v* *shape*)",
+      "Reflects *shape* in the axes where the respective components of *v* are " +
+        "greater than zero.",
+      "Depending on the component values of *v*, one two four or eight " +
+        "reflected copies of *shape* will be generated.",
+      "*v* must be a vector.",
+      "-----",
+      "**Example:**",
+      "```\n(reflect #<1 0 0> (sphere #<1 1 0> 0.5))\n```",
+      "This will reflect the sphere in the x-axis, creating two spheres, " +
+        "centered at `(1, 1, 0)` and `(-1, 1, 0)`",
+      "**Note:** due to the way signed distance fields are computed, this is no " +
+        "more expensive than generating a single sphere, and is cheaper than the equivalent:",
+      "```" +
+        `
+(union
+  (sphere #<1 1 0> 0.5)
+  (sphere #<-1 1 0> 0.5))
+` +
+        "```",
+    ],
   },
 ];
 
@@ -1148,6 +1344,7 @@ export const addBuiltins = (env: Env) => {
           symbols: b.symbols,
           body: readOne(b.name, b.body),
           closure: env,
+          docs: b.docs,
         },
         offset: 0,
         length: 0,
@@ -1166,6 +1363,7 @@ export const addBuiltins = (env: Env) => {
           symbols: b.symbols,
           body: readOne(b.name, b.body),
           closure: env,
+          docs: b.docs,
         },
         offset: 0,
         length: 0,
@@ -1184,6 +1382,7 @@ export const addBuiltins = (env: Env) => {
           symbols: b.symbols,
           body: readOne(b.name, b.body),
           closure: env,
+          docs: b.docs,
         },
         offset: 0,
         length: 0,

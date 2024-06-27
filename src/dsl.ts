@@ -102,12 +102,14 @@ export interface Lambda {
   symbols: string[];
   body: Expression;
   closure: Env;
+  docs?: string[];
 }
 
 export interface Internal {
   name: string;
   impl: (args: Expression[]) => Expression;
   generate?: (args: Generated[]) => Generated;
+  docs?: string[];
 }
 
 export const kEmptyList: Expression = {
@@ -127,6 +129,7 @@ export interface Macro {
   symbols: string[];
   body: Expression;
   closure: Env;
+  docs?: string[];
 }
 
 export type GeneratedType = "float" | "vec" | "sdf" | "void";
