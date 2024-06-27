@@ -108,11 +108,16 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       setCurrentVersion(ver);
       setHighVersion(Math.max(ver, highVersion));
     });
-    const m = (window as any).monaco as typeof monaco;
 
     hoverProvider.current = new HoverProvider(editor);
-    m.languages.registerHoverProvider(kLanguageId, hoverProvider.current);
-    m.languages.registerInlayHintsProvider(kLanguageId, hintProvider.current);
+    window.monaco.languages.registerHoverProvider(
+      kLanguageId,
+      hoverProvider.current
+    );
+    window.monaco.languages.registerInlayHintsProvider(
+      kLanguageId,
+      hintProvider.current
+    );
     setEditor(editor);
   };
 
@@ -128,12 +133,8 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     if (raw === "") {
       return;
     }
-    const setModelMarkers: typeof monaco.editor.setModelMarkers = (
-      window as any
-    ).monaco.editor.setModelMarkers;
-    const ErrorSeverity: typeof monaco.MarkerSeverity.Error = (window as any)
-      .monaco.MarkerSeverity.Error;
     const model = editor.getModel();
+    const severity = window.monaco.MarkerSeverity.Error;
 
     try {
       const exprs = read(raw);
@@ -149,7 +150,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
             const end = model.getPositionAt(error.offset + error.length);
             markers.push({
               message: error.value as string,
-              severity: ErrorSeverity,
+              severity: severity,
               startLineNumber: start.lineNumber,
               endLineNumber: end.lineNumber,
               startColumn: start.column,
@@ -170,7 +171,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
               const end = model.getPositionAt(err.offset + err.length);
               markers.push({
                 message: err.message,
-                severity: ErrorSeverity,
+                severity: severity,
                 startLineNumber: start.lineNumber,
                 endLineNumber: end.lineNumber,
                 startColumn: start.column,
@@ -180,7 +181,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
           }
         });
       }
-      setModelMarkers(editor.getModel(), "owner", markers);
+      window.monaco.editor.setModelMarkers(editor.getModel(), "owner", markers);
       if (markers.length === 0) {
         props.onGenerating(raw);
       }
@@ -188,10 +189,10 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       if (err instanceof DslParseError) {
         const start = model.getPositionAt(err.offset);
         const end = model.getPositionAt(err.offset + err.length);
-        setModelMarkers(model, "owner", [
+        window.monaco.editor.setModelMarkers(model, "owner", [
           {
             message: err.message,
-            severity: ErrorSeverity,
+            severity: severity,
             startLineNumber: start.lineNumber,
             endLineNumber: end.lineNumber,
             startColumn: start.column,

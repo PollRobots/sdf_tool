@@ -42,6 +42,41 @@ export const updateStyleSheet = (theme: Theme) => {
         opacity: 0.7;
     }
 `);
+  styles.push(`
+   .loader {
+        width: 1em;
+        height: 1em;
+        border-radius: 50%;
+        position: relative;
+        animation: rotate 1s linear infinite
+      }
+      .loader::before , .loader::after {
+        content: "";
+        box-sizing: border-box;
+        position: absolute;
+        inset: 0px;
+        border-radius: 50%;
+        border: calc(max(3px, (1em / 8 - max(1px, 1em / 48)))) solid ${theme.foreground};
+        animation: prixClipFix 2s linear infinite ;
+      }
+      .loader::after{
+        border-color: ${theme.violet};
+        animation: prixClipFix 2s linear infinite , rotate 0.5s linear infinite reverse;
+        inset: calc(max(4px, 1em / 8));
+      }
+
+      @keyframes rotate {
+        0%   {transform: rotate(0deg)}
+        100%   {transform: rotate(360deg)}
+      }
+
+      @keyframes prixClipFix {
+          0%   {clip-path:polygon(50% 50%,0 0,0 0,0 0,0 0,0 0)}
+          25%  {clip-path:polygon(50% 50%,0 0,100% 0,100% 0,100% 0,100% 0)}
+          50%  {clip-path:polygon(50% 50%,0 0,100% 0,100% 100%,100% 100%,100% 100%)}
+          75%  {clip-path:polygon(50% 50%,0 0,100% 0,100% 100%,0 100%,0 100%)}
+          100% {clip-path:polygon(50% 50%,0 0,100% 0,100% 100%,0 100%,0 0)}
+      } `);
   const thumbHeight = "1.5rem";
   const thumbWidth = "0.75rem";
   const trackSize = "0.375rem";

@@ -25,9 +25,17 @@ import {
 } from "./uniform";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
+import monaco from "monaco-editor";
+
+declare global {
+  interface Window {
+    monaco: typeof monaco;
+    getMonaco: () => Promise<void>;
+  }
+}
 
 const DslEditor = React.lazy(async () => {
-  await ((window as any).getMonaco as () => Promise<void>)();
+  await window.getMonaco();
   return import("./dsl-editor");
 });
 
@@ -292,7 +300,23 @@ ${el.code}
           uniformOffsets={offsets}
           onShaderError={(shaderError) => setErrors(shaderError)}
         />
-        <React.Suspense fallback={"loading..."}>
+        <React.Suspense
+          fallback={
+            <div
+              style={{
+                gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "fit-content",
+                gap: "1em",
+              }}
+            >
+              <div>Loading Editor</div>
+              <div className="loader" style={{ fontSize: "150%" }} />
+            </div>
+          }
+        >
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
             <DslEditor
               style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
