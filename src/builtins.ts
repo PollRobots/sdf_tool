@@ -154,11 +154,21 @@ const getArgsPosition = (
   };
 };
 
+const kComparisonNames = new Map([
+  [".lt", "<"],
+  [".le", "<="],
+  [".gt", ">"],
+  [".ge", ">="],
+  ["eq", "=="],
+  ["neq", "!="],
+]);
+
 const makeComparison = (
-  name: string,
+  name: string | string[],
   impl: (a: number, b: number) => number
-): Internal => {
-  return {
+): Internal[] => {
+  const names = typeof name === "string" ? [name] : name;
+  return names.map((name) => ({
     name: name,
     impl: (args) => {
       requireMinArity(name, 2, args);
@@ -198,19 +208,20 @@ const makeComparison = (
       if (hasVectors(args)) {
         args = args.map((el) => coerce(el, "vec"));
       }
+      const wglsOp = kComparisonNames.get(name) || name;
       return {
         code: args.reduce((accum, el, i, arr) => {
           if (i == arr.length - 1) {
             return accum;
           }
           return i > 0
-            ? `${accum} && (${el.code} ${name} ${arr[i + 1].code})`
-            : `(${el.code} ${name} ${arr[i + 1].code})`;
+            ? `${accum} && (${el.code} ${wglsOp} ${arr[i + 1].code})`
+            : `(${el.code} ${wglsOp} ${arr[i + 1].code})`;
         }, ""),
         type: args[0].type,
       };
     },
-  };
+  }));
 };
 
 const makeSwizzle = (name: string): Internal => {
@@ -910,12 +921,12 @@ const kBuiltins: Internal[] = [
     },
   },
 
-  makeComparison("<", (a, b) => (a < b ? 1 : 0)),
-  makeComparison("<=", (a, b) => (a <= b ? 1 : 0)),
-  makeComparison(">", (a, b) => (a > b ? 1 : 0)),
-  makeComparison(">=", (a, b) => (a <= b ? 1 : 0)),
-  makeComparison("eq", (a, b) => (a == b ? 1 : 0)),
-  makeComparison("neq", (a, b) => (a != b ? 1 : 0)),
+  ...makeComparison(["<", "lt"], (a, b) => (a < b ? 1 : 0)),
+  ...makeComparison(["<=", "le"], (a, b) => (a <= b ? 1 : 0)),
+  ...makeComparison([">", "gt"], (a, b) => (a > b ? 1 : 0)),
+  ...makeComparison([">=", "ge"], (a, b) => (a <= b ? 1 : 0)),
+  ...makeComparison("eq", (a, b) => (a == b ? 1 : 0)),
+  ...makeComparison("neq", (a, b) => (a != b ? 1 : 0)),
 
   ...makeAllSwizzles(),
 
@@ -1338,6 +1349,13 @@ const kShapes: MacroDef[] = [
         "```",
     ],
   },
+];
+
+export const kBuiltinNames = [
+  ...kBuiltins.map((el) => el.name),
+  ...kMacros.map((el) => el.name),
+  ...kLambdas.map((el) => el.name),
+  ...kShapes.map((el) => el.name),
 ];
 
 const readOne = (name: string, input: string): Expression => {

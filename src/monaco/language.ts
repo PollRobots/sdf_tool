@@ -1,92 +1,5 @@
 import monaco from "monaco-editor";
-
-const swizzles = (): string[] => {
-  const l: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      for (let k = 0; k < 3; k++) {
-        l.push(String.fromCharCode(120 + i, 120 + j, 120 + k));
-      }
-    }
-  }
-  return l;
-};
-
-const kBuiltins = [
-  "list",
-  "head",
-  "tail",
-  "null?",
-  "list?",
-  "number?",
-  "vector?",
-  "shape?",
-  "callable?",
-  "error?",
-  "+",
-  "-",
-  "*",
-  "/",
-  "dot",
-  "cross",
-  "abs",
-  "floor",
-  "ceil",
-  "sqrt",
-  "sin",
-  "cos",
-  "tan",
-  "asin",
-  "acos",
-  "atan",
-  "radians",
-  "degrees",
-  "min",
-  "max",
-  "get-x",
-  "get-y",
-  "get-z",
-  "vec",
-  "pow",
-  "smoothstep",
-  "<",
-  "<=",
-  ">",
-  ">=",
-  "eq",
-  "neq",
-  ...swizzles(),
-  "splat",
-  "min-vec",
-  "max-vec",
-  "normalize",
-  "length",
-  "union",
-  "intersect",
-  "difference",
-  "scale",
-  "translate",
-  "translate-x",
-  "translate-y",
-  "translate-z",
-  "translate-xyz",
-  "rotate",
-  "rotate-x",
-  "rotate-y",
-  "rotate-z",
-  "smooth",
-  "abrupt",
-  "ellipsoid",
-  "sphere",
-  "box",
-  "rounded-box",
-  "torus",
-  "cone",
-  "infinite-cone",
-  "infinite-cylinder",
-  "hide",
-  "reflect",
-];
+import { kBuiltinNames } from "../builtins";
 
 const kSpecial = [
   "if",
@@ -100,6 +13,7 @@ const kSpecial = [
   "begin",
   "shape",
 ];
+
 const kConf: monaco.languages.LanguageConfiguration = {
   comments: {
     lineComment: ";",
@@ -127,7 +41,7 @@ const kLanguage: monaco.languages.IMonarchLanguage = {
     { open: "(", close: ")", token: "delimiter.parenthesis" },
   ],
 
-  keywords: kBuiltins,
+  keywords: kBuiltinNames,
 
   constants: ["t"],
 
@@ -170,7 +84,7 @@ const kLanguage: monaco.languages.IMonarchLanguage = {
     ],
 
     brackets: [
-      [/[#](?=\<)/, "delimiter.vector.open"],
+      [/[#][<]/, "delimiter.vector.open"],
       [/\>/, "delimiter.vector.close"],
       [/\(/, "delimiter.open"],
       [/[)]/, "delimiter.close"],

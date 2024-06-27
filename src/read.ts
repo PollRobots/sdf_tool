@@ -37,6 +37,7 @@ export const tokenize = (input: string): Token[] => {
     | "vector" = "base";
   let accum = "";
   let multiCount = 0;
+  let vectorCount = 0;
   for (const ch of input + " ") {
     let repeat = true;
     while (repeat) {
@@ -120,6 +121,7 @@ export const tokenize = (input: string): Token[] => {
           } else if (ch == "<") {
             mode = "vector";
             accum = "#<";
+            vectorCount = 1;
           } else {
             throw new DslParseError(
               `Unexpected reader sequence '#${ch}'`,
@@ -179,45 +181,56 @@ export const tokenize = (input: string): Token[] => {
         case "vector":
           if (ch === ">") {
             accum += ">";
-            try {
-              const vector_tokens = tokenize(accum.slice(2, accum.length - 1));
-              tokens.push(
-                {
-                  type: "punctuation",
-                  offset: start,
-                  value: "(",
-                  reader: true,
-                },
-                {
-                  type: "identifier",
-                  offset: start,
-                  value: "vec",
-                  reader: true,
+            vectorCount--;
+            if (vectorCount == 0) {
+              try {
+                const vector_tokens = tokenize(
+                  accum.slice(2, accum.length - 1)
+                );
+                tokens.push(
+                  {
+                    type: "punctuation",
+                    offset: start,
+                    value: "(",
+                    reader: true,
+                  },
+                  {
+                    type: "identifier",
+                    offset: start,
+                    value: "vec",
+                    reader: true,
+                  }
+                );
+                for (const vt of vector_tokens) {
+                  tokens.push({
+                    type: vt.type,
+                    offset: vt.offset + start + 2,
+                    value: vt.value,
+                  });
                 }
-              );
-              for (const vt of vector_tokens) {
                 tokens.push({
-                  type: vt.type,
-                  offset: vt.offset + start + 2,
-                  value: vt.value,
+                  type: "punctuation",
+                  offset: offset,
+                  value: ")",
+                  reader: true,
                 });
+                mode = "base";
+              } catch (err) {
+                if (err instanceof DslParseError) {
+                  throw err;
+                }
+                throw new DslParseError(
+                  `Error parsing vector '${accum}': ${err}`,
+                  start,
+                  offset - start
+                );
               }
-              tokens.push({
-                type: "punctuation",
-                offset: offset,
-                value: ")",
-                reader: true,
-              });
-              mode = "base";
-            } catch (err) {
-              throw new DslParseError(
-                `Error parsing vector '${accum}': ${err}`,
-                start,
-                offset - start
-              );
             }
           } else {
             accum += ch;
+            if (accum.endsWith("#<")) {
+              vectorCount++;
+            }
           }
           break;
         default:
