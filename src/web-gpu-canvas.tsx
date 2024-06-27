@@ -21,6 +21,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const [fps, setFps] = React.useState(0);
   const [xAngle, setXAngle] = React.useState(15);
   const [yAngle, setYAngle] = React.useState(0);
+  const [zoom, setZoom] = React.useState(0);
   const [initialPt, setInitialPt] = React.useState({
     x: 0,
     y: 0,
@@ -99,9 +100,9 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
 
   React.useEffect(() => {
     if (gpu.current) {
-      gpu.current.angles(xAngle, yAngle);
+      gpu.current.cameraSettings(xAngle, yAngle, zoom);
     }
-  }, [gpu, yAngle, xAngle]);
+  }, [gpu, yAngle, xAngle, zoom]);
 
   const mouseDown = (evt: React.MouseEvent) => {
     if (evt.button != 0) {
@@ -158,19 +159,35 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         onMouseMove={(e) => mouseMove(e)}
         onMouseOut={(e) => setLeftButton(false)}
       />
-      <input
-        type="range"
-        className="vertical"
-        min={5}
-        max={85}
-        value={xAngle}
-        onChange={(e) => setXAngle(e.target.valueAsNumber || 0)}
-        style={{
-          height: props.style
-            ? props.style.height || props.height
-            : props.height,
-        }}
-      />
+      <div>
+        <input
+          type="range"
+          className="vertical"
+          min={5}
+          max={85}
+          value={xAngle}
+          onChange={(e) => setXAngle(e.target.valueAsNumber || 0)}
+          style={{
+            height: props.style
+              ? props.style.height || props.height
+              : props.height,
+          }}
+        />
+        <input
+          type="range"
+          className="vertical"
+          min={-1}
+          max={1}
+          step={0.01}
+          value={zoom}
+          onChange={(e) => setZoom(e.target.valueAsNumber || 0)}
+          style={{
+            height: props.style
+              ? props.style.height || props.height
+              : props.height,
+          }}
+        />
+      </div>
       <input
         type="range"
         min={-180}
@@ -178,7 +195,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         value={yAngle}
         onChange={(e) => setYAngle(e.target.valueAsNumber || 0)}
         style={{
-          width: props.style ? props.style.width || props.width : props.width,
+          width: "100%",
         }}
       />
 
@@ -230,6 +247,7 @@ class WebGpuWidget {
   uniformBindGroup?: GPUBindGroup;
   x: number = 0;
   y: number = 0;
+  zoom: number = 0;
   multiplier: number = 1;
   sampler: number = 0;
   fps: number = 0;
@@ -387,6 +405,7 @@ ${"^".padStart(el.linePos)}`;
     floats[1] = this.canvas.height;
     floats[4] = this.x;
     floats[5] = this.y;
+    floats[6] = this.zoom;
 
     this.uniformValues.forEach(
       (el, i) => (floats[8 + this.uniformOffsets[i]] = el)
@@ -427,31 +446,10 @@ ${"^".padStart(el.linePos)}`;
     }
   }
 
-  get xAngle() {
-    return this.x;
-  }
-
-  set xAngle(value: number) {
-    this.x = value;
-    if (!this.running) {
-      requestAnimationFrame((n) => this.frame(n));
-    }
-  }
-
-  get yAngle() {
-    return this.y;
-  }
-
-  set yAngle(value: number) {
-    this.y = value;
-    if (!this.running) {
-      requestAnimationFrame((n) => this.frame(n));
-    }
-  }
-
-  angles(x: number, y: number) {
+  cameraSettings(x: number, y: number, zoom: number) {
     this.x = x;
     this.y = y;
+    this.zoom = zoom;
     if (!this.running) {
       requestAnimationFrame((n) => this.frame(n));
     }

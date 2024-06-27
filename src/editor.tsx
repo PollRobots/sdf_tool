@@ -13,16 +13,6 @@ export interface EditorProps {
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
-const createEditor = (
-  element: HTMLElement,
-  options: monaco.editor.IStandaloneEditorConstructionOptions
-) => {
-  type CreateFn = typeof monaco.editor.create;
-  const create = (window as any).monaco.editor.create as CreateFn;
-
-  return create(element, options);
-};
-
 export const Editor: React.FC<EditorProps> = (props) => {
   const ref = React.useRef<HTMLDivElement>(null);
   const editorRef = React.useRef<monaco.editor.IStandaloneCodeEditor>();
@@ -52,7 +42,7 @@ export const Editor: React.FC<EditorProps> = (props) => {
     solarizedContrast.defineThemes();
     terminal.defineThemes();
 
-    const editor = createEditor(ref.current, {
+    const editor = window.monaco.editor.create(ref.current, {
       language: props.defaultLanguage,
       theme: props.theme,
       value: props.defaultValue,

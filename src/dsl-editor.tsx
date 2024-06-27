@@ -25,6 +25,7 @@ import { generate, makeContext } from "./generate";
 import { Uniform } from "./uniform";
 import { HintProvider } from "./hint-provider";
 import { HoverProvider } from "./hover-provider";
+import { CodeLensProvider } from "./code-lens-provider";
 
 interface DslEditorProps {
   fontSize: number;
@@ -33,6 +34,7 @@ interface DslEditorProps {
   uniforms: Map<string, Uniform>;
   onGenerating: (line: string) => void;
   onTogglePositions: () => void;
+  onCaptureUniforms: () => string[];
 }
 
 const checkForForcedTheme = (name: string): string => {
@@ -70,6 +72,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const timeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
   const hintTimeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
   const hintProvider = React.useRef(new HintProvider());
+  const codeLenseProvider = React.useRef<CodeLensProvider>(null);
   const hoverProvider = React.useRef(null);
   const [canPaste, setCanPaste] = React.useState(true);
   const [currentVersion, setCurrentVersion] = React.useState(0);
@@ -118,8 +121,19 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       kLanguageId,
       hintProvider.current
     );
+    codeLenseProvider.current = new CodeLensProvider(editor);
+    window.monaco.languages.registerCodeLensProvider(
+      kLanguageId,
+      codeLenseProvider.current
+    );
     setEditor(editor);
   };
+
+  React.useEffect(() => {
+    if (codeLenseProvider.current) {
+      codeLenseProvider.current.updateValueGetter(props.onCaptureUniforms);
+    }
+  }, [codeLenseProvider.current, props.onCaptureUniforms]);
 
   const parseCheck = () => {
     if (timeoutHandle.current) {
@@ -421,7 +435,6 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                             }
                           })
                           .catch((err) => {
-                            console.error(err);
                             editor.focus();
                           });
                       }}

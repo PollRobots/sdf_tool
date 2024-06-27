@@ -180,9 +180,9 @@ fn render(ro: vec3<f32>, rd:vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<f
     return col;
 }
 
-fn setCamera(ro: vec3<f32>, ta: vec3<f32>, cr: f32) -> mat3x3<f32> {
+fn setCamera(ro: vec3<f32>, ta: vec3<f32>) -> mat3x3<f32> {
     var cw = normalize(ta - ro);
-    var cp = vec3<f32>(sin(cr), cos(cr), 0.0);
+    var cp = vec3<f32>(0, 1, 0.0);
     var cu = normalize(cross(cw, cp)) ;
     var cv = cross(cu, cw);
 
@@ -200,8 +200,9 @@ fn frag_main(
     var cam_hdist = CAMERA_DISTANCE * cos(cx);
 
     var ta = vec3<f32>(0, 0, 0);
-    var ro = ta + vec3<f32>(cam_hdist * sin(cy), cam_height, cam_hdist * cos(cy));
-    var ca = setCamera(ro, ta, 0.0);
+    var zero_ro = ta + vec3<f32>(cam_hdist * sin(cy), cam_height, cam_hdist * cos(cy));
+    var ro = zero_ro + (ta - zero_ro) * uniforms.rotation.z;
+    var ca = setCamera(ro, ta);
 
     var fragCoord = frag.uv * uniforms.resolution.xy;
     var p = (2.0 * fragCoord - uniforms.resolution.xy) / uniforms.resolution.y;

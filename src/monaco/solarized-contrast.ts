@@ -1,4 +1,3 @@
-import monaco from "monaco-editor";
 import { BaseColors, Theme } from "./theme";
 import { kSolarizedNamedColors } from "./solarized";
 
@@ -33,10 +32,7 @@ export const kSolarizedContrastLight: Theme = {
 };
 
 export function defineThemes() {
-  const defineTheme: typeof monaco.editor.defineTheme = (window as any).monaco
-    .editor.defineTheme;
-
-  defineTheme(kSolarizedContrastDark.name, {
+  window.monaco.editor.defineTheme(kSolarizedContrastDark.name, {
     base: "vs-dark",
     inherit: false,
     rules: [
@@ -65,7 +61,7 @@ export function defineThemes() {
     },
   });
 
-  defineTheme(kSolarizedContrastLight.name, {
+  window.monaco.editor.defineTheme(kSolarizedContrastLight.name, {
     base: "vs",
     inherit: false,
     rules: [

@@ -3,9 +3,7 @@ import { Expression, isIdentifier, isVectorName } from "./dsl";
 import { Uniform } from "./uniform";
 
 export class HintProvider implements monaco.languages.InlayHintsProvider {
-  private changeEmitter: monaco.Emitter<void> = new (
-    (window as any).monaco as typeof monaco
-  ).Emitter();
+  private changeEmitter: monaco.Emitter<void> = new window.monaco.Emitter();
   private parsed: Expression[] = [];
   private uniforms: Map<string, Uniform> = new Map();
 
@@ -56,7 +54,6 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
   ): monaco.languages.ProviderResult<monaco.languages.InlayHintList> {
     const start = model.getOffsetAt(range.getStartPosition());
     const end = model.getOffsetAt(range.getEndPosition());
-    const m = (window as any).monaco as typeof monaco;
 
     const names = new Set<string>();
     const placeholders = this.findPlaceholders()
@@ -96,7 +93,7 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
 
       const el = x || y || z;
       return {
-        kind: m.languages.InlayHintKind.Type,
+        kind: window.monaco.languages.InlayHintKind.Type,
         position: model.getPositionAt(el.offset + el.length),
         label: `= #<${x_val}, ${y_val}, ${z_val}>`,
         paddingLeft: true,
@@ -106,7 +103,7 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
     const hints: monaco.languages.InlayHint[] = placeholders
       .filter((el) => !isVectorName(el.value as string))
       .map((el) => ({
-        kind: m.languages.InlayHintKind.Type,
+        kind: window.monaco.languages.InlayHintKind.Type,
         position: model.getPositionAt(el.offset + el.length),
         label: `= ${getPlaceholderValue(el)}`,
         paddingLeft: true,

@@ -221,6 +221,14 @@ ${el.code}
     }
   };
 
+  const captureUniforms = () =>
+    uniforms
+      .filter((name) => values.has(name))
+      .map((name) => {
+        const value = values.get(name);
+        return `  ${name} = ${value.value} [${value.min}:${value.max}:${value.step}]`;
+      });
+
   return (
     <div
       style={{
@@ -272,14 +280,14 @@ ${el.code}
         style={{
           display: "grid",
           gap: "1em",
-          gridTemplateColumns: "48vw 48vw",
+          gridTemplateColumns: "calc(50vw - 1.5em) calc(50vw - 1.5em)",
           gridTemplateRows: "auto 1fr",
         }}
       >
         <WebGPUCanvas
           style={{
-            width: `45vw`,
-            height: `${Math.round((50 * 9) / 16)}vw`,
+            width: `calc(48vw - 4em)`,
+            height: `calc(9 * (48vw - 4em) / 16)`,
             gridArea: "1/1/2/2",
             border: `solid 1px ${currTheme.base00}`,
           }}
@@ -325,6 +333,7 @@ ${el.code}
               uniforms={values}
               onGenerating={(s: string) => generateWgsl(s)}
               onTogglePositions={() => setEditorTop(!editorTop)}
+              onCaptureUniforms={() => captureUniforms()}
             />
           </EditorThemeProvider>
         </React.Suspense>

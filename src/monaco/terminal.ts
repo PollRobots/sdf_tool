@@ -1,4 +1,3 @@
-import monaco from "monaco-editor";
 import { BaseColors, NamedColors, Theme } from "./theme";
 
 export const kTerminalNamedColors: NamedColors = {
@@ -43,10 +42,7 @@ export const kTerminalLight: Theme = {
 };
 
 export function defineThemes() {
-  const defineTheme: typeof monaco.editor.defineTheme = (window as any).monaco
-    .editor.defineTheme;
-
-  defineTheme(kTerminalDark.name, {
+  window.monaco.editor.defineTheme(kTerminalDark.name, {
     base: "vs-dark",
     inherit: false,
     rules: [
@@ -75,7 +71,7 @@ export function defineThemes() {
     },
   });
 
-  defineTheme(kTerminalLight.name, {
+  window.monaco.editor.defineTheme(kTerminalLight.name, {
     base: "vs",
     inherit: false,
     rules: [
