@@ -1051,6 +1051,19 @@ const kShapes: MacroDef[] = [
     ],
   },
   {
+    name: "lerp",
+    symbols: ["a", "b", "t"],
+    body: "`(shape lerp ,t ,a ,b)",
+    docs: [
+      "(**lerp** *a* *b* *t*)",
+      "Creates a shape that is the linear interpolation of distance fields of " +
+        "the shapes *a* and *b*, where *t* is a value between `0` and `1` " +
+        "used to determine the proportion for the interpolation.",
+      "`0` will simply be the shape *a*, `1` will be the shape *b*.",
+      "*t* must be a numeric value.",
+    ],
+  },
+  {
     name: "scale",
     symbols: ["s", "c"],
     body: "`(shape scale ,s ,c)",
@@ -1202,6 +1215,13 @@ const kShapes: MacroDef[] = [
       "(**sphere** *c* *r*)",
       "Creates a sphere centered on *c* with radius *r*.",
       "*c* must be a vector, and *r* must be a numeric value.",
+      "**Example:**",
+      "```" +
+        `
+(sphere #<0.5 0.25 0> 0.25)
+` +
+        "```",
+      "Creates a sphere centered at `(0.5, 0.25, 0)` with a radius of `0.25`",
     ],
   },
   {

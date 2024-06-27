@@ -455,6 +455,7 @@ const generateImpl = (
             code: lines.join("\n"),
             type: "void",
           };
+
         case "difference":
           if (shape.args.length !== 2 && shape.args.length !== 3) {
             throw new Error(
@@ -508,6 +509,61 @@ const generateImpl = (
             }
           });
           lines.push("  res = sdfDifference(k, diff_left, diff_right);");
+          lines.push("}");
+          return {
+            code: lines.join("\n"),
+            type: "void",
+          };
+
+        case "lerp":
+          if (shape.args.length !== 3) {
+            throw new Error(
+              `lerp must have three arguments, found ${shape.args.length}`
+            );
+          }
+          const lerp_args = shape.args.map((el) => generate(el, env, ctx));
+          if (lerp_args[0].type !== "float") {
+            throw new Error(
+              `lerp interpolation factor must be a number, found ${print(
+                shape.args[0]
+              )}`
+            );
+          }
+          const lerp_t = lerp_args[0].code;
+          const lerp_left = lerp_args[1];
+          const lerp_right = lerp_args[2];
+          if (lerp_left.type === "sdf" && lerp_right.type === "sdf") {
+            return {
+              code: [
+                `mix(${lerp_left.code},`,
+                `    ${lerp_right.code},`,
+                `    saturate(${lerp_t}))`,
+              ].join("\n"),
+              type: "sdf",
+            };
+          }
+          lines.push("{");
+          [lerp_left, lerp_right].forEach((el, i) => {
+            const lerp_var = i == 0 ? "lerp_left" : "lerp_right";
+            switch (el.type) {
+              case "sdf":
+                lines.push(`  var ${lerp_var} = ${el.code};`);
+                break;
+              case "void":
+                lines.push(...indent(el.code));
+                lines.push(`  var ${lerp_var} = res;`);
+                break;
+              default:
+                throw new Error(
+                  `Error: cannot take linear interpolation of ${print(
+                    shape.args[i + 1]
+                  )}`
+                );
+            }
+          });
+          lines.push(
+            `  res = mix(lerp_left, lerp_right, saturate(${lerp_t}));`
+          );
           lines.push("}");
           return {
             code: lines.join("\n"),
