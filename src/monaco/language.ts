@@ -78,6 +78,14 @@ const kBuiltins = [
   "abrupt",
   "ellipsoid",
   "sphere",
+  "box",
+  "rounded-box",
+  "torus",
+  "cone",
+  "infinite-cone",
+  "infinite-cylinder",
+  "hide",
+  "reflect",
 ];
 
 const kSpecial = [

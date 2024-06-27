@@ -663,6 +663,7 @@ const generateImpl = (
             code: lines.join("\n"),
             type: "void",
           };
+
         case "rotate":
           if (shape.args.length !== 3) {
             throw new Error(
@@ -733,10 +734,47 @@ const generateImpl = (
             code: lines.join("\n"),
             type: "void",
           };
+
+        case "reflect":
+          if (shape.args.length !== 2) {
+            throw new Error(
+              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
+            );
+          }
+          lines.push("{");
+          const reflection = generate(shape.args[0], env, ctx);
+          if (reflection.type !== "vec") {
+            throw new Error(
+              `reflection must be a vector, found ${print(shape.args[0])}`
+            );
+          }
+          lines.push(
+            `  var p = select(p, abs(p), ${reflection.code} > vec3<f32>(0));`
+          );
+          const reflection_target = generate(shape.args[1], env, ctx);
+          switch (reflection_target.type) {
+            case "sdf":
+              lines.push(`  res = ${reflection_target.code};`);
+              break;
+            case "void":
+              lines.push(...indent(reflection_target.code));
+              break;
+            default:
+              throw new Error(
+                `Error: cannot ${shape.type} ${print(shape.args[1])}`
+              );
+          }
+          lines.push("}");
+          return {
+            code: lines.join("\n"),
+            type: "void",
+          };
+
+        case "hide":
+          return { code: `1e5`, type: "sdf" };
+
         default:
-          const name = `sdf${shape.type
-            .substring(0, 1)
-            .toUpperCase()}${shape.type.substring(1)}`;
+          const name = makeShapeName(shape.type);
           const shape_args = shape.args.map((el) => generate(el, env, ctx));
           ctx.dependencies.add(name);
           return {
@@ -767,6 +805,23 @@ const generateImpl = (
         `Generation not implemented for ${expr.type} ${print(expr)}`
       );
   }
+};
+
+const makeShapeName = (identifier: string): string => {
+  const letters = ["sdf"];
+
+  let capitalize = true;
+  for (const ch of identifier) {
+    if (capitalize) {
+      letters.push(ch.toUpperCase());
+      capitalize = false;
+    } else if (ch == "-") {
+      capitalize = true;
+    } else {
+      letters.push(ch);
+    }
+  }
+  return letters.join("");
 };
 
 export const generate = (

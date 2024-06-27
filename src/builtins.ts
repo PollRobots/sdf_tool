@@ -1087,6 +1087,41 @@ const kShapes: MacroDef[] = [
     symbols: ["c", "s"],
     body: "`(shape box ,c ,s)",
   },
+  {
+    name: "rounded-box",
+    symbols: ["c", "s", "r"],
+    body: "`(shape rounded-box ,c ,s ,r)",
+  },
+  {
+    name: "torus",
+    symbols: ["c", "maj", "min"],
+    body: "`(shape torus ,c ,maj ,min)",
+  },
+  {
+    name: "cone",
+    symbols: ["c", "a", "h"],
+    body: "`(shape cone ,c ,a ,h)",
+  },
+  {
+    name: "infinite-cone",
+    symbols: ["c", "a"],
+    body: "`(shape infinite-cone ,c ,a)",
+  },
+  {
+    name: "infinite-cylinder",
+    symbols: ["c", "d", "r"],
+    body: "`(shape infinite-cylinder ,c ,d ,r)",
+  },
+  {
+    name: "hide",
+    symbols: ["...c"],
+    body: "(shape hide)",
+  },
+  {
+    name: "reflect",
+    symbols: ["v", "c"],
+    body: "`(shape reflect ,v ,c)",
+  },
 ];
 
 const readOne = (name: string, input: string): Expression => {

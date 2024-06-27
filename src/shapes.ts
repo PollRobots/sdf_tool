@@ -20,6 +20,7 @@ const kShapeFunctions = new Map<string, string>([
   ["sdfRoundedBox", roundedBox],
   ["sdfTorus", torus],
   ["sdfCone", cone],
+  ["sdfInfiniteCone", infiniteCone],
   ["sdfInfiniteCylinder", infiniteCylinder],
 ]);
 
