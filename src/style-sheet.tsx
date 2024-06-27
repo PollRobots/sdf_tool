@@ -7,12 +7,16 @@ export const updateStyleSheet = (theme: Theme) => {
         background-color: ${theme.background};
         color: ${theme.foreground};
     }
+    input {
+        font-size: 80%;
+    }
     `);
   styles.push(`
         select {
             background-color: ${theme.background};
             color: ${theme.foreground};
             border-color: ${theme.base00};
+            font-size: 100%
         }
         `);
   styles.push(`
@@ -23,6 +27,7 @@ export const updateStyleSheet = (theme: Theme) => {
         cursor: pointer;
         padding: 4px 1em 4px 1em;
         border-radius: 0.25em;
+        font-size: 100%;
     }
     button:active {
         background-color: ${theme.boldBackground};

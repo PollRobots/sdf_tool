@@ -188,6 +188,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           display: "flex",
           gap: "0.5em",
           width: "fit-content",
+          alignItems: "center",
         }}
       >
         <button

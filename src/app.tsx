@@ -24,6 +24,7 @@ import {
   kDefaultUniform,
 } from "./uniform";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
+import { isVectorName } from "./dsl";
 
 const DslEditor = React.lazy(async () => {
   await ((window as any).getMonaco as () => Promise<void>)();
@@ -48,6 +49,10 @@ const kThemeNames = new Map([
   ["hico-light", "Contrast Light"],
 ]);
 
+const kFontSizes: number[] = [
+  6, 7, 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96,
+];
+
 const getBrowserColorScheme = () =>
   window.matchMedia("(prefers-color-scheme: dark").matches ? "dark" : "light";
 
@@ -70,6 +75,8 @@ export const App: React.FC = () => {
   const [uniforms, setUniforms] = React.useState<string[]>([]);
   const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
+  const [editorTop, setEditorTop] = React.useState(true);
+  const [fontSize, setFontSize] = React.useState(14);
 
   const currTheme = kEditorThemes.get(theme) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
@@ -211,6 +218,8 @@ ${el.code}
       style={{
         backgroundColor: currTheme.background,
         color: currTheme.foreground,
+        fontSize: `${fontSize}pt`,
+        //fontSize: `${Math.round((100 * fontSize) / 14)}%`,
       }}
     >
       <div style={{ display: "grid" }}>
@@ -218,12 +227,33 @@ ${el.code}
           SDF Tool
         </h1>
         {forcedColors ? null : (
-          <div style={{ gridArea: "1/1/2/2", justifySelf: "end" }}>
-            Theme:{" "}
+          <div
+            style={{
+              gridArea: "1/1/2/2",
+              justifySelf: "end",
+              display: "grid",
+              gap: "0.25em",
+              height: "fit-content",
+              gridTemplateColumns: "auto auto",
+            }}
+          >
+            Theme:
             <select value={theme} onChange={(e) => setTheme(e.target.value)}>
               {Array.from(kThemeNames.entries()).map(([value, name]) => (
                 <option key={value} value={value}>
                   {name}
+                </option>
+              ))}
+            </select>
+            Font size:
+            <select
+              style={{ width: "fit-content" }}
+              value={fontSize}
+              onChange={(e) => setFontSize(Number(e.target.value))}
+            >
+              {kFontSizes.map((el) => (
+                <option key={el} value={el}>
+                  {el}
                 </option>
               ))}
             </select>
@@ -234,7 +264,7 @@ ${el.code}
         style={{
           display: "grid",
           gap: "1em",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "48vw 48vw",
           gridTemplateRows: "auto 1fr",
         }}
       >
@@ -243,6 +273,7 @@ ${el.code}
             width: `45vw`,
             height: `${Math.round((50 * 9) / 16)}vw`,
             gridArea: "1/1/2/2",
+            border: `solid 1px ${currTheme.base00}`,
           }}
           width={width}
           height={height}
@@ -264,35 +295,80 @@ ${el.code}
         <React.Suspense fallback={"loading..."}>
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
             <DslEditor
-              style={{ gridArea: "1/2/3/3" }}
-              fontSize={16}
+              style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
+              fontSize={fontSize}
               line=""
               uniforms={values}
               onGenerating={(s: string) => generateWgsl(s)}
+              onTogglePositions={() => setEditorTop(!editorTop)}
             />
           </EditorThemeProvider>
         </React.Suspense>
-        <div style={{ gridArea: "2/1/3/2", overflowY: "auto" }}>
+        <div
+          style={{
+            gridArea: editorTop ? "2/1/3/2" : "1/2/3/3",
+            overflowY: "auto",
+          }}
+        >
           {uniforms.length == 0 ? null : (
             <div
               style={{
-                display: "grid",
-                gap: "0.5em",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "0.5em 2em",
                 padding: "0.5em 0",
                 alignItems: "center",
-                maxWidth: "40em",
               }}
             >
-              {uniforms.map((el) => {
-                return (
-                  <UniformEditor
-                    key={el}
-                    name={el}
-                    {...(values.get(el) || getDefaultUniform(el))}
-                    onChange={(v) => setUniformValue(el, v)}
-                  />
-                );
-              })}
+              {uniforms
+                .filter((el) => isVectorName(el))
+                .reduce((accum, el) => {
+                  if (accum.length == 0) {
+                    return [[el]];
+                  }
+                  const last = accum[accum.length - 1];
+                  const prefix = last[0].substring(0, last[0].length - 2);
+                  if (el.startsWith(prefix)) {
+                    last.push(el);
+                  } else {
+                    accum.push([el]);
+                  }
+                  return accum;
+                }, [] as string[][])
+                .map((els) => (
+                  <div
+                    key={els.join("-")}
+                    style={{
+                      borderLeft: `solid 1px ${currTheme.base00}`,
+                      borderRadius: "0.5em",
+                      paddingLeft: "0.5em",
+                      flexGrow: 1,
+                    }}
+                  >
+                    {" "}
+                    {els.map((el) => (
+                      <UniformEditor
+                        key={el}
+                        name={el}
+                        grouped
+                        {...(values.get(el) || getDefaultUniform(el))}
+                        onChange={(v) => setUniformValue(el, v)}
+                      />
+                    ))}
+                  </div>
+                ))}
+              {uniforms
+                .filter((el) => !isVectorName(el))
+                .map((el) => {
+                  return (
+                    <UniformEditor
+                      key={el}
+                      name={el}
+                      {...(values.get(el) || getDefaultUniform(el))}
+                      onChange={(v) => setUniformValue(el, v)}
+                    />
+                  );
+                })}
             </div>
           )}
           <code>

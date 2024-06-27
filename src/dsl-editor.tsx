@@ -3,7 +3,16 @@ import monaco from "monaco-editor";
 
 import { IconButton } from "./icon-button";
 import { EditorThemeContext, ThemeContext } from "./theme-provider";
-import { Cut, Copy, Paste, Undo, Redo, Open, Save } from "./icons/icons";
+import {
+  Cut,
+  Copy,
+  Paste,
+  Undo,
+  Redo,
+  Open,
+  Save,
+  Switch,
+} from "./icons/icons";
 import { kLanguageId } from "./monaco/language";
 import { openFilePicker, saveFilePicker } from "./util";
 import { Editor } from "./editor";
@@ -22,6 +31,7 @@ interface DslEditorProps {
   style?: React.CSSProperties;
   uniforms: Map<string, Uniform>;
   onGenerating: (line: string) => void;
+  onTogglePositions: () => void;
 }
 
 const checkForForcedTheme = (name: string): string => {
@@ -65,6 +75,14 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const [highVersion, setHighVersion] = React.useState(0);
   const [editor, setEditor] =
     React.useState<monaco.editor.IStandaloneCodeEditor>(null);
+
+  React.useEffect(() => {
+    if (editor) {
+      editor.updateOptions({
+        fontSize: props.fontSize,
+      });
+    }
+  }, [props.fontSize]);
 
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.updateOptions({
@@ -249,26 +267,27 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     display: "grid",
                     background: editorTheme.boldBackground,
                     padding: "0.25em",
-                    gridTemplateColumns: "auto auto 1fr auto",
+                    gridTemplateColumns: "auto 1fr auto",
                   }}
                 >
-                  <span
-                    style={{
-                      margin: "auto 1em",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Edit sdf script
-                  </span>
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns:
-                        "3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
+                        "1fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
                       columnGap: "0.25em",
                       alignSelf: "center",
                     }}
                   >
+                    <div />
+                    <IconButton
+                      title="Toggle Positions"
+                      size={props.fontSize * 2}
+                      onClick={() => props.onTogglePositions()}
+                    >
+                      <Switch />
+                    </IconButton>
+                    <div />
                     <IconButton
                       size={props.fontSize * 2}
                       title="Cut"
@@ -428,7 +447,6 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                 <Editor
                   style={{
                     height: "90vh",
-                    minWidth: "50vw",
                     maxWidth: "calc(95vw - 8rem)",
                   }}
                   theme={themeName}

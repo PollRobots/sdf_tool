@@ -18,6 +18,7 @@ export const kDefaultUniform: Uniform = {
 
 interface UniformProps extends Uniform {
   name: string;
+  grouped?: boolean;
   onChange: (update: Uniform) => void;
 }
 
@@ -61,12 +62,15 @@ export const UniformEditor: React.FC<UniformProps> = (props) => {
       style={{
         display: "grid",
         columnGap: "0.5em",
-        gridTemplateColumns: `10em auto 3em ${showProps ? "auto" : "2em"}`,
+        gridTemplateColumns: `8em auto 3em ${showProps ? "auto" : "2em"}`,
         gridTemplateRows: "auto auto",
         alignItems: "center",
+        marginLeft: props.grouped ? undefined : "calc(1px + 0.5em)",
+        minWidth: "30em",
+        flexGrow: 1,
       }}
     >
-      <div style={{ fontWeight: "bolder" }}>{props.name}:</div>
+      <div>{props.name}:</div>
       <input
         type="range"
         min={props.min}
