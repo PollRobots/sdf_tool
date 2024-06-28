@@ -30,10 +30,13 @@ describe("generate", () => {
 
     expect(generate(read("(+)")[0], env)).to.have.property("code", "0.0");
     expect(generate(read("(+ 1)")[0], env)).to.have.property("code", "1");
-    expect(generate(read("(+ 1 2)")[0], env)).to.have.property("code", "1 + 2");
+    expect(generate(read("(+ 1 2)")[0], env)).to.have.property(
+      "code",
+      "(1 + 2)"
+    );
     expect(generate(read("(+ 1 2 3)")[0], env)).to.have.property(
       "code",
-      "1 + 2 + 3"
+      "(1 + 2 + 3)"
     );
   });
 
@@ -43,10 +46,13 @@ describe("generate", () => {
 
     expect(generate(read("(-)")[0], env)).to.have.property("code", "0.0");
     expect(generate(read("(- 1)")[0], env)).to.have.property("code", "-1");
-    expect(generate(read("(- 1 2)")[0], env)).to.have.property("code", "1 - 2");
+    expect(generate(read("(- 1 2)")[0], env)).to.have.property(
+      "code",
+      "(1 - 2)"
+    );
     expect(generate(read("(- 1 2 3)")[0], env)).to.have.property(
       "code",
-      "1 - 2 - 3"
+      "(1 - 2 - 3)"
     );
   });
 
@@ -56,10 +62,13 @@ describe("generate", () => {
 
     expect(generate(read("(*)")[0], env)).to.have.property("code", "1.0");
     expect(generate(read("(* 1)")[0], env)).to.have.property("code", "1");
-    expect(generate(read("(* 1 2)")[0], env)).to.have.property("code", "1 * 2");
+    expect(generate(read("(* 1 2)")[0], env)).to.have.property(
+      "code",
+      "(1 * 2)"
+    );
     expect(generate(read("(* 1 2 3)")[0], env)).to.have.property(
       "code",
-      "1 * 2 * 3"
+      "(1 * 2 * 3)"
     );
   });
 
@@ -68,11 +77,17 @@ describe("generate", () => {
     addBuiltins(env);
 
     expect(generate(read("(/)")[0], env)).to.have.property("code", "1.0");
-    expect(generate(read("(/ 3)")[0], env)).to.have.property("code", "1.0 / 3");
-    expect(generate(read("(/ 3 2)")[0], env)).to.have.property("code", "3 / 2");
+    expect(generate(read("(/ 3)")[0], env)).to.have.property(
+      "code",
+      "(1.0 / 3)"
+    );
+    expect(generate(read("(/ 3 2)")[0], env)).to.have.property(
+      "code",
+      "(3 / 2)"
+    );
     expect(generate(read("(/ 4 3 2)")[0], env)).to.have.property(
       "code",
-      "4 / 3 / 2"
+      "(4 / 3 / 2)"
     );
   });
 
@@ -142,7 +157,7 @@ describe("generate", () => {
     addBuiltins(env);
 
     const lambda = read("((lambda (x y) (+ x y)) 1 2)")[0];
-    expect(generate(lambda, env)).to.have.property("code", "1 + 2");
+    expect(generate(lambda, env)).to.have.property("code", "(1 + 2)");
   });
 
   it("shape generates sdf call", () => {
@@ -152,7 +167,7 @@ describe("generate", () => {
     const shape = evaluate(read("(sphere #<1 2 3> 4)")[0], env);
     expect(generate(shape, env, ctx)).to.have.property(
       "code",
-      "sdfSphere(p, t, vec3<f32>(1, 2, 3), 4)"
+      "sdfSphere(p, vec3<f32>(1, 2, 3), 4)"
     );
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
@@ -164,7 +179,7 @@ describe("generate", () => {
     const shape = evaluate(read("(sphere #<1 :x 3> 4)")[0], env);
     expect(generate(shape, env, ctx)).to.have.property(
       "code",
-      "sdfSphere(p, t, vec3<f32>(1, uniforms.values[0][0], 3), 4)"
+      "sdfSphere(p, vec3<f32>(1, {%x%}, 3), 4)"
     );
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
@@ -177,7 +192,7 @@ describe("generate", () => {
     const cond = read("(if (< 1 :x) (splat 3) 4)")[0];
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
-      "1 < uniforms.values[0][0] ? vec3<f32>(3) : vec3<f32>(4)"
+      "(1 < {%x%}) ? vec3<f32>(3) : vec3<f32>(4)"
     );
   });
 
@@ -191,11 +206,11 @@ describe("generate", () => {
     )[0];
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
-      `if (1 < uniforms.values[0][0]) {
-  var k = 0.1;
-  res = sdfSphere(p, t, vec3<f32>(1), 1);
+      `if ((1 < {%x%})) {
+  var k: f32 = 0.1;
+  res = sdfSphere(p, vec3<f32>(1), 1);
 } else {
-  res = sdfSphere(p, t, vec3<f32>(2), 2);
+  res = sdfSphere(p, vec3<f32>(2), 2);
 }`
     );
   });

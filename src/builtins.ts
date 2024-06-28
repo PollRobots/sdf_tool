@@ -582,7 +582,7 @@ const kBuiltins: Internal[] = [
       if (args.length == 0) {
         return { code: "1.0", type: "float" };
       } else if (args.length == 1) {
-        return { code: `1.0 / ${args[0].code}`, type: args[0].type };
+        return { code: `(1.0 / ${args[0].code})`, type: args[0].type };
       } else {
         return {
           code: `(${args.map((el) => el.code).join(" / ")})`,
