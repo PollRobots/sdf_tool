@@ -5,6 +5,9 @@ struct Uniforms {
 }
 
 @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+@binding(1) @group(0) var noiseTexture: texture_2d<f32>;
+
+const kTextureSize: f32 = 256;
 
 struct VertexOutput {
     @builtin(position) pos: vec4<f32>,
@@ -216,5 +219,8 @@ fn frag_main(
 
     var col = render(ro, rd, rdx, rdy);
     col = pow(col, vec3<f32>(0.4545));
-    return vec4<f32>(col, 1);
+
+    var tpos = floor(frag.uv * uniforms.resolution.xy * kTextureSize / uniforms.resolution.x);
+    var tval = textureLoad(noiseTexture, vec2<u32>(tpos), 0);
+    return vec4<f32>(mix(col, tval.rrr, 0.01), 1);
 }

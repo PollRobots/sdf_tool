@@ -1,5 +1,6 @@
 import React from "react";
-import { saveFilePicker, saveFilePickerComplete } from "./util";
+import seedrandom from "seedrandom";
+import { saveFilePickerComplete } from "./util";
 
 interface WebGPUCanvasProps {
   shader: string;
@@ -271,6 +272,7 @@ class WebGpuWidget {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: GPUCanvasContext;
   device?: GPUDevice;
+  noiseTexture?: GPUTexture;
   pipeline?: GPURenderPipeline;
   running = false;
   uniformValues: number[] = [];
@@ -299,6 +301,8 @@ class WebGpuWidget {
   async init(shaderSrc: string, vertex: string, fragment: string) {
     const adapter = await navigator.gpu.requestAdapter();
     this.device = await adapter!.requestDevice();
+
+    this.noiseTexture = this.createNoise(256);
 
     await this.updateShader(shaderSrc, vertex, fragment);
 
@@ -387,6 +391,10 @@ ${"^".padStart(el.linePos)}`;
             resource: {
               buffer: uniformBuffer,
             },
+          },
+          {
+            binding: 1,
+            resource: this.noiseTexture.createView(),
           },
         ],
       });
@@ -506,5 +514,36 @@ ${"^".padStart(el.linePos)}`;
     if (this.spinning) {
       this.start();
     }
+  }
+
+  createNoise(size: number): GPUTexture {
+    const imageData = new ImageData(size, size);
+    const rawImage = imageData.data;
+    const rng = seedrandom("785593ed-2275-4910-9f8d-55b8f184161e");
+    const words = new Uint32Array(rawImage.buffer);
+    for (let i = 0; i < words.length; i++) {
+      words[i] = rng.int32();
+    }
+    const canvas = new OffscreenCanvas(size, size);
+    const ctx = canvas.getContext("2d");
+    ctx.putImageData(imageData, 0, 0);
+    const img = canvas.transferToImageBitmap();
+
+    const texture = this.device.createTexture({
+      size: [img.width, img.height, 1],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+
+    this.device.queue.copyExternalImageToTexture(
+      { source: img },
+      { texture: texture },
+      [img.width, img.height]
+    );
+
+    return texture;
   }
 }

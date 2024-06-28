@@ -43,21 +43,49 @@ const requireValueArgs = (name: string, args: Expression[]): Value[] => {
 
 const requireArity = (
   name: string,
-  arity: number,
+  arity: number | [number, number],
   args: Expression[] | Generated[]
 ): void => {
-  if (args.length !== arity) {
-    if (args.length > 0 && isExpression(args[0])) {
-      const pos = getArgsPosition(args as Expression[]);
-      throw new DslEvalError(
-        `${name} requires ${arity} args, called with ${args.length}`,
-        pos.offset,
-        pos.length
+  if (typeof arity === "number") {
+    if (args.length !== arity) {
+      if (args.length > 0 && isExpression(args[0])) {
+        const pos = getArgsPosition(args as Expression[]);
+        throw new DslEvalError(
+          `${name} requires ${arity} args, called with ${args.length}`,
+          pos.offset,
+          pos.length
+        );
+      }
+      throw new Error(
+        `${name} requires ${arity} args, called with ${args.length}`
       );
     }
-    throw new Error(
-      `${name} requires ${arity} args, called with ${args.length}`
-    );
+  } else {
+    if (args.length < arity[0]) {
+      if (args.length > 0 && isExpression(args[0])) {
+        const pos = getArgsPosition(args as Expression[]);
+        throw new DslEvalError(
+          `${name} must have at least ${arity[0]} args, called with ${args.length}`,
+          pos.offset,
+          pos.length
+        );
+      }
+      throw new Error(
+        `${name} must have at least ${arity[0]} args, called with ${args.length}`
+      );
+    } else if (args.length > arity[1]) {
+      if (isExpression(args[0])) {
+        const pos = getArgsPosition(args as Expression[]);
+        throw new DslEvalError(
+          `${name} must have at most ${arity[1]} args, called with ${args.length}`,
+          pos.offset,
+          pos.length
+        );
+      }
+      throw new Error(
+        `${name} must have at most ${arity[1]} args, called with ${args.length}`
+      );
+    }
   }
 };
 
@@ -806,6 +834,7 @@ const kBuiltins: Internal[] = [
       }
       return { code: `${vec}.x`, type: "float" };
     },
+    docs: ["(**get-x** *v*)", "Gets the x component of the vector *v*."],
   },
 
   {
@@ -824,6 +853,7 @@ const kBuiltins: Internal[] = [
       }
       return { code: `${vec}.y`, type: "float" };
     },
+    docs: ["(**get-y** *v*)", "Gets the y component of the vector *v*."],
   },
 
   {
@@ -842,6 +872,7 @@ const kBuiltins: Internal[] = [
       }
       return { code: `${vec}.z`, type: "float" };
     },
+    docs: ["(**get-z** *v*)", "Gets the z component of the vector *v*."],
   },
 
   {
@@ -919,6 +950,10 @@ const kBuiltins: Internal[] = [
         type: args[0].type,
       };
     },
+    docs: [
+      "(**pow** *x* *n*)",
+      "Returns `xⁿ`, this is applied component-wise to vectors",
+    ],
   },
 
   ...makeComparison(["<", "lt"], (a, b) => (a < b ? 1 : 0)),
@@ -971,6 +1006,190 @@ const kBuiltins: Internal[] = [
         type: args[0].type,
       };
     },
+    docs: [
+      "(**smoothstep** *low* *high* *x*)",
+      "Returns the smoothe Hermite interpolation of the value *x* between `0` " +
+        "and `1`. This will be applied component-wise to vector values.",
+      "This is equivalent to:",
+      "```" +
+        `
+(let
+  ((t (saturate (/ (-  x low) (- high low)))))
+  (* t t (- 3 (* 2 t))))
+` +
+        "```",
+      "or `3t² - 2t³` where `t ← saturate((x - low) / (high - low))`",
+    ],
+  },
+  {
+    name: "mix",
+    impl: (args) => {
+      requireArity("mix", 3, args);
+      const values = requireValueArgs("mix", args);
+      const pos = getArgsPosition(args);
+      if (values.some((v) => v.type == "vector")) {
+        const vecs = values.map((v) => getValueAsVector(v));
+        const low = vecs[0];
+        const high = vecs[1];
+        const x = vecs[2];
+        const t: Vector = {
+          x: Math.max(0, Math.min(x.x, 1)),
+          y: Math.max(0, Math.min(x.y, 1)),
+          z: Math.max(0, Math.min(x.z, 1)),
+        };
+        return makeVector(
+          low.x * (1.0 - t.x) + high.x * t.x,
+          low.y * (1.0 - t.y) + high.y * t.y,
+          low.z * (1.0 - t.z) + high.z * t.z,
+          pos.offset,
+          pos.length
+        );
+      } else {
+        const low = values[0].value as number;
+        const high = values[1].value as number;
+        const x = values[2].value as number;
+        const t = Math.max(0, Math.min(x, 1));
+        return makeNumber(low * (1 - t) + high * t, pos.offset, pos.length);
+      }
+    },
+    generate: (args) => {
+      requireArity("mix", 3, args);
+      if (hasVectors(args)) {
+        args = args.map((el) => coerce(el, "vec"));
+      }
+      return {
+        code: `mix(${args.map((el) => el.code).join(", ")})`,
+        type: args[0].type,
+      };
+    },
+    docs: [
+      "(**mix** *a* *b* *t*)",
+      "Returns the linear interpolation between *a* and *b* based on the value " +
+        "*t*, this will be applied component-wise to vector values.",
+      "Equivalent to:",
+      "```" +
+        `
+(+ (* a (- 1 t)) (* b t))
+` +
+        "```",
+    ],
+  },
+  {
+    name: "clamp",
+    impl: (args) => {
+      requireArity("clamp", 3, args);
+      const values = requireValueArgs("clamp", args);
+      const pos = getArgsPosition(args);
+      if (values.some((v) => v.type == "vector")) {
+        const vecs = values.map((v) => getValueAsVector(v));
+        const v = vecs[0];
+        const low = vecs[1];
+        const high = vecs[2];
+        return makeVector(
+          Math.min(Math.max(low.x, v.x), high.x),
+          Math.min(Math.max(low.y, v.y), high.y),
+          Math.min(Math.max(low.z, v.z), high.z),
+          pos.offset,
+          pos.length
+        );
+      } else {
+        const v = values[0].value as number;
+        const low = values[1].value as number;
+        const high = values[2].value as number;
+        return makeNumber(
+          Math.min(Math.max(low, v), high),
+          pos.offset,
+          pos.length
+        );
+      }
+    },
+    generate: (args) => {
+      requireArity("clamp", 3, args);
+      if (hasVectors(args)) {
+        args = args.map((el) => coerce(el, "vec"));
+      }
+      return {
+        code: `clamp(${args.map((el) => el.code).join(", ")})`,
+        type: args[0].type,
+      };
+    },
+    docs: [
+      "(**clamp** *value*, *low* *high*)",
+      "Restricts *value*  between the range of *low* and *high*, this will be " +
+        "applied component-wise to vector values.",
+    ],
+  },
+  {
+    name: "saturate",
+    impl: (args) => {
+      requireArity("saturate", 1, args);
+      const values = requireValueArgs("clamp", args);
+      const pos = getArgsPosition(args);
+      if (isVector(values[0])) {
+        const v = values[0].value as Vector;
+        return makeVector(
+          Math.min(Math.max(0, v.x), 1),
+          Math.min(Math.max(0, v.y), 1),
+          Math.min(Math.max(0, v.z), 1),
+          pos.offset,
+          pos.length
+        );
+      } else {
+        const v = values[0].value as number;
+        return makeNumber(Math.min(Math.max(0, v), 1), pos.offset, pos.length);
+      }
+    },
+    generate: (args) => {
+      requireArity("saturate", 1, args);
+      return {
+        code: `saturate(${args[0].code})`,
+        type: args[0].type,
+      };
+    },
+    docs: [
+      "(**saturate** *value*)",
+      "Restricts *value*  between the range of `0` and `1`, this will be " +
+        "applied component-wise to vector values.",
+      "Equivalent to",
+      "```" +
+        `
+(clamp 0 1 value)
+` +
+        "```",
+    ],
+  },
+  {
+    name: "perlin",
+    impl: (args) => {
+      requireArity("perlin", [1, 2], args);
+      requireVector("perlin", 0, args[0]);
+      if (args.length == 2) {
+        requireNumber("perlin", 1, args[1]);
+      }
+
+      const pos = getArgsPosition(args);
+
+      return makeNumber(1, pos.offset, pos.length);
+    },
+    generate: (args) => {
+      const pt = coerce(args[0], "vec").code;
+      const octave = args.length == 2 ? coerce(args[1], "float").code : "1";
+
+      return {
+        code: `perlin3(${pt}, ${octave})`,
+        type: "float",
+      };
+    },
+    docs: [
+      "(**perlin** *p* [*octave*])",
+      "Returns a number representing a noise value at point *p*. The *octave* " +
+        " value, if provided, is used to specify a frequence for the noise.",
+      "`(perlin p octave)` is equivalent to `(/ (perlin (* p octave)) octave)`.",
+      "*p* must be a vector, and *octave* must be a numeric value.",
+      "**Note:** The values returned by `perlin` are based on a noise texture " +
+        "provided to the WebGPU pipeline. They will be repeatable for given *p* " +
+        "and *octave* while that texture remains unchanged",
+    ],
   },
 ];
 

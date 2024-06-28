@@ -376,6 +376,7 @@ const generateScale = (
       case "void":
         lines.push(...indent(target.code));
         lines.push(`  res *= ${factor.code};`);
+        break;
       default:
         throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
     }

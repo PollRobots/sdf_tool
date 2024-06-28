@@ -23,6 +23,7 @@ export const coerce = (value: Generated, type: GeneratedType): Generated => {
   switch (type) {
     case "vec":
       switch (value.type) {
+        case "sdf":
         case "float":
           return {
             code: `vec3<f32>(${value.code})`,
@@ -30,6 +31,37 @@ export const coerce = (value: Generated, type: GeneratedType): Generated => {
           };
         default:
           throw new Error(`Cannot coerce from ${value.type} to vec`);
+      }
+    case "float":
+      switch (value.type) {
+        case "sdf":
+          return {
+            code: value.code,
+            type: "float",
+          };
+        default:
+          throw new Error(`Cannot coerce from ${value.type} to float`);
+      }
+    case "sdf":
+      switch (value.type) {
+        case "float":
+          return {
+            code: value.code,
+            type: "sdf",
+          };
+        default:
+          throw new Error(`Cannot coerce from ${value.type} to sdf`);
+      }
+    case "void":
+      switch (value.type) {
+        case "sdf":
+        case "float":
+          return {
+            code: ["{", `  res = ${value.code};`, "}"].join("\n"),
+            type: "void",
+          };
+        default:
+          throw new Error(`Cannot coerce from ${value.type} to void`);
       }
     default:
       throw new Error(`Cannot coerce from ${value.type} to ${type}`);
@@ -213,10 +245,17 @@ const generateImpl = (
       const retained = expr.value as Expression;
       if (isIdentifier(retained)) {
         const ident = retained.value as string;
-        return {
-          code: ident === "pos" ? "p" : ctx.getUniformCode(ident),
-          type: "float",
-        };
+        switch (ident) {
+          case "pos":
+            return { code: "p", type: "vec" };
+          case "col":
+            return { code: "col", type: "vec" };
+          default:
+            return {
+              code: ctx.getUniformCode(ident),
+              type: "float",
+            };
+        }
       } else {
         return generate(retained, env, ctx);
       }

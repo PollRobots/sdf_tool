@@ -17,6 +17,7 @@ import { evaluate } from "./evaluate";
 import { generate, indent, makeContext } from "./generate";
 import { getShapeFn } from "./shapes";
 import wgslTemplate from "./sdf/map.wgsl";
+import wgslNoise from "./sdf/noise.wgsl";
 import {
   Uniform,
   UniformEditor,
@@ -154,21 +155,18 @@ export const App: React.FC = () => {
       for (const dep of ctx.dependencies.keys()) {
         wgsl.push(getShapeFn(dep), "");
       }
+      wgsl.push(wgslNoise, "");
 
       const [wgslPrefix, wgslSuffix] = wgslTemplate.split("//MAP-CODE//");
 
       wgsl.push(wgslPrefix);
-      if (generated.length > 0 && generated[0].type !== "sdf") {
-        wgsl.push("  var res: f32 = 0;");
-      }
+      wgsl.push("  var res: f32 = 1e5;");
+
       generated.forEach((el, i) => {
         switch (el.type) {
+          case "float":
           case "sdf":
-            if (i == 0) {
-              wgsl.push(`  var res = ${el.code};`);
-            } else {
-              wgsl.push(`  res = ${el.code};`);
-            }
+            wgsl.push(`  res = ${el.code};`);
             break;
           case "void":
             wgsl.push(...indent(el.code));
@@ -180,11 +178,7 @@ ${el.code}
         }
       });
 
-      if (generated.length === 0) {
-        wgsl.push("  return vec4<f32>(col, 1e5);");
-      } else {
-        wgsl.push("  return vec4<f32>(col, res);");
-      }
+      wgsl.push("  return vec4<f32>(col, res);");
       wgsl.push(wgslSuffix);
 
       ctx.applyUniforms(wgsl);
