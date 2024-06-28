@@ -22,6 +22,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const [xAngle, setXAngle] = React.useState(15);
   const [yAngle, setYAngle] = React.useState(0);
   const [zoom, setZoom] = React.useState(0);
+  const [spinning, setSpinning] = React.useState(false);
   const [initialPt, setInitialPt] = React.useState({
     x: 0,
     y: 0,
@@ -30,6 +31,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   });
   const [leftButton, setLeftButton] = React.useState(false);
   const [tick, setTick] = React.useState(0);
+  const spinId = React.useId();
 
   const timerFn = (t: number) => {
     setTick(t + 1);
@@ -43,6 +45,9 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     if (gpu.current) {
       if (running != gpu.current.running) {
         setRunning(!running);
+      }
+      if (spinning != gpu.current.isSpinning()) {
+        setSpinning(!spinning);
       }
       if (fps != Math.round(gpu.current.fps)) {
         setFps(Math.round(gpu.current.fps));
@@ -240,6 +245,21 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         >
           stop
         </button>
+        <div>
+          <label htmlFor={spinId}>Spinning: </label>
+          <input
+            id={spinId}
+            type="checkbox"
+            checked={spinning}
+            onChange={() => {
+              if (gpu.current) {
+                gpu.current.setSpinning(!spinning);
+              } else {
+                setSpinning(!spinning);
+              }
+            }}
+          />
+        </div>
         <button onClick={() => capture()}>capture</button>
         <span>{fps} FPS</span>
       </div>
@@ -261,6 +281,8 @@ class WebGpuWidget {
   x: number = 0;
   y: number = 0;
   zoom: number = 0;
+  spinning: boolean = false;
+  spinStart: CSSNumberish = document.timeline.currentTime;
   multiplier: number = 1;
   sampler: number = 0;
   fps: number = 0;
@@ -389,6 +411,7 @@ ${"^".padStart(el.linePos)}`;
   }
 
   start() {
+    this.spinStart = document.timeline.currentTime;
     if (!this.running) {
       this.running = true;
       requestAnimationFrame((n) => this.frame(n));
@@ -421,6 +444,7 @@ ${"^".padStart(el.linePos)}`;
     floats[4] = this.x;
     floats[5] = this.y;
     floats[6] = this.zoom;
+    floats[7] = this.spinning ? (timestamp - Number(this.spinStart)) / 1000 : 0;
 
     this.uniformValues.forEach(
       (el, i) => (floats[8 + this.uniformOffsets[i]] = el)
@@ -463,10 +487,24 @@ ${"^".padStart(el.linePos)}`;
 
   cameraSettings(x: number, y: number, zoom: number) {
     this.x = x;
-    this.y = y;
+    if (this.y != y) {
+      this.spinning = false;
+      this.y = y;
+    }
     this.zoom = zoom;
     if (!this.running) {
       requestAnimationFrame((n) => this.frame(n));
+    }
+  }
+
+  isSpinning() {
+    return this.spinning;
+  }
+
+  setSpinning(enabled: boolean) {
+    this.spinning = enabled;
+    if (this.spinning) {
+      this.start();
     }
   }
 }
