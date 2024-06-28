@@ -15,11 +15,12 @@ export function getMimeType(path: string): string {
 }
 
 export async function saveFilePickerComplete(
-  data: BlobPart[],
+  data: BlobPart[] | Blob,
   suggestedName: string
 ) {
-  const mimeType = getMimeType(suggestedName);
-  const blob = new Blob(data, { type: mimeType });
+  const blob = Array.isArray(data)
+    ? new Blob(data, { type: getMimeType(suggestedName) })
+    : data;
 
   if (!Reflect.has(window, "showSaveFilePicker")) {
     return saveFallback(blob);

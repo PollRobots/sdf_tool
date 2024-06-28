@@ -30,7 +30,12 @@ fn vertex_main(
 //MAP-FUNCTION//
 
 fn colormap(pos: vec3<f32>) -> vec4<f32> {
-    return vec4<f32>(map(pos), 0.3, 0, 0);
+    var res = map(pos);
+    return vec4<f32>(res.rgb * 0.3, res.w);
+}
+
+fn distmap(pos: vec3<f32>) -> f32 {
+    return map(pos).w;
 }
 
 fn raycast(ro:vec3<f32>, rd:vec3<f32>) -> vec4<f32> {
@@ -42,16 +47,16 @@ fn raycast(ro:vec3<f32>, rd:vec3<f32>) -> vec4<f32> {
     var tp1 = (0.0 - ro.y) / rd.y;
     if (tp1 > 0) {
         tmax = min(tmax, tp1);
-        res = vec4<f32>(tp1, 0.5, 0.5, 0.5);
+        res = vec4<f32>(0.5, 0.5, 0.5, tp1);
     }
 
     var t = tmin;
     for (var i = 0; i < 70 && t < tmax; i++) {
         var h = colormap(ro + rd * t);
-        if (abs(h.x) < 1e-4 * t) {
-            return vec4<f32>(t, h.y, h.z, h.w);
+        if (abs(h.w) < 1e-4 * t) {
+            return vec4<f32>(h.rgb, t);
         }
-        t += h.x;
+        t += h.w;
     }
     return res;
 }
@@ -69,7 +74,7 @@ fn calcSoftShadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, tmax: f32) -> f32
     var res = 1.0;
     var t = mint;
     for (var i = 0; i < 24; i++) {
-        var h = map(ro+rd*t);
+        var h = distmap(ro+rd*t);
         var s = clamp(8.0* h / t, 0, 1);
         res = min(res, s);
         t += clamp(h, 0.01, 0.2);
@@ -82,10 +87,10 @@ fn calcSoftShadow(ro: vec3<f32>, rd: vec3<f32>, mint: f32, tmax: f32) -> f32
 }
 
 fn calcNormal(pos: vec3<f32>) -> vec3<f32> {
-    return normalize(EPSILON.xyy * map(pos + EPSILON.xyy) +
-                     EPSILON.yyx * map(pos + EPSILON.yyx) +
-                     EPSILON.yxy * map(pos + EPSILON.yxy) +
-                     EPSILON.xxx * map(pos + EPSILON.xxx));
+    return normalize(EPSILON.xyy * distmap(pos + EPSILON.xyy) +
+                     EPSILON.yyx * distmap(pos + EPSILON.yyx) +
+                     EPSILON.yxy * distmap(pos + EPSILON.yxy) +
+                     EPSILON.xxx * distmap(pos + EPSILON.xxx));
 }
 
 fn calcAO(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
@@ -93,7 +98,7 @@ fn calcAO(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
     var sca: f32 = 0;
     for (var i = 0; i < 5; i++) {
         var h = 0.01 + 0.12*f32(1) / 4;
-        var d = map(pos + h * nor);
+        var d = distmap(pos + h * nor);
         occ += (h - d) * sca;
         sca *= 0.95;
         if (occ > 0.35) {
@@ -107,12 +112,12 @@ fn render(ro: vec3<f32>, rd:vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<f
     var col = vec3<f32>(0.7, 0.7, 0.9) - max(rd.y, 0) * 0.3;
 
     var res = raycast(ro, rd);
-    var t = res.x;
+    var t = res.w;
 
     if (t > 0) {
         var pos = ro + t * rd;
 
-        col  = res.yzw;
+        col  = res.rgb;
         var nor = vec3<f32>(0, 1, 0);
         var ks:f32 = 1;
         if (pos.y < 1e-4) {

@@ -1,4 +1,3 @@
-fn map(pos: vec3<f32>) -> f32 {
-    return 100;
-    //return length(pos - vec3<f32>(0, 1, 0)) - 1;
+fn map(pos: vec3<f32>) -> vec4<f32> {
+    return vec4<f32>(0, 0, 0, 100);
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { mat4, vec3 } from "wgpu-matrix";
+import { saveFilePicker, saveFilePickerComplete } from "./util";
 
 interface WebGPUCanvasProps {
   shader: string;
@@ -137,6 +137,18 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     setLeftButton(false);
   };
 
+  const capture = () => {
+    const gpuCanvas = canvasRef.current;
+    if (!gpuCanvas) {
+      return;
+    }
+    gpuCanvas.toBlob(
+      (blob) => saveFilePickerComplete([blob], "capture.jpg").then(),
+      "image/jpeg",
+      0.95
+    );
+  };
+
   return (
     <div
       style={{
@@ -228,6 +240,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         >
           stop
         </button>
+        <button onClick={() => capture()}>capture</button>
         <span>{fps} FPS</span>
       </div>
     </div>
@@ -256,7 +269,9 @@ class WebGpuWidget {
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("webgpu") as unknown as GPUCanvasContext;
+    this.ctx = canvas.getContext("webgpu", {
+      preserveDrawingBuffer: true,
+    }) as unknown as GPUCanvasContext;
   }
 
   async init(shaderSrc: string, vertex: string, fragment: string) {

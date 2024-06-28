@@ -174,15 +174,13 @@ export const App: React.FC = () => {
       const [wgslPrefix, wgslSuffix] = wgslTemplate.split("//MAP-CODE//");
 
       wgsl.push(wgslPrefix);
-      if (generated.length > 0 && generated[0].type !== "float") {
+      if (generated.length > 0 && generated[0].type !== "sdf") {
         wgsl.push("  var res: f32 = 0;");
       }
       generated.forEach((el, i) => {
         switch (el.type) {
           case "sdf":
-            if (i == generated.length - 1) {
-              wgsl.push(`  return ${el.code};`);
-            } else if (i == 0) {
+            if (i == 0) {
               wgsl.push(`  var res = ${el.code};`);
             } else {
               wgsl.push(`  res = ${el.code};`);
@@ -199,9 +197,9 @@ ${el.code}
       });
 
       if (generated.length === 0) {
-        wgsl.push("  return 1e5;");
-      } else if (generated[generated.length - 1].type !== "sdf") {
-        wgsl.push("  return res;");
+        wgsl.push("  return vec4<f32>(col, 1e5);");
+      } else {
+        wgsl.push("  return vec4<f32>(col, res);");
       }
       wgsl.push(wgslSuffix);
 

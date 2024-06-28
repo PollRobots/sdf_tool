@@ -11,8 +11,10 @@ import infiniteCone from "./sdf/infinite-cone.wgsl";
 import infiniteCylinder from "./sdf/infinite-cylinder.wgsl";
 import ellipsoid from "./sdf/ellipsoid.wgsl";
 import plane from "./sdf/plane.wgsl";
+import asymmetricEllipsoid from "./sdf/asymmetric-ellipsoid.wgsl";
 
 const kShapeFunctions = new Map<string, string>([
+  ["sdfAsymmetricEllipsoid", asymmetricEllipsoid],
   ["sdfBox", box],
   ["sdfCone", cone],
   ["sdfDifference", difference],

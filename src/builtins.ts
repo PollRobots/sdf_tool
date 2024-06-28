@@ -1372,6 +1372,36 @@ const kShapes: MacroDef[] = [
       "*normal* and *offset* must be vectors.",
     ],
   },
+  {
+    name: "color",
+    symbols: ["c", "s"],
+    body: "`(shape color ,c ,s)",
+    docs: [
+      "(**color** *c* *shape*)",
+      "Applies the color *c* to *shape*.",
+      "*c* must be a vector. The components are interpreted as linear RGB " +
+        "values between '0' and '1'.",
+      "**Example:**",
+      "```" +
+        `
+(color #<0 0 1> (sphere #<0 1 0> 1))
+` +
+        "```",
+      "Creates a blue sphere of radius `1` centered at `(0, 1, 0)`.",
+    ],
+  },
+  {
+    name: "asymmetric-ellipsoid",
+    symbols: ["c", "r1", "r2"],
+    body: "`(shape asymmetric-ellipsoid ,c ,r1 ,r2)",
+    docs: [
+      "(**asymmetric-ellipsoid** *c* *r1* *r2*)",
+      "Creates an asymmetric ellipsoid centered on *c*. The radii are selected " +
+        "(on a per-component basis) from *r1* when the respective component of the " +
+        "current point is less that the *c* and from *r2* otherwise.",
+      "All three arguments must be vectors.",
+    ],
+  },
 ];
 
 export const kBuiltinNames = [
