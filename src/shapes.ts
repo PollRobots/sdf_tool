@@ -9,19 +9,23 @@ import torus from "./sdf/torus.wgsl";
 import cone from "./sdf/cone.wgsl";
 import infiniteCone from "./sdf/infinite-cone.wgsl";
 import infiniteCylinder from "./sdf/infinite-cylinder.wgsl";
+import ellipsoid from "./sdf/ellipsoid.wgsl";
+import plane from "./sdf/plane.wgsl";
 
 const kShapeFunctions = new Map<string, string>([
-  ["sdfSphere", sphere],
-  ["sdfUnion", union],
-  ["sdfIntersection", intersection],
-  ["sdfDifference", difference],
-  ["sdfRotate", rotate],
   ["sdfBox", box],
-  ["sdfRoundedBox", roundedBox],
-  ["sdfTorus", torus],
   ["sdfCone", cone],
+  ["sdfDifference", difference],
+  ["sdfEllipsoid", ellipsoid],
   ["sdfInfiniteCone", infiniteCone],
   ["sdfInfiniteCylinder", infiniteCylinder],
+  ["sdfIntersection", intersection],
+  ["sdfPlane", plane],
+  ["sdfRotate", rotate],
+  ["sdfRoundedBox", roundedBox],
+  ["sdfSphere", sphere],
+  ["sdfTorus", torus],
+  ["sdfUnion", union],
 ]);
 
 export const getShapeFn = (name: string): string => {

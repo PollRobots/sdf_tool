@@ -237,7 +237,9 @@ export const indent = (code: string, options: IndentOptions = {}): string[] => {
 
 const removeDeclarations = (name: string, code: string[]): string[] => {
   const prefix = `  var ${name} = `;
-  const replace = `  ${name} = `;
+  const replace = `  ${
+    name.includes(":") ? name.substring(0, name.indexOf(":")) : name
+  } = `;
   return code.map((el) =>
     el.startsWith(prefix) ? replace + el.substring(prefix.length) : el
   );
@@ -359,485 +361,17 @@ const generateImpl = (
       return expr.value as Generated;
     case "shape":
       const shape = expr.value as Shape;
-      const lines: string[] = [];
-      switch (shape.type) {
-        case "smooth":
-          if (shape.args.length !== 2) {
-            throw new Error(
-              `smooth must have exactly two arguments, found ${shape.args.length}`
-            );
-          }
-          lines.push(
-            "{",
-            `  var k = ${generate(shape.args[0], env, ctx).code};`
-          );
-          const smoothed = generate(shape.args[1], env, ctx);
-          switch (smoothed.type) {
-            case "sdf":
-              lines.push(`  res = ${smoothed.code};`);
-              break;
-            case "void":
-              lines.push(
-                ...removeDeclarations(
-                  "k",
-                  indent(smoothed.code, { strip: true })
-                )
-              );
-              break;
-            default:
-              throw new Error(
-                `Error: cannot smooth of ${print(shape.args[1])}`
-              );
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-        case "union":
-        case "intersect":
-          let ui_op = shape.type === "union" ? "sdfUnion" : "sdfIntersection";
-          lines.push("{");
-          const ui_args = shape.args.map((el) => generate(el, env, ctx));
-          let zeroK = false;
-          if (ui_args.length > 0 && ui_args[0].type === "float") {
-            const kval = ui_args.shift()!;
-            if (Number(kval.code) === 0) {
-              zeroK = true;
-              ui_op = shape.type === "union" ? "min" : "max";
-            } else {
-              lines.push(`  var k = ${kval.code};`);
-            }
-          }
-          if (!zeroK) {
-            ctx.dependencies.add(ui_op);
-          }
-          let union_res = false;
-          ui_args.forEach((el, i) => {
-            switch (el.type) {
-              case "sdf":
-                lines.push(
-                  i == 0
-                    ? `  res = ${el.code};`
-                    : zeroK
-                    ? `  res = ${ui_op}(res, ${el.code});`
-                    : `  res = ${ui_op}(k, res, ${el.code});`
-                );
-                break;
-              case "void":
-                if (i == 0) {
-                  lines.push(...indent(el.code));
-                } else {
-                  if (!union_res) {
-                    lines.push("  var tmp_res = res;");
-                    union_res = true;
-                  } else {
-                    lines.push("  tmp_res = res;");
-                  }
-                  lines.push(...indent(el.code));
-                  lines.push(
-                    zeroK
-                      ? `  res = ${ui_op}(tmp_res, res);`
-                      : `  res = ${ui_op}(k, tmp_res, res);`
-                  );
-                }
-                break;
-              default:
-                throw new Error(
-                  `Error: cannot take ${
-                    shape.type === "union" ? "a union" : "an intersection"
-                  } of ${print(shape.args[i])}`
-                );
-            }
-          });
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "difference":
-          if (shape.args.length !== 2 && shape.args.length !== 3) {
-            throw new Error(
-              `difference must have two or three arguments, found ${shape.args.length}`
-            );
-          }
-          ctx.dependencies.add("sdfDifference");
-          const diff_args = shape.args.map((el) => generate(el, env, ctx));
-          let diff_k = "k";
-          if (diff_args.length == 3) {
-            if (diff_args[0].type !== "float") {
-              throw new Error(
-                `difference smoothing factor must be a number, found ${print(
-                  shape.args[0]
-                )}`
-              );
-            }
-            diff_k = diff_args[0].code;
-            diff_args.shift();
-          }
-          const diff_left = diff_args[0];
-          const diff_right = diff_args[1];
-          if (diff_left.type === "sdf" && diff_right.type === "sdf") {
-            return {
-              code: [
-                `sdfDifference(${diff_k},`,
-                `    ${diff_left.code},`,
-                `    ${diff_right.code})`,
-              ].join("\n"),
-              type: "sdf",
-            };
-          }
-          lines.push("{");
-          if (diff_k !== "k") {
-            lines.push(`  var k = ${diff_k};`);
-          }
-          [diff_left, diff_right].forEach((el, i) => {
-            const diff_var = i == 0 ? "diff_left" : "diff_right";
-            switch (el.type) {
-              case "sdf":
-                lines.push(`  var ${diff_var} = ${el.code};`);
-                break;
-              case "void":
-                lines.push(...indent(el.code));
-                lines.push(`  var ${diff_var} = res;`);
-                break;
-              default:
-                throw new Error(
-                  `Error: cannot take difference of ${print(shape.args[i])}`
-                );
-            }
-          });
-          lines.push("  res = sdfDifference(k, diff_left, diff_right);");
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "lerp":
-          if (shape.args.length !== 3) {
-            throw new Error(
-              `lerp must have three arguments, found ${shape.args.length}`
-            );
-          }
-          const lerp_args = shape.args.map((el) => generate(el, env, ctx));
-          if (lerp_args[0].type !== "float") {
-            throw new Error(
-              `lerp interpolation factor must be a number, found ${print(
-                shape.args[0]
-              )}`
-            );
-          }
-          const lerp_t = lerp_args[0].code;
-          const lerp_left = lerp_args[1];
-          const lerp_right = lerp_args[2];
-          if (lerp_left.type === "sdf" && lerp_right.type === "sdf") {
-            return {
-              code: [
-                `mix(${lerp_left.code},`,
-                `    ${lerp_right.code},`,
-                `    saturate(${lerp_t}))`,
-              ].join("\n"),
-              type: "sdf",
-            };
-          }
-          lines.push("{");
-          [lerp_left, lerp_right].forEach((el, i) => {
-            const lerp_var = i == 0 ? "lerp_left" : "lerp_right";
-            switch (el.type) {
-              case "sdf":
-                lines.push(`  var ${lerp_var} = ${el.code};`);
-                break;
-              case "void":
-                lines.push(...indent(el.code));
-                lines.push(`  var ${lerp_var} = res;`);
-                break;
-              default:
-                throw new Error(
-                  `Error: cannot take linear interpolation of ${print(
-                    shape.args[i + 1]
-                  )}`
-                );
-            }
-          });
-          lines.push(
-            `  res = mix(lerp_left, lerp_right, saturate(${lerp_t}));`
-          );
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "round":
-          if (shape.args.length !== 2) {
-            throw new Error(
-              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
-            );
-          }
-          const round_radius = generate(shape.args[0], env, ctx);
-          if (round_radius.type !== "float") {
-            throw new Error(
-              `rounding radius must be a number, found ${print(shape.args[0])}`
-            );
-          }
-          const round_target = generate(shape.args[1], env, ctx);
-          const round = Number(round_radius.code);
-          lines.push("{");
-          if (!isNaN(round)) {
-            if (round == 0) {
-              return round_target;
-            }
-            switch (round_target.type) {
-              case "sdf":
-                lines.push(
-                  `    res = ${round_target.code} - ${round_radius.code};`
-                );
-                break;
-              case "void":
-                lines.push(...indent(round_target.code, { strip: true }));
-                lines.push("  res -= ${round_radius.code};");
-              default:
-                throw new Error(
-                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
-                );
-            }
-          } else {
-            lines.push(`  var radius = ${round_radius.code};`);
-            switch (round_target.type) {
-              case "sdf":
-                lines.push(`  res = ${round_target.code} - radius;`);
-                break;
-              case "void":
-                lines.push(...indent(round_target.code));
-                lines.push("  res -= round;");
-                break;
-              default:
-                throw new Error(
-                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
-                );
-            }
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "scale":
-          if (shape.args.length !== 2) {
-            throw new Error(
-              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
-            );
-          }
-          const scale_factor = generate(shape.args[0], env, ctx);
-          if (scale_factor.type !== "float") {
-            throw new Error(
-              `scale factor must be a number, found ${print(shape.args[0])}`
-            );
-          }
-          const scale_target = generate(shape.args[1], env, ctx);
-          const scale = Number(scale_factor.code);
-          lines.push("{");
-          if (!isNaN(scale)) {
-            if (scale == 0) {
-              return {
-                type: "sdf",
-                code: "1e5",
-              };
-            }
-            lines.push(`  var p = p / ${scale_factor.code};`);
-            switch (scale_target.type) {
-              case "sdf":
-                lines.push(
-                  `  res = ${scale_factor.code} * ${scale_target.code};`
-                );
-                break;
-              case "void":
-                lines.push(...indent(scale_target.code));
-                lines.push(`  res *= ${scale_factor.code};`);
-              default:
-                throw new Error(
-                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
-                );
-            }
-          } else {
-            lines.push(`  var scale = ${scale_factor.code};`);
-            lines.push("  if (scale == 0) {", "    res = 1e5;", "  } else {");
-            lines.push(`    var p = p / scale;`);
-            switch (scale_target.type) {
-              case "sdf":
-                lines.push(`    res = scale * ${scale_target.code};`);
-                break;
-              case "void":
-                lines.push(...indent(scale_target.code, { pad: "    " }));
-                lines.push("    res *= scale;");
-                break;
-              default:
-                throw new Error(
-                  `Error: cannot ${shape.type} ${print(shape.args[1])}`
-                );
-            }
-            lines.push("  }");
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "translate":
-          if (shape.args.length !== 2) {
-            throw new Error(
-              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
-            );
-          }
-          lines.push("{");
-          const translation = generate(shape.args[0], env, ctx);
-          if (translation.type !== "vec") {
-            throw new Error(
-              `translation must be a vector, found ${print(shape.args[0])}`
-            );
-          }
-          lines.push(`  var p = p - ${translation.code};`);
-          const translation_target = generate(shape.args[1], env, ctx);
-          switch (translation_target.type) {
-            case "sdf":
-              lines.push(`  res = ${translation_target.code};`);
-              break;
-            case "void":
-              lines.push(...indent(translation_target.code));
-              break;
-            default:
-              throw new Error(
-                `Error: cannot ${shape.type} ${print(shape.args[1])}`
-              );
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "rotate":
-          if (shape.args.length !== 3) {
-            throw new Error(
-              `rotate must have exactly three arguments, found ${shape.args.length}`
-            );
-          }
-          const rotate_axis = generate(shape.args[0], env, ctx);
-          if (rotate_axis.type !== "vec") {
-            throw new Error(
-              `rotation axis must be a vector, found ${print(shape.args[0])}`
-            );
-          }
-          const rotate_angle = generate(shape.args[1], env, ctx);
-          if (rotate_angle.type !== "float") {
-            throw new Error(
-              `rotation angle must be a number, found ${print(shape.args[1])}`
-            );
-          }
-          lines.push("{");
-          const axisIsConst = isConstVector(rotate_axis);
-          const angleIsConst = isConstNumber(rotate_angle);
-          if (axisIsConst && angleIsConst) {
-            lines.push(
-              ...generateConstRotationMatrix(
-                rotate_axis.code,
-                Number(rotate_angle.code)
-              ),
-              `  var p = rot * p;`
-            );
-          } else if (axisIsConst) {
-            lines.push(
-              ...generateConstAxisRotationMatrix(
-                rotate_axis.code,
-                rotate_angle.code
-              ),
-              `  var p = rot * p;`
-            );
-          } else if (angleIsConst) {
-            lines.push(
-              ...generateConstAngleRotationMatrix(
-                rotate_axis.code,
-                Number(rotate_angle.code)
-              ),
-              "  var p = rot * p;"
-            );
-          } else {
-            lines.push(
-              `  var p = sdfRotate(p, ${rotate_axis.code}, ${rotate_angle.code});`
-            );
-            ctx.dependencies.add("sdfRotate");
-          }
-          const rotate_target = generate(shape.args[2], env, ctx);
-          switch (rotate_target.type) {
-            case "sdf":
-              lines.push(`  res = ${rotate_target.code};`);
-              break;
-            case "void":
-              const inner = indent(rotate_target.code);
-              lines.push(...removeDeclarations("p", inner));
-              break;
-            default:
-              throw new Error(
-                `Error: cannot ${shape.type} ${print(shape.args[2])}`
-              );
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "reflect":
-          if (shape.args.length !== 2) {
-            throw new Error(
-              `${shape.type} must have exactly two arguments, found ${shape.args.length}`
-            );
-          }
-          lines.push("{");
-          const reflection = generate(shape.args[0], env, ctx);
-          if (reflection.type !== "vec") {
-            throw new Error(
-              `reflection must be a vector, found ${print(shape.args[0])}`
-            );
-          }
-          lines.push(
-            `  var p = select(p, abs(p), ${reflection.code} > vec3<f32>(0));`
-          );
-          const reflection_target = generate(shape.args[1], env, ctx);
-          switch (reflection_target.type) {
-            case "sdf":
-              lines.push(`  res = ${reflection_target.code};`);
-              break;
-            case "void":
-              lines.push(...indent(reflection_target.code));
-              break;
-            default:
-              throw new Error(
-                `Error: cannot ${shape.type} ${print(shape.args[1])}`
-              );
-          }
-          lines.push("}");
-          return {
-            code: lines.join("\n"),
-            type: "void",
-          };
-
-        case "hide":
-          return { code: `1e5`, type: "sdf" };
-
-        default:
-          const name = makeShapeName(shape.type);
-          const shape_args = shape.args.map((el) => generate(el, env, ctx));
-          ctx.dependencies.add(name);
-          return {
-            code: `${name}(p, ${shape_args.map((el) => el.code).join(", ")})`,
-            type: "sdf",
-          };
+      const generator = kShapeGenerators.get(shape.type);
+      if (generator) {
+        return generator(shape, env, ctx);
       }
+      const name = makeShapeName(shape.type);
+      const shape_args = shape.args.map((el) => generate(el, env, ctx));
+      ctx.dependencies.add(name);
+      return {
+        code: `${name}(p, ${shape_args.map((el) => el.code).join(", ")})`,
+        type: "sdf",
+      };
     case "placeholder":
       const retained = expr.value as Expression;
       if (isIdentifier(retained)) {
@@ -905,3 +439,481 @@ export const generate = (
     );
   }
 };
+
+const assertShapeArity = (shape: Shape, arity: number | [number, number]) => {
+  if (typeof arity === "number") {
+    if (shape.args.length !== arity) {
+      throw new Error(
+        `${shape.type} must have exactly ${arity} arguments, found ${shape.args.length}`
+      );
+    }
+  } else if (shape.args.length < arity[0]) {
+    throw new Error(
+      `${shape.type} must have at least ${arity[0]} arguments, found ${shape.args.length}`
+    );
+  } else if (shape.args.length > arity[1]) {
+    throw new Error(
+      `${shape.type} must have at most ${arity[1]} arguments, found ${shape.args.length}`
+    );
+  }
+};
+
+const generateSmooth = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 2);
+  const lines: string[] = [];
+  lines.push("{", `  var k: f32 = ${generate(shape.args[0], env, ctx).code};`);
+  const smoothed = generate(shape.args[1], env, ctx);
+  switch (smoothed.type) {
+    case "sdf":
+      lines.push(`  res = ${smoothed.code};`);
+      break;
+    case "void":
+      lines.push(
+        ...removeDeclarations("k: f32", indent(smoothed.code, { strip: true }))
+      );
+      break;
+    default:
+      throw new Error(`cannot smooth ${print(shape.args[1])}`);
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateUnionOrIntersect = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  let op = shape.type === "union" ? "sdfUnion" : "sdfIntersection";
+  const lines = ["{"];
+  const args = shape.args.map((el) => generate(el, env, ctx));
+  let zeroK = false;
+  if (args.length > 0 && args[0].type === "float") {
+    const kval = args.shift()!;
+    if (Number(kval.code) === 0) {
+      zeroK = true;
+      op = shape.type === "union" ? "min" : "max";
+    } else {
+      lines.push(`  var k: f32 = ${kval.code};`);
+    }
+  }
+  if (!zeroK) {
+    ctx.dependencies.add(op);
+  }
+  let haveRes = false;
+  args.forEach((el, i) => {
+    switch (el.type) {
+      case "sdf":
+        lines.push(
+          i == 0
+            ? `  res = ${el.code};`
+            : zeroK
+            ? `  res = ${op}(res, ${el.code});`
+            : `  res = ${op}(k, res, ${el.code});`
+        );
+        break;
+      case "void":
+        if (i == 0) {
+          lines.push(...indent(el.code));
+        } else {
+          if (!haveRes) {
+            lines.push("  var tmp_res = res;");
+            haveRes = true;
+          } else {
+            lines.push("  tmp_res = res;");
+          }
+          lines.push(...indent(el.code));
+          lines.push(
+            zeroK
+              ? `  res = ${op}(tmp_res, res);`
+              : `  res = ${op}(k, tmp_res, res);`
+          );
+        }
+        break;
+      default:
+        throw new Error(
+          `cannot take ${
+            shape.type === "union" ? "a union" : "an intersection"
+          } of ${print(shape.args[i])}`
+        );
+    }
+  });
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateDifference = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, [2, 3]);
+  ctx.dependencies.add("sdfDifference");
+  const args = shape.args.map((el) => generate(el, env, ctx));
+  let k = "k";
+  if (args.length == 3) {
+    if (args[0].type !== "float") {
+      throw new Error(
+        `difference smoothing factor must be a number, found ${print(
+          shape.args[0]
+        )}`
+      );
+    }
+    k = args[0].code;
+    args.shift();
+  }
+  const left = args[0];
+  const right = args[1];
+  if (left.type === "sdf" && right.type === "sdf") {
+    return {
+      code: [
+        `sdfDifference(${k},`,
+        `    ${left.code},`,
+        `    ${right.code})`,
+      ].join("\n"),
+      type: "sdf",
+    };
+  }
+
+  const lines = ["{"];
+  if (k !== "k") {
+    lines.push(`  var k: f32 = ${k};`);
+  }
+  [left, right].forEach((el, i) => {
+    const varName = i == 0 ? "leftRes" : "rightRes";
+    switch (el.type) {
+      case "sdf":
+        lines.push(`  var ${varName} = ${el.code};`);
+        break;
+      case "void":
+        lines.push(...indent(el.code));
+        lines.push(`  var ${varName} = res;`);
+        break;
+      default:
+        throw new Error(
+          `cannot take difference of ${print(
+            shape.args[shape.args.length - 2]
+          )} and ${print(shape.args[shape.args.length - 1])}`
+        );
+    }
+  });
+  lines.push("  res = sdfDifference(k, leftRes, rightRes);");
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateLerp = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 3);
+
+  const args = shape.args.map((el) => generate(el, env, ctx));
+  if (args[0].type !== "float") {
+    throw new Error(
+      `lerp interpolation factor must be a number, found ${print(
+        shape.args[0]
+      )}`
+    );
+  }
+  const t = args[0].code;
+  const left = args[1];
+  const right = args[2];
+  if (left.type === "sdf" && right.type === "sdf") {
+    return {
+      code: [
+        `mix(${left.code},`,
+        `    ${right.code},`,
+        `    saturate(${t}))`,
+      ].join("\n"),
+      type: "sdf",
+    };
+  }
+  const lines = ["{"];
+  [left, right].forEach((el, i) => {
+    const varName = i == 0 ? "leftRes" : "rightRes";
+    switch (el.type) {
+      case "sdf":
+        lines.push(`  var ${varName} = ${el.code};`);
+        break;
+      case "void":
+        lines.push(...indent(el.code));
+        lines.push(`  var ${varName} = res;`);
+        break;
+      default:
+        throw new Error(
+          `cannot take linear interpolation of ${print(
+            shape.args[1]
+          )} and ${print(shape.args[2])}}`
+        );
+    }
+  });
+  lines.push(`  res = mix(leftRes, rightRes, saturate(${t}));`);
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateRound = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 2);
+  const radius = generate(shape.args[0], env, ctx);
+  if (radius.type !== "float") {
+    throw new Error(
+      `rounding radius must be a number, found ${print(shape.args[0])}`
+    );
+  }
+  const target = generate(shape.args[1], env, ctx);
+  const round = Number(radius.code);
+  const lines = ["{"];
+  if (!isNaN(round)) {
+    if (round == 0) {
+      return target;
+    }
+    switch (target.type) {
+      case "sdf":
+        lines.push(`    res = ${target.code} - ${radius.code};`);
+        break;
+      case "void":
+        lines.push(...indent(target.code, { strip: true }));
+        lines.push(`  res -= ${radius.code};`);
+      default:
+        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+    }
+  } else {
+    lines.push(`  var radius = ${radius.code};`);
+    switch (target.type) {
+      case "sdf":
+        lines.push(`  res = ${target.code} - radius;`);
+        break;
+      case "void":
+        lines.push(...indent(target.code));
+        lines.push("  res -= radius;");
+        break;
+      default:
+        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+    }
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateScale = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 2);
+
+  const factor = generate(shape.args[0], env, ctx);
+  if (factor.type !== "float") {
+    throw new Error(
+      `scale factor must be a number, found ${print(shape.args[0])}`
+    );
+  }
+  const target = generate(shape.args[1], env, ctx);
+  const scale = Number(factor.code);
+  const lines = ["{"];
+  if (!isNaN(scale)) {
+    if (scale == 0) {
+      return {
+        type: "sdf",
+        code: "1e5",
+      };
+    }
+    lines.push(`  var p = p / ${factor.code};`);
+    switch (target.type) {
+      case "sdf":
+        lines.push(`  res = ${factor.code} * ${target.code};`);
+        break;
+      case "void":
+        lines.push(...indent(target.code));
+        lines.push(`  res *= ${factor.code};`);
+      default:
+        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+    }
+  } else {
+    lines.push(`  var scale = ${factor.code};`);
+    lines.push("  if (scale == 0) {", "    res = 1e5;", "  } else {");
+    lines.push(`    var p = p / scale;`);
+    switch (target.type) {
+      case "sdf":
+        lines.push(`    res = scale * ${target.code};`);
+        break;
+      case "void":
+        lines.push(...indent(target.code, { pad: "    " }));
+        lines.push("    res *= scale;");
+        break;
+      default:
+        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+    }
+    lines.push("  }");
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateTranslate = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 2);
+  const lines = ["{"];
+  const translation = generate(shape.args[0], env, ctx);
+  if (translation.type !== "vec") {
+    throw new Error(
+      `translation must be a vector, found ${print(shape.args[0])}`
+    );
+  }
+  lines.push(`  var p = p - ${translation.code};`);
+  const translation_target = generate(shape.args[1], env, ctx);
+  switch (translation_target.type) {
+    case "sdf":
+      lines.push(`  res = ${translation_target.code};`);
+      break;
+    case "void":
+      lines.push(...indent(translation_target.code));
+      break;
+    default:
+      throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateRotate = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 3);
+  const axis = generate(shape.args[0], env, ctx);
+  if (axis.type !== "vec") {
+    throw new Error(
+      `rotation axis must be a vector, found ${print(shape.args[0])}`
+    );
+  }
+  const angle = generate(shape.args[1], env, ctx);
+  if (angle.type !== "float") {
+    throw new Error(
+      `rotation angle must be a number, found ${print(shape.args[1])}`
+    );
+  }
+  const lines = ["{"];
+  const axisIsConst = isConstVector(axis);
+  const angleIsConst = isConstNumber(angle);
+  if (axisIsConst && angleIsConst) {
+    lines.push(
+      ...generateConstRotationMatrix(axis.code, Number(angle.code)),
+      `  var p = rot * p;`
+    );
+  } else if (axisIsConst) {
+    lines.push(
+      ...generateConstAxisRotationMatrix(axis.code, angle.code),
+      `  var p = rot * p;`
+    );
+  } else if (angleIsConst) {
+    lines.push(
+      ...generateConstAngleRotationMatrix(axis.code, Number(angle.code)),
+      "  var p = rot * p;"
+    );
+  } else {
+    lines.push(`  var p = sdfRotate(p, ${axis.code}, ${angle.code});`);
+    ctx.dependencies.add("sdfRotate");
+  }
+  const target = generate(shape.args[2], env, ctx);
+  switch (target.type) {
+    case "sdf":
+      lines.push(`  res = ${target.code};`);
+      break;
+    case "void":
+      const inner = indent(target.code);
+      lines.push(...removeDeclarations("p", inner));
+      break;
+    default:
+      throw new Error(`cannot ${shape.type} ${print(shape.args[2])}`);
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const generateReflect = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 2);
+  const lines = ["{"];
+  const reflection = generate(shape.args[0], env, ctx);
+  if (reflection.type !== "vec") {
+    throw new Error(
+      `reflection must be a vector, found ${print(shape.args[0])}`
+    );
+  }
+  lines.push(`  var p = select(p, abs(p), ${reflection.code} > vec3<f32>(0));`);
+  const target = generate(shape.args[1], env, ctx);
+  switch (target.type) {
+    case "sdf":
+      lines.push(`  res = ${target.code};`);
+      break;
+    case "void":
+      lines.push(...indent(target.code));
+      break;
+    default:
+      throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+  }
+  lines.push("}");
+  return {
+    code: lines.join("\n"),
+    type: "void",
+  };
+};
+
+const kShapeGenerators = new Map<
+  string,
+  (shape: Shape, env: Env, ctx: GenerateContext) => Generated
+>([
+  ["smooth", generateSmooth],
+  ["union", generateUnionOrIntersect],
+  ["intersect", generateUnionOrIntersect],
+  ["difference", generateDifference],
+  ["lerp", generateLerp],
+  ["round", generateRound],
+  ["scale", generateScale],
+  ["translate", generateTranslate],
+  ["rotate", generateRotate],
+  ["reflect", generateReflect],
+  ["hide", () => ({ code: "1e5", type: "sdf" })],
+]);

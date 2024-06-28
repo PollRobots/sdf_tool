@@ -1217,6 +1217,19 @@ const kShapes: MacroDef[] = [
     name: "ellipsoid",
     symbols: ["p", "r"],
     body: "`(shape ellipsoid ,p ,r)",
+    docs: [
+      "(**ellipsoid** *c* *r*)",
+      "Creates an ellipsoid centered on *c* with radius *r*.",
+      "*c* and *r* must be vectors.",
+      "**Example:**",
+      "```" +
+        `
+(ellipsoid #<0.5 0.25 0> #<0.5 0.25 0.5>)
+` +
+        "```",
+      "Creates an ellipsoid centered at `(0.5, 0.25, 0)` with a radius of " +
+        "`0.5` in the x and z axes, and `0.25` in the y-axis.",
+    ],
   },
   {
     name: "sphere",
@@ -1347,6 +1360,16 @@ const kShapes: MacroDef[] = [
   (sphere #<-1 1 0> 0.5))
 ` +
         "```",
+    ],
+  },
+  {
+    name: "plane",
+    symbols: ["n", "h"],
+    body: "`(shape plane ,n ,h)",
+    docs: [
+      "(**plane** *normal* *offset*)",
+      "Creates a plane with the supplied *normal* at an *offset* from the origin.",
+      "*normal* and *offset* must be vectors.",
     ],
   },
 ];
