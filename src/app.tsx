@@ -26,6 +26,7 @@ import {
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
+import { SettingsEditor, loadSettings } from "./persisted-settings";
 
 declare global {
   interface Window {
@@ -48,22 +49,6 @@ const kEditorThemes = new Map([
   ["hico-light", kSolarizedContrastLight],
 ]);
 
-const kThemeNames = new Map([
-  ["dark", "Solarized Dark"],
-  ["light", "Solarized Light"],
-  ["term-dark", "Basic Dark"],
-  ["term-light", "Basic Light"],
-  ["hico-dark", " Contrast Dark"],
-  ["hico-light", "Contrast Light"],
-]);
-
-const kFontSizes: number[] = [
-  6, 7, 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96,
-];
-
-const getBrowserColorScheme = () =>
-  window.matchMedia("(prefers-color-scheme: dark").matches ? "dark" : "light";
-
 const makeShader = (template: string, generated: string, valueCount: number) =>
   template
     .replace(
@@ -75,7 +60,7 @@ const makeShader = (template: string, generated: string, valueCount: number) =>
     .replace("//MAP-FUNCTION//", generated || wgslPlaceholder);
 
 export const App: React.FC = () => {
-  const [theme, setTheme] = React.useState(getBrowserColorScheme());
+  const [settings, setSettings] = React.useState(loadSettings());
   const width = Math.round(window.visualViewport.width / 2);
   const height = Math.round((width * 9) / 16);
   const [generated, setGenerated] = React.useState("");
@@ -84,9 +69,8 @@ export const App: React.FC = () => {
   const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
-  const [fontSize, setFontSize] = React.useState(14);
 
-  const currTheme = kEditorThemes.get(theme) || kSolarizedDark;
+  const currTheme = kEditorThemes.get(settings.themeName) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
 
   if (!forcedColors) {
@@ -232,8 +216,7 @@ ${el.code}
       style={{
         backgroundColor: currTheme.background,
         color: currTheme.foreground,
-        fontSize: `${fontSize}pt`,
-        //fontSize: `${Math.round((100 * fontSize) / 14)}%`,
+        fontSize: `${settings.fontSize}pt`,
       }}
     >
       <div style={{ display: "grid" }}>
@@ -241,37 +224,12 @@ ${el.code}
           SDF Tool
         </h1>
         {forcedColors ? null : (
-          <div
-            style={{
-              gridArea: "1/1/2/2",
-              justifySelf: "end",
-              display: "grid",
-              gap: "0.25em",
-              height: "fit-content",
-              gridTemplateColumns: "auto auto",
+          <SettingsEditor
+            {...settings}
+            onChange={(updated) => {
+              setSettings(updated);
             }}
-          >
-            Theme:
-            <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-              {Array.from(kThemeNames.entries()).map(([value, name]) => (
-                <option key={value} value={value}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            Font size:
-            <select
-              style={{ width: "fit-content" }}
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-            >
-              {kFontSizes.map((el) => (
-                <option key={el} value={el}>
-                  {el}
-                </option>
-              ))}
-            </select>
-          </div>
+          />
         )}
       </div>
       <div
@@ -326,7 +284,7 @@ ${el.code}
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
             <DslEditor
               style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
-              fontSize={fontSize}
+              fontSize={settings.fontSize}
               line=""
               uniforms={values}
               onGenerating={(s: string) => generateWgsl(s)}
