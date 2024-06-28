@@ -175,8 +175,8 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         <input
           type="range"
           className="vertical"
-          min={5}
-          max={85}
+          min={1}
+          max={89}
           value={xAngle}
           onChange={(e) => setXAngle(e.target.valueAsNumber || 0)}
           style={{

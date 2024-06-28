@@ -41,7 +41,7 @@ fn distmap(pos: vec3<f32>) -> f32 {
 fn raycast(ro:vec3<f32>, rd:vec3<f32>) -> vec4<f32> {
     var res = vec4<f32>(-1);
 
-    var tmin = 1.0;
+    var tmin = 0.01;
     var tmax = 20.0;
 
     var tp1 = (0.0 - ro.y) / rd.y;
@@ -204,7 +204,7 @@ fn frag_main(
     var cam_height = CAMERA_DISTANCE * sin(cx);
     var cam_hdist = CAMERA_DISTANCE * cos(cx);
 
-    var ta = vec3<f32>(0, 0, 0);
+    var ta = vec3<f32>(0, 1, 0);
     var zero_ro = ta + vec3<f32>(cam_hdist * sin(cy), cam_height, cam_hdist * cos(cy));
     var ro = zero_ro + (ta - zero_ro) * uniforms.rotation.z;
     var ca = setCamera(ro, ta);
