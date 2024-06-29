@@ -118,6 +118,7 @@ const generateUnionOrIntersect = (
   }
   if (!zeroK) {
     ctx.dependencies.add(op);
+    lines.push("  var outer_col = col;");
   }
   let haveRes = false;
   args.forEach((el, i) => {
@@ -128,7 +129,7 @@ const generateUnionOrIntersect = (
             ? `  res = ${el.code};`
             : zeroK
             ? `  res = ${op}(res, ${el.code});`
-            : `  res4 = ${op}(k, res, ${el.code}, col, col); col = res4.rgb; res = res4.w;`
+            : `  res4 = ${op}(k, res, ${el.code}, col, outer_col); col = res4.rgb; res = res4.w;`
         );
         break;
       case "void":
@@ -137,11 +138,15 @@ const generateUnionOrIntersect = (
         } else {
           if (!haveRes) {
             lines.push("  var tmp_res = res;");
-            if (!zeroK) lines.push("  var tmp_col = col;");
+            if (!zeroK) {
+              lines.push("  var tmp_col = col;", "  col = outer_col;");
+            }
             haveRes = true;
           } else {
             lines.push("  tmp_res = res;");
-            if (!zeroK) lines.push("  tmp_col = col;");
+            if (!zeroK) {
+              lines.push("  tmp_col = col;", "  col = outer_col;");
+            }
           }
           lines.push(...indent(el.code));
           lines.push(
@@ -558,6 +563,45 @@ const generateReflect = (
   };
 };
 
+const generateShell = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 3);
+  const args = shape.args.map((el) => generate(el, env, ctx));
+  const offset = args[0];
+  if (offset.type !== "float") {
+    throw new Error(`offset must be a number, found ${print(shape.args[0])}`);
+  }
+  const select = args[1];
+  if (select.type !== "float") {
+    throw new Error(`selector must be a number, found ${print(shape.args[1])}`);
+  }
+  const target = args[2];
+  const lines = ["{"];
+  lines.push(`  var o: f32 = ${offset.code};`);
+  lines.push(`  var s: f32 = saturate(${select.code});`);
+  switch (target.type) {
+    case "sdf":
+      lines.push(`  res = ${target.code};`);
+      break;
+    case "void":
+      lines.push("  var tmp_col = col;");
+      lines.push(...indent(target.code));
+      lines.push(`  col = mix(col, tmp_col, vec3<f32>(s));`);
+      break;
+    default:
+      throw new Error(`cannot create a shell around ${print(shape.args[2])}`);
+  }
+  lines.push(`  res = mix(res - o * s, res - o, step(1.5 * o, res));`);
+
+  //lines.push(`  res -= o * s;`);
+  lines.push("}");
+
+  return { code: lines.join("\n"), type: "void" };
+};
+
 export const kShapeGenerators = new Map<
   string,
   (shape: Shape, env: Env, ctx: GenerateContext) => Generated
@@ -573,5 +617,6 @@ export const kShapeGenerators = new Map<
   ["rotate", generateRotate],
   ["reflect", generateReflect],
   ["color", generateColor],
+  // ["shell", generateShell],
   ["hide", () => ({ code: "1e5", type: "sdf" })],
 ]);

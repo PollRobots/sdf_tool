@@ -41,6 +41,8 @@ fn distmap(pos: vec3<f32>) -> f32 {
     return map(pos).w;
 }
 
+const kMapThreshold = 1e-4;
+
 fn raycast(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
     var res = vec4<f32>(-1);
 
@@ -56,7 +58,7 @@ fn raycast(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
     var t = tmin;
     for (var i = 0; i < 70 && t < tmax; i++) {
         var h = colormap(ro + rd * t);
-        if abs(h.w) < 1e-4 * t {
+        if abs(h.w) < kMapThreshold * t {
             return vec4<f32>(h.rgb, t);
         }
         t += h.w;

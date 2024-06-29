@@ -183,6 +183,7 @@ ${el.code}
         }
       });
 
+      wgsl.push("  res *= 0.6;");
       wgsl.push("  return vec4<f32>(col, res);");
       wgsl.push(wgslSuffix);
 
