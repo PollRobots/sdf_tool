@@ -1,4 +1,5 @@
 import React from "react";
+import { ColorTuple, make_color } from "./colorspaces";
 
 export interface Uniform {
   value: number;
@@ -7,6 +8,17 @@ export interface Uniform {
   step: number;
   logarithmic: boolean;
 }
+
+export const isUniform = (value: any): value is Uniform => {
+  return (
+    value &&
+    typeof value.value === "number" &&
+    typeof value.min === "number" &&
+    typeof value.max === "number" &&
+    typeof value.step === "number" &&
+    typeof value.logarithmic === "boolean"
+  );
+};
 
 export const kDefaultUniform: Uniform = {
   value: 0,
@@ -168,6 +180,8 @@ export const getDefaultUniform = (name: string, value: number = 0): Uniform => {
     name === "phi"
   ) {
     return makeUniform(kPresetsMap.get("theta"), value);
+  } else if (name.startsWith("rgb-")) {
+    return makeUniform(kPresetsMap.get("one"), value);
   }
   for (const settings of kPresetsMap.values()) {
     if (value >= settings.min && value <= settings.max) {
@@ -322,6 +336,51 @@ const UniformSettingsEditor: React.FC<UniformSettingsProps> = (props) => {
       >
         ✗
       </button>
+    </div>
+  );
+};
+
+interface UniformRgbProps {
+  names: string[];
+  values: Uniform[];
+  onChange: (v: Record<string, Uniform>) => void;
+}
+
+export const UniformRgbColor: React.FC<UniformRgbProps> = (props) => {
+  const tuple = props.values.map((el) => el.value);
+  while (tuple.length < 3) {
+    tuple.push(0);
+  }
+  const sRGB = make_color("sRGB", tuple as ColorTuple);
+  const hex = sRGB.as("hex");
+  return (
+    <div>
+      {props.names[0].substring(0, props.names[0].length - 2)}{" "}
+      <input
+        type="color"
+        value={hex}
+        onChange={(e) => {
+          const rgb = make_color("hex", e.target.value).as("sRGB");
+          const updated = props.values
+            .filter((el, i) => i < 3)
+            .map((el, i) => ({ ...el, value: Number(rgb[i].toFixed(3)) }));
+          const update: Record<string, Uniform> = {};
+          props.names
+            .filter((el, i) => i < 3)
+            .forEach((el, i) => {
+              update[el] = updated[i];
+            });
+          props.onChange(update);
+        }}
+      />{" "}
+      <code>
+        {hex} sRGB({tuple.map((el) => el.toFixed(3)).join(", ")}) XYZ(
+        {sRGB
+          .as("CIEXYZ")
+          .map((el) => el.toFixed(3))
+          .join(", ")}
+        )
+      </code>
     </div>
   );
 };

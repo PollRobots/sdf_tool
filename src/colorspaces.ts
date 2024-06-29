@@ -362,24 +362,35 @@ export const converter = (
   return path(tree, from, to);
 };
 
-export const make_color = (space: Colorspace, value: ColorValue): Color => {
-  if (space === "hex" && typeof value !== "string") {
-    throw new Error("hex colors must be provided as strings.");
-  } else if (space !== "hex" && typeof value === "string") {
-    throw new Error(`${space} colors must be provided as tuples.`);
+export function make_color(space: "hex", value: string): Color;
+export function make_color(space: Colorspace, value: ColorValue): Color;
+export function make_color(space: Colorspace, value: ColorValue): Color {
+  if (space === "hex") {
+    if (typeof value !== "string") {
+      throw new Error("hex colors must be provided as strings.");
+    }
+    return new Color(space, value);
+  } else {
+    if (typeof value === "string") {
+      throw new Error(`${space} colors must be provided as tuples.`);
+    }
+    return new Color(space, value);
   }
-  return new Color(space, value);
-};
+}
 
 class Color {
   readonly colorspace: Colorspace;
   readonly value: ColorValue;
 
+  constructor(space: "hex", tuple: string);
+  constructor(space: Colorspace, tuple: ColorTuple);
   constructor(space: Colorspace, tuple: ColorValue) {
     this.colorspace = space;
     this.value = tuple;
   }
 
+  as(target: "hex"): string;
+  as(target: Colorspace): ColorTuple;
   as(target: Colorspace): ColorValue {
     return converter(this.colorspace, target)(this.value);
   }

@@ -22,13 +22,16 @@ import wgslNoise from "./sdf/noise.wgsl";
 import {
   Uniform,
   UniformEditor,
+  UniformRgbColor,
   getDefaultUniform,
+  isUniform,
   kDefaultUniform,
 } from "./uniform";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
 import { SettingsEditor, loadSettings } from "./persisted-settings";
+import { emitKeypressEvents } from "readline";
 
 declare global {
   interface Window {
@@ -85,6 +88,17 @@ export const App: React.FC = () => {
   const setUniformValue = (name: string, value: Uniform) => {
     const updated = new Map(values.entries());
     updated.set(name, value);
+    setValues(updated);
+  };
+
+  const setUniformValues = (update: Record<string, Uniform>) => {
+    const updated = new Map(values.entries());
+    for (const name of Object.keys(update)) {
+      const v = update[name];
+      if (isUniform(v)) {
+        updated.set(name, v);
+      }
+    }
     setValues(updated);
   };
 
@@ -324,28 +338,42 @@ ${el.code}
                   }
                   return accum;
                 }, [] as string[][])
-                .map((els) => (
-                  <div
-                    key={els.join("-")}
-                    style={{
-                      borderLeft: `solid 1px ${currTheme.base00}`,
-                      borderRadius: "0.5em",
-                      paddingLeft: "0.5em",
-                      flexGrow: 1,
-                    }}
-                  >
-                    {" "}
-                    {els.map((el) => (
-                      <UniformEditor
-                        key={el}
-                        name={el}
-                        grouped
-                        {...(values.get(el) || getDefaultUniform(el))}
-                        onChange={(v) => setUniformValue(el, v)}
+                .map((els) => {
+                  if (els.length === 3 && els[0].startsWith("rgb-")) {
+                    return (
+                      <UniformRgbColor
+                        key={els.join("-")}
+                        names={els}
+                        values={els.map(
+                          (el) => values.get(el) || getDefaultUniform(el)
+                        )}
+                        onChange={(update) => setUniformValues(update)}
                       />
-                    ))}
-                  </div>
-                ))}
+                    );
+                  }
+                  return (
+                    <div
+                      key={els.join("-")}
+                      style={{
+                        borderLeft: `solid 1px ${currTheme.base00}`,
+                        borderRadius: "0.5em",
+                        paddingLeft: "0.5em",
+                        flexGrow: 1,
+                      }}
+                    >
+                      {" "}
+                      {els.map((el) => (
+                        <UniformEditor
+                          key={el}
+                          name={el}
+                          grouped
+                          {...(values.get(el) || getDefaultUniform(el))}
+                          onChange={(v) => setUniformValue(el, v)}
+                        />
+                      ))}
+                    </div>
+                  );
+                })}
               {uniforms
                 .filter((el) => !isVectorName(el))
                 .map((el) => {
