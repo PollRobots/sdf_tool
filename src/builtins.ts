@@ -1378,6 +1378,28 @@ const kLambdas: MacroDef[] = [
       "Gets the maximum component value of the vector *v*",
     ],
   },
+  {
+    name: "xyz-lch",
+    symbols: ["xyz"],
+    body: "(lab-lch (xyz-lab xyz))",
+    docs: [
+      "(**xyz-lch** *xyz*)",
+      "Converts the *xyz* vector representing a color in CIE 1931 XYZ color " +
+        "space, into a vector representing the same color in CIE 1931 LCH color " +
+        "space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "lch-xyz",
+    symbols: ["lch"],
+    body: "(lab-xyz (lch-lab lch))",
+    docs: [
+      "(**xyz-lch** *lch*)",
+      "Converts the *lch* vector representing a color in CIE 1931 LCH color " +
+        "space, into a vector representing the same color in CIE 1931 XYZ color " +
+        "space, using the D65 reference illuminant",
+    ],
+  },
 ];
 
 const kShapes: MacroDef[] = [
