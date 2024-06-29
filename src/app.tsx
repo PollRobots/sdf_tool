@@ -17,6 +17,7 @@ import { evaluate } from "./evaluate";
 import { generate, indent, makeContext } from "./generate";
 import { getShapeFn } from "./shapes";
 import wgslTemplate from "./sdf/map.wgsl";
+import wgslColors from "./sdf/colors.wgsl";
 import wgslNoise from "./sdf/noise.wgsl";
 import {
   Uniform,
@@ -58,7 +59,10 @@ const makeShader = (template: string, generated: string, valueCount: number) =>
         ? ""
         : `values: array<vec4<f32>, ${((valueCount + 15) & ~0xf) / 4}>,`
     )
-    .replace("//MAP-FUNCTION//", generated || wgslPlaceholder);
+    .replace(
+      "//MAP-FUNCTION//",
+      generated || [wgslColors, "", wgslPlaceholder].join("\n")
+    );
 
 export const App: React.FC = () => {
   const [settings, setSettings] = React.useState(loadSettings());
@@ -156,6 +160,7 @@ export const App: React.FC = () => {
         wgsl.push(getShapeFn(dep), "");
       }
       wgsl.push(wgslNoise, "");
+      wgsl.push(wgslColors, "");
 
       const [wgslPrefix, wgslSuffix] = wgslTemplate.split("//MAP-CODE//");
 

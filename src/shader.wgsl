@@ -108,7 +108,9 @@ fn calcAO(pos: vec3<f32>, nor: vec3<f32>) -> f32 {
 }
 
 fn render(ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<f32> {
-    var col = vec3<f32>(0.7, 0.7, 0.9) - max(rd.y, 0) * 0.3;
+    // const fog = colRgbToXyz(vec3<f32>(0.7, 0.7, 0.9));
+    const fog = vec3<f32>(0.713, 0.728, 0.959);
+    var col = fog - max(rd.y, 0) * 0.3;
 
     var res = raycast(ro, rd);
     var t = res.w;
@@ -128,7 +130,7 @@ fn render(ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<
             var w = abs(dpdx.xz) + abs(dpdy.xz) + 0.001;
             var i = 2 * (abs(fract((2 * pos.xz - 0.5 * w) * 0.5) - 0.5) - abs(fract((2 * pos.xz + 0.5 * w) * 0.5) - 0.5)) / w;
             var f = 0.5 - 0.5 * i.x * i.y;
-            col = 0.15 + f * vec3<f32>(0.04);
+            col = colRgbToXyz(0.15 + f * vec3<f32>(0.04));
             ks = 0.4;
         } else {
             nor = calcNormal(pos);
@@ -149,8 +151,11 @@ fn render(ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<
             spe *= dif;
             spe *= 0.04 + 0.96 * pow(saturate(1 - dot(ha, lig)), 5);
 
-            lin += col * 2 * dif * vec3<f32>(1.3, 1., 0.7);
-            lin += 2 * spe * vec3<f32>(1.3, 1, 0.7) * ks;
+            // const sunlight = colRgbToXyz(vec3<f32>(1.3, 1., 0.7));
+            const sunlight = vec3<f32>(1.016, 1.040, 0.823);
+
+            lin += col * 2 * dif * sunlight;
+            lin += 2 * spe * sunlight * ks;
         }
         // sky
             {
@@ -160,8 +165,14 @@ fn render(ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<
             spe *= dif;
             spe *= 0.04 + 0.96 * pow(saturate(1 + dot(nor, rd)), 5);
             spe *= calcSoftShadow(pos, rf, 0.02, 2.5);
-            lin += col * 0.6 * dif * vec3<f32>(0.4, 0.6, 1.15);
-            lin += 2 * spe * vec3<f32>(0.4, 0.6, 1.3) * ks;
+
+            // const sky = colRgbToXyz(vec3<f32>(0.4, 0.6, 1.15));
+            const sky = vec3<f32>(0.602, 0.614, 1.167);
+            // const skySpec = colRgbToXyz(vec3<f32>(0.4, 0.6, 1.3));
+            const skySpec = vec3<f32>(0.627, 0.625, 1.302);
+
+            lin += col * 0.6 * dif * sky;
+            lin += 2 * spe * skySpec * ks;
         }
         // back
             {
@@ -178,9 +189,10 @@ fn render(ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> vec3<
 
         col = lin;
         // fog
-        col = mix(col, vec3<f32>(0.7, 0.7, 0.9), 1.0 - exp(-0.0001 * t * t * t));
+        // const fog = colSRgbToXyz(vec3<f32>(0.7, 0.7, 0.9));
+        col = mix(col, fog, 1.0 - exp(-0.0001 * t * t * t));
     }
-    return col;
+    return colXyzToSRgb(col);
 }
 
 fn setCamera(ro: vec3<f32>, ta: vec3<f32>) -> mat3x3<f32> {
@@ -218,7 +230,6 @@ fn frag_main(
     var rdy = ca * normalize(vec3<f32>(py, fl));
 
     var col = render(ro, rd, rdx, rdy);
-    col = pow(col, vec3<f32>(0.4545));
 
     var tpos = floor(frag.uv * uniforms.resolution.xy * kTextureSize / uniforms.resolution.x);
     var tval = textureLoad(noiseTexture, vec2<u32>(tpos), 0);

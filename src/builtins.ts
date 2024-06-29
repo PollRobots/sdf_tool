@@ -18,6 +18,7 @@ import { print } from "./print";
 import { Env } from "./env";
 import { read } from "./read";
 import { hasVectors, coerce } from "./generate";
+import { ColorTuple, make_color } from "./colorspaces";
 
 const kTrue: Expression = {
   type: "identifier",
@@ -1191,6 +1192,146 @@ const kBuiltins: Internal[] = [
         "and *octave* while that texture remains unchanged",
     ],
   },
+  {
+    name: "rgb-xyz",
+    impl: (args) => {
+      requireArity("rgb-xyz", 1, args);
+      requireVector("rgb-xyz", 0, args[0]);
+      const rgb = args[0].value as Vector;
+      const xyz = make_color("sRGB", [rgb.x, rgb.y, rgb.z]).as(
+        "CIEXYZ"
+      ) as ColorTuple;
+
+      return makeVector(xyz[0], xyz[1], xyz[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("rgb-xyz", 1, args);
+      const rgb = coerce(args[0], "vec");
+      return { code: `colSRgbToXyz(${rgb.code})`, type: "vec" };
+    },
+    docs: [
+      "(**rgb-xyz** *rgb*)",
+      "Converts the *rgb* vector representing a color in sRgb space, into a vector " +
+        "representing the same color in CIE 1931 XYZ color space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "xyz-rgb",
+    impl: (args) => {
+      requireArity("xyz-rgb", 1, args);
+      requireVector("xyz-rgb", 0, args[0]);
+      const xyz = args[0].value as Vector;
+      const rgb = make_color("CIEXYZ", [xyz.x, xyz.y, xyz.z]).as(
+        "sRGB"
+      ) as ColorTuple;
+
+      return makeVector(rgb[0], rgb[1], rgb[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("xyz-rgb", 1, args);
+      const xyz = coerce(args[0], "vec");
+      return { code: `colXyzToSRgb(${xyz.code})`, type: "vec" };
+    },
+    docs: [
+      "(**xyz-rgb** *xyz*)",
+      "Converts the *xyz* vector representing a color in CIE 1931 XYZ color space, into a vector " +
+        "representing the same color in sRgb color space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "lab-xyz",
+    impl: (args) => {
+      requireArity("lab-xyz", 1, args);
+      requireVector("lab-xyz", 0, args[0]);
+      const lab = args[0].value as Vector;
+      const xyz = make_color("CIELAB", [lab.x, lab.y, lab.z]).as(
+        "CIEXYZ"
+      ) as ColorTuple;
+
+      return makeVector(xyz[0], xyz[1], xyz[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("lab-xyz", 1, args);
+      const lab = coerce(args[0], "vec");
+      return { code: `colCIELabToXyz(${lab.code})`, type: "vec" };
+    },
+    docs: [
+      "(**lab-xyz** *lab*)",
+      "Converts the *lab* vector representing a color in CIE 1931 LAB color " +
+        "space, into a vector representing the same color in CIE 1931 XYZ color " +
+        "space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "xyz-lab",
+    impl: (args) => {
+      requireArity("xyz-lab", 1, args);
+      requireVector("xyz-lab", 0, args[0]);
+      const xyz = args[0].value as Vector;
+      const lab = make_color("CIEXYZ", [xyz.x, xyz.y, xyz.z]).as(
+        "CIELAB"
+      ) as ColorTuple;
+
+      return makeVector(lab[0], lab[1], lab[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("xyz-lab", 1, args);
+      const xyz = coerce(args[0], "vec");
+      return { code: `colXyzToCIELab(${xyz.code})`, type: "vec" };
+    },
+    docs: [
+      "(**xyz-lab** *xyz*)",
+      "Converts the *xyz* vector representing a color in CIE 1931 XYZ color space, into a vector " +
+        "representing the same color in CIE 1931 LAB color space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "lab-lch",
+    impl: (args) => {
+      requireArity("lab-lch", 1, args);
+      requireVector("lab-lch", 0, args[0]);
+      const lab = args[0].value as Vector;
+      const lch = make_color("CIELAB", [lab.x, lab.y, lab.z]).as(
+        "CIELCH"
+      ) as ColorTuple;
+
+      return makeVector(lch[0], lch[1], lch[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("lab-lch", 1, args);
+      const lab = coerce(args[0], "vec");
+      return { code: `colCIELabToLch(${lab.code})`, type: "vec" };
+    },
+    docs: [
+      "(**lab-lch** *lab*)",
+      "Converts the *lab* vector representing a color in CIE 1931 LAB color " +
+        "space, into a vector representing the same color in CIE 1931 Lch color " +
+        "space, using the D65 reference illuminant",
+    ],
+  },
+  {
+    name: "lch-lab",
+    impl: (args) => {
+      requireArity("lch-lab", 1, args);
+      requireVector("lch-lab", 0, args[0]);
+      const lch = args[0].value as Vector;
+      const lab = make_color("CIEXYZ", [lch.x, lch.y, lch.z]).as(
+        "CIELAB"
+      ) as ColorTuple;
+
+      return makeVector(lab[0], lab[1], lab[2], args[0].offset, args[0].length);
+    },
+    generate: (args) => {
+      requireArity("lch-lab", 1, args);
+      const lch = coerce(args[0], "vec");
+      return { code: `colCIELchToLab(${lch.code})`, type: "vec" };
+    },
+    docs: [
+      "(**lch-lab** *lch*)",
+      "Converts the *lch* vector representing a color in CIE 1931 Lch color space, into a vector " +
+        "representing the same color in CIE 1931 LAB color space, using the D65 reference illuminant",
+    ],
+  },
 ];
 
 interface MacroDef {
@@ -1598,12 +1739,12 @@ const kShapes: MacroDef[] = [
     docs: [
       "(**color** *c* *shape*)",
       "Applies the color *c* to *shape*.",
-      "*c* must be a vector. The components are interpreted as linear RGB " +
-        "values between '0' and '1'.",
+      "*c* must be a vector. The components are interpreted as CIE XYZ colorspace coordinates.",
+      "To convert from sRGB to XYZ use the `rgb-xzy` function.",
       "**Example:**",
       "```" +
         `
-(color #<0 0 1> (sphere #<0 1 0> 1))
+(color (rgb-xyz #<0 0 1>) (sphere #<0 1 0> 1))
 ` +
         "```",
       "Creates a blue sphere of radius `1` centered at `(0, 1, 0)`.",
