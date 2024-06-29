@@ -68,12 +68,11 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
   return (
     <div
       style={{
-        gridArea: "1/1/2/2",
         justifySelf: "end",
-        display: "grid",
-        gap: "0.25em",
+        display: "flex",
+        gap: "0.5em",
         height: "fit-content",
-        gridTemplateColumns: "auto auto",
+        alignItems: "center",
       }}
     >
       Theme:

@@ -165,6 +165,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         justifyItems: "center",
         gap: "0.5em",
         gridTemplateColumns: "auto auto",
+        gridArea: props.style ? props.style.gridArea : undefined,
       }}
     >
       <canvas

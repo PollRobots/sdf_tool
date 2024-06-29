@@ -30,8 +30,7 @@ import {
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
-import { SettingsEditor, loadSettings } from "./components/persisted-settings";
-import { emitKeypressEvents } from "readline";
+import { loadSettings } from "./components/persisted-settings";
 
 declare global {
   interface Window {
@@ -233,19 +232,6 @@ ${el.code}
         fontSize: `${settings.fontSize}pt`,
       }}
     >
-      <div style={{ display: "grid" }}>
-        <h1 style={{ color: currTheme.boldForeground, gridArea: "1/1/2/2" }}>
-          SDF Tool
-        </h1>
-        {forcedColors ? null : (
-          <SettingsEditor
-            {...settings}
-            onChange={(updated) => {
-              setSettings(updated);
-            }}
-          />
-        )}
-      </div>
       <div
         style={{
           display: "grid",
@@ -278,6 +264,19 @@ ${el.code}
           uniformOffsets={offsets}
           onShaderError={(shaderError) => setErrors(shaderError)}
         />
+        <div
+          style={{
+            gridArea: "1/1/2/2",
+            pointerEvents: "none",
+            fontSize: "2em",
+            margin: "1rem",
+            opacity: 0.8,
+            fontWeight: "bolder",
+            color: currTheme.base00,
+          }}
+        >
+          SDF Tool
+        </div>
         <React.Suspense
           fallback={
             <div
@@ -298,12 +297,13 @@ ${el.code}
           <EditorThemeProvider value={forcedColors ? false : currTheme}>
             <DslEditor
               style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
-              fontSize={settings.fontSize}
               line=""
               uniforms={values}
+              settings={settings}
               onGenerating={(s: string) => generateWgsl(s)}
               onTogglePositions={() => setEditorTop(!editorTop)}
               onCaptureUniforms={() => captureUniforms()}
+              onSettingsChange={(v) => setSettings(v)}
             />
           </EditorThemeProvider>
         </React.Suspense>

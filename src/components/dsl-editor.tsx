@@ -26,15 +26,17 @@ import { Uniform } from "./uniform";
 import { HintProvider } from "../monaco/hint-provider";
 import { HoverProvider } from "../monaco/hover-provider";
 import { CodeLensProvider } from "../monaco/code-lens-provider";
+import { PersistedSettings, SettingsEditor } from "./persisted-settings";
 
 interface DslEditorProps {
-  fontSize: number;
   line: string;
   style?: React.CSSProperties;
   uniforms: Map<string, Uniform>;
+  settings: PersistedSettings;
   onGenerating: (line: string) => void;
   onTogglePositions: () => void;
   onCaptureUniforms: () => string[];
+  onSettingsChange: (updated: PersistedSettings) => void;
 }
 
 const checkForForcedTheme = (name: string): string => {
@@ -80,18 +82,19 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const [highVersion, setHighVersion] = React.useState(0);
   const [editor, setEditor] =
     React.useState<monaco.editor.IStandaloneCodeEditor>(null);
+  const forcedColors = window.matchMedia("(forced-colors: active)").matches;
 
   React.useEffect(() => {
     if (editor) {
       editor.updateOptions({
-        fontSize: props.fontSize,
+        fontSize: props.settings.fontSize,
       });
     }
-  }, [props.fontSize]);
+  }, [props.settings.fontSize]);
 
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.updateOptions({
-      fontSize: props.fontSize,
+      fontSize: props.settings.fontSize,
       minimap: { enabled: false },
     });
     editor.focus();
@@ -301,14 +304,14 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     <div />
                     <IconButton
                       title="Toggle Positions"
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       onClick={() => props.onTogglePositions()}
                     >
                       <Switch />
                     </IconButton>
                     <div />
                     <IconButton
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Cut"
                       onClick={() => {
                         if (!editor) {
@@ -336,7 +339,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       <Cut />
                     </IconButton>
                     <IconButton
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Copy"
                       onClick={() => {
                         if (!editor) {
@@ -357,7 +360,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       <Copy />
                     </IconButton>
                     <IconButton
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Paste"
                       disabled={!canPaste}
                       onClick={() => {
@@ -385,7 +388,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     <div />
                     <IconButton
                       disabled={currentVersion <= initialVersion}
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Undo"
                       onClick={() => {
                         if (!editor) {
@@ -398,7 +401,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     </IconButton>
                     <IconButton
                       disabled={currentVersion >= highVersion}
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Redo"
                       onClick={() => {
                         if (!editor) {
@@ -411,7 +414,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     </IconButton>
                     <div />
                     <IconButton
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Open"
                       onClick={() => {
                         if (!editor) {
@@ -442,7 +445,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       <Open />
                     </IconButton>
                     <IconButton
-                      size={props.fontSize * 2}
+                      size={props.settings.fontSize * 2}
                       title="Save"
                       onClick={async () => {
                         if (!editor) {
@@ -461,10 +464,16 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     </IconButton>
                   </div>
                   <div />
+                  {forcedColors ? null : (
+                    <SettingsEditor
+                      {...props.settings}
+                      onChange={(value) => props.onSettingsChange(value)}
+                    />
+                  )}
                 </div>
                 <Editor
                   style={{
-                    height: "90vh",
+                    height: "93vh",
                     maxWidth: "calc(95vw - 8rem)",
                   }}
                   theme={themeName}
