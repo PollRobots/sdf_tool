@@ -1,6 +1,6 @@
 import React from "react";
 import seedrandom from "seedrandom";
-import { saveFilePickerComplete } from "./util";
+import { saveFilePickerComplete } from "../util";
 
 interface WebGPUCanvasProps {
   shader: string;

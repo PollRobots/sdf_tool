@@ -13,19 +13,19 @@ import {
   Save,
   Switch,
 } from "./icons/icons";
-import { kLanguageId } from "./monaco/language";
-import { openFilePicker, saveFilePicker } from "./util";
+import { kLanguageId } from "../monaco/language";
+import { openFilePicker, saveFilePicker } from "../util";
 import { Editor } from "./editor";
-import { DslParseError, read } from "./read";
-import { evaluate } from "./evaluate";
-import { Env } from "./env";
-import { addBuiltins } from "./builtins";
-import { DslGeneratorError, Expression } from "./dsl";
-import { generate, makeContext } from "./generate";
+import { DslParseError, read } from "../read";
+import { evaluate } from "../evaluate";
+import { Env } from "../env";
+import { addBuiltins } from "../builtins";
+import { DslGeneratorError, Expression } from "../dsl";
+import { generate, makeContext } from "../generate";
 import { Uniform } from "./uniform";
-import { HintProvider } from "./hint-provider";
-import { HoverProvider } from "./hover-provider";
-import { CodeLensProvider } from "./code-lens-provider";
+import { HintProvider } from "../monaco/hint-provider";
+import { HoverProvider } from "../monaco/hover-provider";
+import { CodeLensProvider } from "../monaco/code-lens-provider";
 
 interface DslEditorProps {
   fontSize: number;

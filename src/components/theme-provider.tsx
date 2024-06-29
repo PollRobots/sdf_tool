@@ -1,6 +1,6 @@
 import React from "react";
-import { kSolarizedDark } from "./monaco/solarized";
-import { Theme } from "./monaco/theme";
+import { kSolarizedDark } from "../monaco/solarized";
+import { Theme } from "../monaco/theme";
 
 const kDefaultTheme: Theme = kSolarizedDark;
 

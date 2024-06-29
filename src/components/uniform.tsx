@@ -1,5 +1,5 @@
 import React from "react";
-import { ColorTuple, make_color } from "./colorspaces";
+import { ColorTuple, make_color } from "../colorspaces";
 
 export interface Uniform {
   value: number;

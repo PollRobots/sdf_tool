@@ -1,5 +1,5 @@
 import React from "react";
-import { EditorThemeContext, ThemeContext } from "./theme-provider";
+import { ThemeContext, EditorThemeContext } from "./theme-provider";
 
 interface IconButtonProps {
   size: number;

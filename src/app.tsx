@@ -1,14 +1,14 @@
 import React from "react";
-import { WebGPUCanvas } from "./web-gpu-canvas";
+import { WebGPUCanvas } from "./components/web-gpu-canvas";
 import shader from "./shader.wgsl";
 import { kSolarizedDark, kSolarizedLight } from "./monaco/solarized";
-import { EditorThemeProvider } from "./theme-provider";
+import { EditorThemeProvider } from "./components/theme-provider";
 import {
   kSolarizedContrastDark,
   kSolarizedContrastLight,
 } from "./monaco/solarized-contrast";
 import { kTerminalDark, kTerminalLight } from "./monaco/terminal";
-import { updateStyleSheet } from "./style-sheet";
+import { updateStyleSheet } from "./components/style-sheet";
 import { read } from "./read";
 import { print } from "./print";
 import { Env } from "./env";
@@ -26,11 +26,11 @@ import {
   getDefaultUniform,
   isUniform,
   kDefaultUniform,
-} from "./uniform";
+} from "./components/uniform";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
-import { SettingsEditor, loadSettings } from "./persisted-settings";
+import { SettingsEditor, loadSettings } from "./components/persisted-settings";
 import { emitKeypressEvents } from "readline";
 
 declare global {
@@ -42,7 +42,7 @@ declare global {
 
 const DslEditor = React.lazy(async () => {
   await window.getMonaco();
-  return import("./dsl-editor");
+  return import("./components/dsl-editor");
 });
 
 const kEditorThemes = new Map([

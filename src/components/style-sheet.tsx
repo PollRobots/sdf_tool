@@ -1,4 +1,4 @@
-import { Theme } from "./monaco/theme";
+import { Theme } from "../monaco/theme";
 
 export const updateStyleSheet = (theme: Theme) => {
   const styles: string[] = [];

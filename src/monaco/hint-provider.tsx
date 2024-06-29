@@ -1,6 +1,6 @@
 import monaco from "monaco-editor";
-import { Expression, isIdentifier, isVectorName } from "./dsl";
-import { Uniform } from "./uniform";
+import { Expression, isIdentifier, isVectorName } from "../dsl";
+import { Uniform } from "../components/uniform";
 
 export class HintProvider implements monaco.languages.InlayHintsProvider {
   private changeEmitter: monaco.Emitter<void> = new window.monaco.Emitter();

@@ -1,8 +1,8 @@
 import monaco from "monaco-editor";
-import { tokenize } from "./read";
-import { Env } from "./env";
-import { addBuiltins } from "./builtins";
-import { Expression } from "./dsl";
+import { tokenize } from "../read";
+import { Env } from "../env";
+import { addBuiltins } from "../builtins";
+import { Expression } from "../dsl";
 
 export class HoverProvider implements monaco.languages.HoverProvider {
   private readonly editor: monaco.editor.IStandaloneCodeEditor;

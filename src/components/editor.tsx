@@ -1,9 +1,9 @@
 import React from "react";
 import monaco from "monaco-editor";
-import { registerLanguage } from "./monaco/language";
-import * as solarized from "./monaco/solarized";
-import * as solarizedContrast from "./monaco/solarized-contrast";
-import * as terminal from "./monaco/terminal";
+import { registerLanguage } from "../monaco/language";
+import * as solarized from "../monaco/solarized";
+import * as solarizedContrast from "../monaco/solarized-contrast";
+import * as terminal from "../monaco/terminal";
 
 export interface EditorProps {
   style?: React.CSSProperties;
