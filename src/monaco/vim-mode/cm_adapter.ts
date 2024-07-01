@@ -288,7 +288,7 @@ export default class CMAdapter {
     if (map.fallthrough) {
       if (!Array.isArray(map.fallthrough))
         return CMAdapter.lookupKey(key, map.fallthrough, handle);
-      for (var i = 0; i < map.fallthrough.length; i++) {
+      for (let i = 0; i < map.fallthrough.length; i++) {
         const result = CMAdapter.lookupKey(key, map.fallthrough[i], handle);
         if (result) return result;
       }
@@ -969,7 +969,7 @@ export default class CMAdapter {
         if (!matches || !matches.length) {
           return false;
         }
-        var match = matches[index];
+        const match = matches[index];
         lastSearch = match.range;
         context.highlightRanges([lastSearch], "currentFindMatch");
         context.highlightRanges(

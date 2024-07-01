@@ -253,7 +253,7 @@ interface ExCommand {
  * pair of commands that have a shared prefix, at least one of their
  * shortNames must not match the prefix of the other command.
  */
-var defaultExCommandMap: ExCommand[] = [
+const defaultExCommandMap: ExCommand[] = [
   { name: "colorscheme", shortName: "colo" },
   { name: "map" },
   { name: "imap", shortName: "im" },
@@ -576,7 +576,7 @@ function getOption(name: string, cm?: CodeMirror, cfg?: Config) {
     }
     return;
   } else {
-    var local =
+    const local =
       scope !== "global" && cm && (cm.state.vim as VimState).options[name];
     return (local || (scope !== "local" && option) || {}).value;
   }
@@ -611,8 +611,8 @@ class CircularJumpList {
     const current = this.pointer % this.size;
     const curMark = this.buffer[current];
     const useNextSlot = (cursor: Pos) => {
-      var next = ++this.pointer % this.size;
-      var trashMark = this.buffer[next];
+      const next = ++this.pointer % this.size;
+      const trashMark = this.buffer[next];
       if (trashMark) {
         trashMark.clear();
       }
@@ -711,7 +711,8 @@ class MacroModeState {
   }
 
   enterMacroRecordMode(cm: CodeMirror, registerName: string) {
-    var register = vimGlobalState.registerController.getRegister(registerName);
+    const register =
+      vimGlobalState.registerController.getRegister(registerName);
     if (register) {
       register.clear();
       this.latestRegister = registerName;
@@ -787,7 +788,7 @@ function resetVimGlobalState() {
     exCommandHistoryController: new HistoryController(),
   };
   for (const optionName in options) {
-    var option = options.get(optionName);
+    const option = options.get(optionName);
     option.value = option.defaultValue;
   }
 }
@@ -967,7 +968,7 @@ class VimApi {
   findKey(cm: CodeMirror, key: string, origin?: string) {
     const vim = maybeInitVimState(cm);
     const handleMacroRecording = () => {
-      var macroModeState = vimGlobalState.macroModeState;
+      const macroModeState = vimGlobalState.macroModeState;
       if (macroModeState.isRecording) {
         if (key == "q") {
           macroModeState.exitMacroRecordMode();
@@ -1290,7 +1291,7 @@ class Register {
  * for a reference implementation.
  */
 function defineRegister(name: string, register: Register) {
-  var registers = vimGlobalState.registerController.registers;
+  const registers = vimGlobalState.registerController.registers;
   if (!name || name.length != 1) {
     throw Error("Register name must be 1 character");
   }
@@ -1394,7 +1395,7 @@ class RegisterController {
   }
 
   private shiftNumericRegisters_() {
-    for (var i = 9; i >= 2; i--) {
+    for (let i = 9; i >= 2; i--) {
       this.registers[i] = this.getRegister(`${i - 1}`);
     }
   }
@@ -1440,7 +1441,7 @@ class HistoryController {
   }
 
   pushInput(input: string) {
-    var index = this.historyBuffer.indexOf(input);
+    const index = this.historyBuffer.indexOf(input);
     if (index > -1) this.historyBuffer.splice(index, 1);
     if (input.length) this.historyBuffer.push(input);
   }
@@ -2005,7 +2006,7 @@ class CommandDispatcher {
           const ranges = cmSel.ranges;
           if (mode == "block") {
             // Linewise operators in visual block mode extend to end of line
-            for (var i = 0; i < ranges.length; i++) {
+            for (let i = 0; i < ranges.length; i++) {
               ranges[i].head.ch = lineLength(cm, ranges[i].head.line);
             }
           } else if (mode == "line") {
@@ -2379,8 +2380,8 @@ const motions: Record<string, MotionFunc> = {
     // CodeMirror only exposes functions that move the cursor page down, so
     // doing this bad hack to move the cursor and move it back. evalInput
     // will move the cursor to where it should be in the end.
-    var curStart = head;
-    var repeat = motionArgs.repeat;
+    const curStart = head;
+    const repeat = motionArgs.repeat;
     return cm.findPosV(curStart, motionArgs.forward ? repeat : -repeat, "page");
   },
   moveByParagraph: function (cm, head, motionArgs) {
@@ -2473,7 +2474,7 @@ const motions: Record<string, MotionFunc> = {
   moveToFirstNonWhiteSpaceCharacter: function (cm, head) {
     // Go to the start of the line where the text begins, or the end for
     // whitespace-only lines
-    var cursor = head;
+    const cursor = head;
     return {
       line: cursor.line,
       ch: findFirstNonWhiteSpaceCharacter(cm.getLine(cursor.line)),
@@ -2502,7 +2503,7 @@ const motions: Record<string, MotionFunc> = {
     return { line: head.line, ch: 0 };
   },
   moveToLineOrEdgeOfDocument: function (cm, _head, motionArgs) {
-    var lineNum = motionArgs.forward ? cm.lastLine() : cm.firstLine();
+    let lineNum = motionArgs.forward ? cm.lastLine() : cm.firstLine();
     if (motionArgs.repeatIsExplicit) {
       lineNum = motionArgs.repeat - cm.getOption("firstLineNumber");
     }
@@ -3206,7 +3207,7 @@ const actions: Record<string, ActionFunc> = {
       const wasChomped = text !== chompedText;
       const firstIndent = whitespaceLength(text.match(/^\s*/)[0]);
       text = chompedText.replace(/^\s*/gm, (wspace) => {
-        var newIndent = indent + (whitespaceLength(wspace) - firstIndent);
+        const newIndent = indent + (whitespaceLength(wspace) - firstIndent);
         if (newIndent < 0) {
           return "";
         } else if (cm.getOption("indentWithTabs")) {
@@ -3350,7 +3351,7 @@ const actions: Record<string, ActionFunc> = {
     vim.inputState.registerName = actionArgs.selectedCharacter;
   },
   setMark: function (cm, actionArgs, vim) {
-    var markName = actionArgs.selectedCharacter;
+    const markName = actionArgs.selectedCharacter;
     updateMark(cm, vim, markName, cm.getCursor());
   },
   replace: function (cm, actionArgs, vim) {
@@ -3515,23 +3516,20 @@ function commandMatches(
   let match: false | "partial" | "full";
   const partial: KeyMapping[] = [];
   const full: KeyMapping[] = [];
-  for (var i = 0; i < keyMap.length; i++) {
-    var command = keyMap[i];
+
+  keyMap.forEach((command) => {
     if (
       (context == "insert" && command.context != "insert") ||
       (command.context && command.context != context) ||
       (inputState.operator && command.type == "action") ||
       !(match = commandMatch(keys, command.keys))
     ) {
-      continue;
-    }
-    if (match == "partial") {
+    } else if (match == "partial") {
       partial.push(command);
-    }
-    if (match == "full") {
+    } else if (match == "full") {
       full.push(command);
     }
-  }
+  });
   return {
     partial: partial.length && partial,
     full: full.length && full,
@@ -3875,7 +3873,7 @@ function makeCmSelection(
     const height = bottom - top + 1;
     const primary = head.line == top ? 0 : height - 1;
     const ranges: CmSelection[] = [];
-    for (var i = 0; i < height; i++) {
+    for (let i = 0; i < height; i++) {
       ranges.push(
         new CmSelection(
           { line: top + i, ch: fromCh },
@@ -4435,7 +4433,7 @@ function moveToCharacter(
 function moveToColumn(cm: CodeMirror, repeat: number) {
   // repeat is always >= 1, so repeat - 1 always corresponds
   // to the column we want to go to.
-  var line = cm.getCursor().line;
+  const line = cm.getCursor().line;
   return clipCursorToContent(cm, { line: line, ch: repeat - 1 });
 }
 
@@ -4637,7 +4635,7 @@ function findSentence(
         */
     line = cm.getLine(last_valid.ln);
     last_valid.pos = 0;
-    for (var i = line.length - 1; i >= 0; --i) {
+    for (let i = line.length - 1; i >= 0; --i) {
       if (!isWhiteSpaceString(line[i])) {
         last_valid.pos = i;
         break;
@@ -4661,7 +4659,7 @@ function findSentence(
       dir: dir,
     };
 
-    var last_valid: Pick<Index, "ln" | "pos"> = {
+    let last_valid: Pick<Index, "ln" | "pos"> = {
       ln: curr.ln,
       pos: null,
     };
@@ -4698,7 +4696,7 @@ function findSentence(
         */
     line = cm.getLine(last_valid.ln);
     last_valid.pos = 0;
-    for (var i = 0; i < line.length; ++i) {
+    for (let i = 0; i < line.length; ++i) {
       if (!isWhiteSpaceString(line[i])) {
         last_valid.pos = i;
         break;
@@ -5061,7 +5059,7 @@ function translateRegexReplace(str: string) {
 }
 
 // Unescape \ and / in the replace part, for PCRE mode.
-var unescapes: Record<string, string> = {
+const unescapes: Record<string, string> = {
   "\\/": "/",
   "\\\\": "\\",
   "\\n": "\n",
@@ -5207,8 +5205,8 @@ function highlightSearchMatches(cm: CodeMirror, query: RegExp) {
   clearTimeout(highlightTimeout);
   highlightTimeout = setTimeout(() => {
     if (!cm.state.vim) return;
-    var searchState = getSearchState(cm);
-    var overlay = searchState.getOverlay();
+    const searchState = getSearchState(cm);
+    let overlay = searchState.getOverlay();
     if (!overlay || query != overlay.query) {
       if (overlay) {
         cm.removeOverlay();
@@ -5230,7 +5228,7 @@ function findNext(
   }
   const pos = cm.getCursor();
   let cursor = cm.getSearchCursor(query, pos);
-  for (var i = 0; i < repeat; i++) {
+  for (let i = 0; i < repeat; i++) {
     let found = cursor.find(prev);
     if (i == 0 && found && cursorEqual(cursor.from(), pos)) {
       const lastEndPos = prev ? cursor.from() : cursor.to();
@@ -5301,7 +5299,7 @@ function findNextFromAndToInclusive(
 }
 
 function clearSearchHighlight(cm: CodeMirror) {
-  var state = getSearchState(cm);
+  const state = getSearchState(cm);
   cm.removeOverlay();
   state.setOverlay(null);
   if (state.getScrollbarAnnotate()) {
@@ -5341,9 +5339,9 @@ function getUserVisibleLines(cm: CodeMirror) {
   const occludeToleranceTop = 6;
   const occludeToleranceBottom = 10;
   const from: Pos = { ch: 0, line: occludeToleranceTop + scrollInfo.top };
-  var bottomY =
+  const bottomY =
     scrollInfo.clientHeight - occludeToleranceBottom + scrollInfo.top;
-  var to: Pos = { ch: 0, line: bottomY };
+  const to: Pos = { ch: 0, line: bottomY };
   return { top: from.line, bottom: to.line };
 }
 
@@ -5476,7 +5474,7 @@ class ExCommandDispatcher {
   }
 
   private parseLineSpec_(cm: CodeMirror, inputStream: StringStream) {
-    var numberMatch = inputStream.match(/^(\d+)/);
+    const numberMatch = inputStream.match(/^(\d+)/);
     if (numberMatch) {
       // Absolute line number plus offset (N+M or N-M) is probably a typo,
       // not something the user actually wanted. (NB: vim does allow this.)
@@ -5504,7 +5502,7 @@ class ExCommandDispatcher {
   }
 
   private parseLineSpecOffset_(inputStream: StringStream, line: number) {
-    var offsetMatch = inputStream.match(/^([+-])?(\d+)/);
+    const offsetMatch = inputStream.match(/^([+-])?(\d+)/);
     if (offsetMatch) {
       const offset = parseInt(offsetMatch[2], 10);
       if (offsetMatch[1] == "-") {
@@ -5552,9 +5550,9 @@ class ExCommandDispatcher {
 
   private buildCommandMap_() {
     this.commandMap_ = {};
-    for (var i = 0; i < defaultExCommandMap.length; i++) {
-      var command = defaultExCommandMap[i];
-      var key = command.shortName || command.name;
+    for (let i = 0; i < defaultExCommandMap.length; i++) {
+      const command = defaultExCommandMap[i];
+      const key = command.shortName || command.name;
       this.commandMap_[key] = command;
     }
   }
@@ -5622,8 +5620,8 @@ class ExCommandDispatcher {
       }
     } else {
       // Key to Ex or key to key mapping
-      var keys = lhs;
-      for (var i = 0; i < defaultKeymap.length; i++) {
+      const keys = lhs;
+      for (let i = 0; i < defaultKeymap.length; i++) {
         if (keys == defaultKeymap[i].keys && defaultKeymap[i].context === ctx) {
           defaultKeymap.splice(i, 1);
           return true;
@@ -5665,7 +5663,7 @@ const exCommands: Record<string, ExCommandFunc> = {
     cm.setOption("theme", params.args[0]);
   },
   map: function (cm, params, ctx) {
-    var mapArgs = params.args;
+    const mapArgs = params.args;
     if (!mapArgs || mapArgs.length < 2) {
       if (cm) {
         showConfirm(cm, "Invalid mapping: " + params.input);
@@ -5735,7 +5733,7 @@ const exCommands: Record<string, ExCommandFunc> = {
       value = false;
     }
 
-    var optionIsBoolean =
+    const optionIsBoolean =
       options.has(optionName) && options.get(optionName).type == "boolean";
     if (optionIsBoolean && value == undefined) {
       // Calling set with a boolean option sets it to true.
@@ -5752,7 +5750,7 @@ const exCommands: Record<string, ExCommandFunc> = {
         showConfirm(cm, "  " + optionName + "=" + oldValue);
       }
     } else {
-      var setOptionReturn = setOption(optionName, value, cm, setCfg);
+      const setOptionReturn = setOption(optionName, value, cm, setCfg);
       if (setOptionReturn instanceof Error) {
         showConfirm(cm, setOptionReturn.message);
       }
@@ -5773,8 +5771,8 @@ const exCommands: Record<string, ExCommandFunc> = {
     const registers = vimGlobalState.registerController.registers;
     const regInfo = ["----------Registers----------", ""];
     if (!regArgs) {
-      for (var registerName in registers) {
-        var text = registers[registerName].toString();
+      for (const registerName in registers) {
+        const text = registers[registerName].toString();
         if (text.length) {
           regInfo.push(`"${registerName}"     ${text}`);
         }
@@ -6339,7 +6337,7 @@ function doReplace(
   ) => {
     // Swallow all keys.
     CodeMirror.e_stop(e);
-    var keyName = CodeMirror.keyName(e);
+    const keyName = CodeMirror.keyName(e);
     switch (keyName) {
       case "Y":
         replace();
@@ -6732,7 +6730,7 @@ function repeatInsertModeChanges(
     if (visualBlock) {
       cm.setCursor(offsetCursor(head, i, 0));
     }
-    for (var j = 0; j < changes.length; j++) {
+    for (let j = 0; j < changes.length; j++) {
       const change = changes[j];
       if (change instanceof InsertModeKey) {
         CodeMirror.lookupKey(change.keyName, "vim-insert", keyHandler);
