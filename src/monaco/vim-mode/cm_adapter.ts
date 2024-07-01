@@ -8,10 +8,6 @@ import { SecInfoOptions, IStatusBar } from "./statusbar";
 const KeyCode = window.monaco.KeyCode;
 const SelectionDirection = window.monaco.SelectionDirection;
 
-enum VerticalRevealType {
-  Bottom = 4,
-}
-
 const nonASCIISingleCaseWordChar =
   /[\u00df\u0587\u0590-\u05f4\u0600-\u06ff\u3040-\u309f\u30a0-\u30ff\u3400-\u4db5\u4e00-\u9fcc\uac00-\ud7af]/;
 
@@ -31,6 +27,11 @@ export interface Pos {
 
 export const isPos = (value: any): value is Pos =>
   value && typeof value.line === "number" && typeof value.ch === "number";
+
+export const makePos = (line: number, ch: number): Pos => ({
+  line: line,
+  ch: ch,
+});
 
 export class CmSelection {
   /// Where the selection started from
@@ -71,7 +72,7 @@ function dummy(key: string) {
 }
 
 function toCmPos(pos: IPosition): Pos {
-  return { line: pos.lineNumber - 1, ch: pos.column - 1 };
+  return makePos(pos.lineNumber - 1, pos.column - 1);
 }
 
 function toMonacoPos(pos: Pos) {
@@ -98,7 +99,7 @@ export class Marker implements Pos {
   }
 
   find(): Pos {
-    return { line: this.line, ch: this.ch };
+    return makePos(this.line, this.ch);
   }
 }
 
@@ -639,7 +640,7 @@ export default class CMAdapter {
   setCursor(line: Pos, ch?: number): void;
   setCursor(line: number, ch: number): void;
   setCursor(line: number | Pos, ch: number) {
-    const pos = typeof line === "number" ? { line: line, ch: ch } : line;
+    const pos = typeof line === "number" ? makePos(line, ch) : line;
 
     const monacoPos = this.editor.getModel().validatePosition(toMonacoPos(pos));
     this.editor.setPosition(toMonacoPos(pos));
@@ -918,14 +919,14 @@ export default class CMAdapter {
           const ScrollType = window.monaco.editor.ScrollType;
           const revealRange = (this.editor as any)._revealRange as (
             range: IRange,
-            verticalType: VerticalRevealType.Bottom,
+            verticalType: number, // enum VerticalRevealType,
             revealHorizontal: boolean,
             scrollType: monaco.editor.ScrollType
           ) => void;
           if (revealRange) {
             revealRange(
               range,
-              VerticalRevealType.Bottom,
+              4, // enum VerticalRevealType.Bottom(4),
               true,
               ScrollType.Smooth
             );

@@ -26,6 +26,7 @@ import CodeMirror, {
   CmSelection,
   isPos,
   KeyMapEntry,
+  makePos,
   Marker,
   Pos,
   signal,
@@ -120,8 +121,9 @@ function transformCursor(cm: CodeMirror, range: CmSelection): Pos {
     }
   }
   if (range.from() == range.anchor && !range.empty()) {
-    if (range.head.line == head.line && range.head.ch != head.ch)
-      return { line: range.head.line, ch: range.head.ch - 1 };
+    if (range.head.line == head.line && range.head.ch != head.ch) {
+      return makePos(range.head.line, range.head.ch - 1);
+    }
   }
 
   return range.head;
@@ -755,7 +757,7 @@ function maybeInitVimState(cm: CodeMirror): VimState {
       visualBlock: false,
       lastSelection: null,
       lastPastedText: null,
-      sel: new CmSelection({ line: 0, ch: 0 }, { line: 0, ch: 0 }),
+      sel: new CmSelection(makePos(0, 0), makePos(0, 0)),
       // Buffer-local/window-local values of vim options.
       options: {},
     };
@@ -1962,20 +1964,20 @@ class CommandDispatcher {
         const chOffset = Math.abs(lastSel.head.ch - lastSel.anchor.ch);
         if (lastSel.visualLine) {
           // Linewise Visual mode: The same number of lines.
-          newHead = { line: oldAnchor.line + lineOffset, ch: oldAnchor.ch };
+          newHead = makePos(oldAnchor.line + lineOffset, oldAnchor.ch);
         } else if (lastSel.visualBlock) {
           // Blockwise Visual mode: The same number of lines and columns.
-          newHead = {
-            line: oldAnchor.line + lineOffset,
-            ch: oldAnchor.ch + chOffset,
-          };
+          newHead = makePos(
+            oldAnchor.line + lineOffset,
+            oldAnchor.ch + chOffset
+          );
         } else if (lastSel.head.line == lastSel.anchor.line) {
           // Normal Visual mode within one line: The same number of characters.
-          newHead = { line: oldAnchor.line, ch: oldAnchor.ch + chOffset };
+          newHead = makePos(oldAnchor.line, oldAnchor.ch + chOffset);
         } else {
           // Normal Visual mode with several lines: The same number of lines, in the
           // last line the same number of characters as in the last line the last time.
-          newHead = { line: oldAnchor.line + lineOffset, ch: oldAnchor.ch };
+          newHead = makePos(oldAnchor.line + lineOffset, oldAnchor.ch);
         }
         vim.visualMode = true;
         vim.visualLine = lastSel.visualLine;
@@ -2097,30 +2099,21 @@ type MotionResult = Pos | [Pos, Pos] | undefined;
 const motions: Record<string, MotionFunc> = {
   moveToTopLine: function (cm, _head, motionArgs) {
     const line = getUserVisibleLines(cm).top + motionArgs.repeat - 1;
-    return {
-      line: line,
-      ch: findFirstNonWhiteSpaceCharacter(cm.getLine(line)),
-    };
+    return makePos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
   },
   moveToMiddleLine: function (cm) {
     const range = getUserVisibleLines(cm);
     const line = Math.floor((range.top + range.bottom) * 0.5);
-    return {
-      line: line,
-      ch: findFirstNonWhiteSpaceCharacter(cm.getLine(line)),
-    };
+    return makePos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
   },
   moveToBottomLine: function (cm, _head, motionArgs) {
     const line = getUserVisibleLines(cm).bottom - motionArgs.repeat + 1;
-    return {
-      line: line,
-      ch: findFirstNonWhiteSpaceCharacter(cm.getLine(line)),
-    };
+    return makePos(line, findFirstNonWhiteSpaceCharacter(cm.getLine(line)));
   },
   expandToLine: function (_cm, head, motionArgs) {
     // Expands forward to end of line, and then to next line if repeat is
     // >1. Does not handle backward motion!
-    return { line: head.line + motionArgs.repeat - 1, ch: Infinity };
+    return makePos(head.line + motionArgs.repeat - 1, Infinity);
   },
   findNext: function (cm, _head, motionArgs) {
     const state = getSearchState(cm);
@@ -2189,7 +2182,7 @@ const motions: Record<string, MotionFunc> = {
     // For whatever reason, when we use the "to" as returned by searchcursor.js directly,
     // the resulting selection is extended by 1 char. Let's shrink it so that only the
     // match is selected.
-    const to = { line: next[1].line, ch: next[1].ch - 1 };
+    const to = makePos(next[1].line, next[1].ch - 1);
 
     if (vim.visualMode) {
       // If we were in visualLine or visualBlock mode, get out of it.
@@ -2237,10 +2230,10 @@ const motions: Record<string, MotionFunc> = {
     const pos = getMarkPos(cm, vim, motionArgs.selectedCharacter);
     if (pos) {
       return motionArgs.linewise
-        ? {
-            line: pos.line,
-            ch: findFirstNonWhiteSpaceCharacter(cm.getLine(pos.line)),
-          }
+        ? makePos(
+            pos.line,
+            findFirstNonWhiteSpaceCharacter(cm.getLine(pos.line))
+          )
         : pos;
     }
     return;
@@ -2249,8 +2242,8 @@ const motions: Record<string, MotionFunc> = {
     if (vim.visualBlock && motionArgs.sameLine) {
       const sel = vim.sel;
       return [
-        clipCursorToContent(cm, { line: sel.anchor.line, ch: sel.head.ch }),
-        clipCursorToContent(cm, { line: sel.head.line, ch: sel.anchor.ch }),
+        clipCursorToContent(cm, makePos(sel.anchor.line, sel.head.ch)),
+        clipCursorToContent(cm, makePos(sel.head.line, sel.anchor.ch)),
       ];
     } else {
       return [vim.sel.head, vim.sel.anchor];
@@ -2291,10 +2284,10 @@ const motions: Record<string, MotionFunc> = {
       // Vim places the cursor on the first non-whitespace character of
       // the line if there is one, else it places the cursor at the end
       // of the line, regardless of whether a mark was found.
-      best = {
-        line: best.line,
-        ch: findFirstNonWhiteSpaceCharacter(cm.getLine(best.line)),
-      };
+      best = makePos(
+        best.line,
+        findFirstNonWhiteSpaceCharacter(cm.getLine(best.line))
+      );
     }
     return best;
   },
@@ -2302,7 +2295,7 @@ const motions: Record<string, MotionFunc> = {
     const cur = head;
     const repeat = motionArgs.repeat || 0;
     const ch = motionArgs.forward ? cur.ch + repeat : cur.ch - repeat;
-    return { line: cur.line, ch: ch };
+    return makePos(cur.line, ch);
   },
   moveByLines: function (cm, head, motionArgs, vim) {
     const cur = head;
@@ -2351,8 +2344,8 @@ const motions: Record<string, MotionFunc> = {
       endCh = findFirstNonWhiteSpaceCharacter(cm.getLine(line));
       vim.lastHPos = endCh;
     }
-    vim.lastHSPos = cm.charCoords({ line: line, ch: endCh }, "div").left;
-    return { line: line, ch: endCh };
+    vim.lastHSPos = cm.charCoords(makePos(line, endCh), "div").left;
+    return makePos(line, endCh);
   },
   moveByDisplayLines: function (cm, head, motionArgs, vim) {
     const cur = head;
@@ -2475,10 +2468,10 @@ const motions: Record<string, MotionFunc> = {
     // Go to the start of the line where the text begins, or the end for
     // whitespace-only lines
     const cursor = head;
-    return {
-      line: cursor.line,
-      ch: findFirstNonWhiteSpaceCharacter(cm.getLine(cursor.line)),
-    };
+    return makePos(
+      cursor.line,
+      findFirstNonWhiteSpaceCharacter(cm.getLine(cursor.line))
+    );
   },
   moveToMatchedSymbol: function (cm, head) {
     const lineText = cm.getLine(head.line);
@@ -2500,17 +2493,17 @@ const motions: Record<string, MotionFunc> = {
     }
   },
   moveToStartOfLine: function (_cm, head) {
-    return { line: head.line, ch: 0 };
+    return makePos(head.line, 0);
   },
   moveToLineOrEdgeOfDocument: function (cm, _head, motionArgs) {
     let lineNum = motionArgs.forward ? cm.lastLine() : cm.firstLine();
     if (motionArgs.repeatIsExplicit) {
       lineNum = motionArgs.repeat - cm.getOption("firstLineNumber");
     }
-    return {
-      line: lineNum,
-      ch: findFirstNonWhiteSpaceCharacter(cm.getLine(lineNum)),
-    };
+    return makePos(
+      lineNum,
+      findFirstNonWhiteSpaceCharacter(cm.getLine(lineNum))
+    );
   },
   moveToStartOfDisplayLine: function (cm) {
     cm.execCommand("goLineLeft");
@@ -2663,7 +2656,7 @@ const operators: Record<string, OperatorFunc> = {
           text = text.slice(0, -match[0].length);
         }
       }
-      const prevLineEnd = { line: anchor.line - 1, ch: Number.MAX_VALUE };
+      const prevLineEnd = makePos(anchor.line - 1, Infinity);
       const wasLastLine = cm.firstLine() == cm.lastLine();
       if (head.line > cm.lastLine() && args.linewise && !wasLastLine) {
         cm.replaceRange("", prevLineEnd, head);
@@ -2723,10 +2716,7 @@ const operators: Record<string, OperatorFunc> = {
         if (anchor.line == cm.firstLine()) {
           anchor.ch = 0;
         } else {
-          anchor = {
-            line: anchor.line - 1,
-            ch: lineLength(cm, anchor.line - 1),
-          };
+          anchor = makePos(anchor.line - 1, lineLength(cm, anchor.line - 1));
         }
       }
       text = cm.getRange(anchor, head);
@@ -2973,9 +2963,9 @@ const actions: Record<string, ActionFunc> = {
     let head = actionArgs.head || cm.getCursor("head");
     let height = cm.listSelections().length;
     if (insertAt == "eol") {
-      head = { line: head.line, ch: lineLength(cm, head.line) };
+      head = makePos(head.line, lineLength(cm, head.line));
     } else if (insertAt == "bol") {
-      head = { line: head.line, ch: 0 };
+      head = makePos(head.line, 0);
     } else if (insertAt == "charAfter") {
       head = offsetCursor(head, 0, 1);
     } else if (insertAt == "firstNonBlank") {
@@ -2993,13 +2983,13 @@ const actions: Record<string, ActionFunc> = {
         if (sel.head.line < sel.anchor.line) {
           head = sel.head;
         } else {
-          head = { line: sel.anchor.line, ch: 0 };
+          head = makePos(sel.anchor.line, 0);
         }
       } else {
-        head = {
-          line: Math.min(sel.head.line, sel.anchor.line),
-          ch: Math.min(sel.head.ch, sel.anchor.ch),
-        };
+        head = makePos(
+          Math.min(sel.head.line, sel.anchor.line),
+          Math.min(sel.head.ch, sel.anchor.ch)
+        );
         height = Math.abs(sel.head.line - sel.anchor.line) + 1;
       }
     } else if (insertAt == "endOfSelectedArea") {
@@ -3008,13 +2998,13 @@ const actions: Record<string, ActionFunc> = {
         if (sel.head.line >= sel.anchor.line) {
           head = offsetCursor(sel.head, 0, 1);
         } else {
-          head = { line: sel.anchor.line, ch: 0 };
+          head = makePos(sel.anchor.line, 0);
         }
       } else {
-        head = {
-          line: Math.min(sel.head.line, sel.anchor.line),
-          ch: Math.max(sel.head.ch, sel.anchor.ch) + 1,
-        };
+        head = makePos(
+          Math.min(sel.head.line, sel.anchor.line),
+          Math.max(sel.head.ch, sel.anchor.ch) + 1
+        );
         height = Math.abs(sel.head.line - sel.anchor.line) + 1;
       }
     } else if (insertAt == "inplace") {
@@ -3056,10 +3046,10 @@ const actions: Record<string, ActionFunc> = {
       vim.visualMode = true;
       vim.visualLine = !!actionArgs.linewise;
       vim.visualBlock = !!actionArgs.blockwise;
-      head = clipCursorToContent(cm, {
-        line: anchor.line,
-        ch: anchor.ch + repeat - 1,
-      });
+      head = clipCursorToContent(
+        cm,
+        makePos(anchor.line, anchor.ch + repeat - 1)
+      );
       vim.sel = new CmSelection(anchor, head);
       signal(cm, "vim-mode-change", {
         mode: "visual",
@@ -3137,25 +3127,22 @@ const actions: Record<string, ActionFunc> = {
       // Repeat is the number of lines to join. Minimum 2 lines.
       const repeat = Math.max(actionArgs.repeat, 2);
       curStart = cm.getCursor();
-      curEnd = clipCursorToContent(cm, {
-        line: curStart.line + repeat - 1,
-        ch: Infinity,
-      });
+      curEnd = clipCursorToContent(
+        cm,
+        makePos(curStart.line + repeat - 1, Infinity)
+      );
     }
     let finalCh = 0;
     for (let i = curStart.line; i < curEnd.line; i++) {
       finalCh = lineLength(cm, curStart.line);
-      const tmp = {
-        line: curStart.line + 1,
-        ch: lineLength(cm, curStart.line + 1),
-      };
+      const tmp = makePos(curStart.line + 1, lineLength(cm, curStart.line + 1));
       let text = cm.getRange(curStart, tmp);
       text = actionArgs.keepSpaces
         ? text.replace(/\n\r?/g, "")
         : text.replace(/\n\s*/g, " ");
       cm.replaceRange(text, curStart, tmp);
     }
-    const curFinalPos = { line: curStart.line, ch: finalCh };
+    const curFinalPos = makePos(curStart.line, finalCh);
     if (vim.visualMode) {
       exitVisualMode(cm, false);
     }
@@ -3169,7 +3156,7 @@ const actions: Record<string, ActionFunc> = {
     const insertAt = copyCursor(cm.getCursor());
     if (insertAt.line === cm.firstLine() && !actionArgs.after) {
       // Special case for inserting newline before start of document.
-      cm.replaceRange("\n", { line: cm.firstLine(), ch: 0 });
+      cm.replaceRange("\n", makePos(cm.firstLine(), 0));
       cm.setCursor(cm.firstLine(), 0);
     } else {
       insertAt.line = actionArgs.after ? insertAt.line : insertAt.line - 1;
@@ -3270,10 +3257,10 @@ const actions: Record<string, ActionFunc> = {
         // first delete the selected text
         cm.replaceSelections(emptyStrings);
         // Set new selections as per the block length of the yanked text
-        selectionEnd = {
-          line: selectionStart.line + blockText.length - 1,
-          ch: selectionStart.ch,
-        };
+        selectionEnd = makePos(
+          selectionStart.line + blockText.length - 1,
+          selectionStart.ch
+        );
         cm.setCursor(selectionStart);
         selectBlock(cm, selectionEnd);
         cm.replaceSelections(blockText);
@@ -3302,7 +3289,7 @@ const actions: Record<string, ActionFunc> = {
         for (let i = 0; i < blockText.length; i++) {
           const line = cur.line + i;
           if (line > cm.lastLine()) {
-            cm.replaceRange("\n", { line: line, ch: 0 });
+            cm.replaceRange("\n", makePos(line, cur.ch));
           }
           const lastCh = lineLength(cm, line);
           if (lastCh < cur.ch) {
@@ -3310,22 +3297,22 @@ const actions: Record<string, ActionFunc> = {
           }
         }
         cm.setCursor(cur);
-        selectBlock(cm, { line: cur.line + text.length - 1, ch: cur.ch });
+        selectBlock(cm, makePos(cur.line + text.length - 1, cur.ch));
         cm.replaceSelections(blockText);
         curPosFinal = cur;
       } else {
         cm.replaceRange(text, cur);
         // Now fine tune the cursor to where we want it.
         if (linewise && actionArgs.after) {
-          curPosFinal = {
-            line: cur.line + 1,
-            ch: findFirstNonWhiteSpaceCharacter(cm.getLine(cur.line + 1)),
-          };
+          curPosFinal = makePos(
+            cur.line + 1,
+            findFirstNonWhiteSpaceCharacter(cm.getLine(cur.line + 1))
+          );
         } else if (linewise && !actionArgs.after) {
-          curPosFinal = {
-            line: cur.line,
-            ch: findFirstNonWhiteSpaceCharacter(cm.getLine(cur.line)),
-          };
+          curPosFinal = makePos(
+            cur.line,
+            findFirstNonWhiteSpaceCharacter(cm.getLine(cur.line))
+          );
         } else if (!linewise && actionArgs.after) {
           idx = cm.indexFromPos(cur);
           curPosFinal = cm.posFromIndex(idx + text.length - 1);
@@ -3369,7 +3356,7 @@ const actions: Record<string, ActionFunc> = {
       if (replaceTo > line.length) {
         replaceTo = line.length;
       }
-      curEnd = { line: curStart.line, ch: replaceTo };
+      curEnd = makePos(curStart.line, replaceTo);
     }
     if (replaceWith == "\n") {
       if (!vim.visualMode) cm.replaceRange("", curStart, curEnd);
@@ -3445,11 +3432,11 @@ const actions: Record<string, ActionFunc> = {
     } else {
       numberStr = baseStr + zeroPadding + numberStr;
     }
-    const from = { line: cur.line, ch: start };
-    const to = { line: cur.line, ch: end };
+    const from = makePos(cur.line, start);
+    const to = makePos(cur.line, end);
     cm.replaceRange(numberStr, from, to);
 
-    cm.setCursor({ line: cur.line, ch: start + numberStr.length - 1 });
+    cm.setCursor(makePos(cur.line, start + numberStr.length - 1));
   },
   repeatLastEdit: function (cm, actionArgs, vim) {
     const lastEditInputState = vim.lastEditInputState;
@@ -3486,7 +3473,7 @@ function clipCursorToContent(cm: CodeMirror, cur: Pos) {
   const line = Math.min(Math.max(cm.firstLine(), cur.line), cm.lastLine());
   const maxCh = lineLength(cm, line) - 1 + (includeLineBreak ? 1 : 0);
   const ch = Math.min(Math.max(0, cur.ch), maxCh);
-  return { line: line, ch: ch };
+  return makePos(line, ch);
 }
 
 const copyArgs = <T>(args: T): T => ({ ...args });
@@ -3499,9 +3486,9 @@ function offsetCursor(
   offsetCh?: number
 ): Pos {
   if (isPos(offsetLine)) {
-    return { line: cur.line + offsetLine.line, ch: cur.ch + offsetLine.ch };
+    return makePos(cur.line + offsetLine.line, cur.ch + offsetLine.ch);
   }
-  return { line: cur.line + offsetLine, ch: cur.ch + offsetCh };
+  return makePos(cur.line + offsetLine, cur.ch + offsetCh);
 }
 
 function commandMatches(
@@ -3624,7 +3611,7 @@ function escapeRegex(s: string) {
 function extendLineToColumn(cm: CodeMirror, lineNum: number, column: number) {
   const endCh = lineLength(cm, lineNum);
   const spaces = "".padEnd(column - endCh, " ");
-  cm.setCursor({ line: lineNum, ch: endCh });
+  cm.setCursor(makePos(lineNum, endCh));
   cm.replaceRange(spaces, cm.getCursor());
 }
 // This functions selects a rectangular block
@@ -3671,10 +3658,7 @@ function selectBlock(cm: CodeMirror, selectionEnd: Pos) {
 
   const selections: CmSelection[] = [];
   for (let line = firstLine; line <= lastLine; line++) {
-    const range = new CmSelection(
-      { line: line, ch: baseCh },
-      { line: line, ch: headCh }
-    );
+    const range = new CmSelection(makePos(line, baseCh), makePos(line, headCh));
     selections.push(range);
   }
   cm.setSelections(selections);
@@ -3722,16 +3706,16 @@ function getSelectedAreaRange(cm: CodeMirror, vim: VimState): [Pos, Pos] {
     if (block) {
       const width = 0; // block.width;
       const height = 0; // block.height;
-      selectionEnd = {
-        line: selectionStart.line + height,
-        ch: selectionStart.ch + width,
-      };
+      selectionEnd = makePos(
+        selectionStart.line + height,
+        selectionStart.ch + width
+      );
       const selections: CmSelection[] = [];
       // selectBlock creates a 'proper' rectangular block.
       // We do not want that in all cases, so we manually set selections.
       for (let i = selectionStart.line; i < selectionEnd.line; i++) {
-        const anchor = { line: i, ch: selectionStart.ch };
-        const head = { line: i, ch: selectionEnd.ch };
+        const anchor = makePos(i, selectionStart.ch);
+        const head = makePos(i, selectionEnd.ch);
         selections.push(new CmSelection(anchor, head));
       }
       cm.setSelections(selections);
@@ -3740,16 +3724,16 @@ function getSelectedAreaRange(cm: CodeMirror, vim: VimState): [Pos, Pos] {
       const end = lastSelection.headMark.find();
       const line = end.line - start.line;
       const ch = end.ch - start.ch;
-      selectionEnd = {
-        line: selectionEnd.line + line,
-        ch: line ? selectionEnd.ch : ch + selectionEnd.ch,
-      };
+      selectionEnd = makePos(
+        selectionEnd.line + line,
+        line ? selectionEnd.ch : ch + selectionEnd.ch
+      );
       if (lastSelection.visualLine) {
-        selectionStart = { line: selectionStart.line, ch: 0 };
-        selectionEnd = {
-          line: selectionEnd.line,
-          ch: lineLength(cm, selectionEnd.line),
-        };
+        selectionStart = makePos(selectionStart.line, 0);
+        selectionEnd = makePos(
+          selectionEnd.line,
+          lineLength(cm, selectionEnd.line)
+        );
       }
       cm.setSelection(selectionStart, selectionEnd);
     }
@@ -3801,7 +3785,7 @@ function expandSelection(cm: CodeMirror, start: Pos, end: Pos): [Pos, Pos] {
     head = cursorMax(head, end);
     head = offsetCursor(head, 0, -1);
     if (head.ch == -1 && head.line != cm.firstLine()) {
-      head = { line: head.line - 1, ch: lineLength(cm, head.line - 1) };
+      head = makePos(head.line - 1, lineLength(cm, head.line - 1));
     }
   }
   return [anchor, head];
@@ -3875,10 +3859,7 @@ function makeCmSelection(
     const ranges: CmSelection[] = [];
     for (let i = 0; i < height; i++) {
       ranges.push(
-        new CmSelection(
-          { line: top + i, ch: fromCh },
-          { line: top + i, ch: toCh }
-        )
+        new CmSelection(makePos(top + i, fromCh), makePos(top + i, toCh))
       );
     }
     return {
@@ -4023,10 +4004,7 @@ function expandWordUnderCursor(
       }
     }
   }
-  return [
-    { line: cur.line, ch: start },
-    { line: cur.line, ch: end },
-  ];
+  return [makePos(cur.line, start), makePos(cur.line, end)];
 }
 
 /**
@@ -4227,7 +4205,7 @@ function findSymbol(
     }
   }
   if (state.nextCh || state.curMoveThrough) {
-    return { line: line, ch: state.index };
+    return makePos(line, state.index);
   }
   return cur;
 }
@@ -4359,7 +4337,7 @@ function moveToWord(
       break;
     }
     words.push(word);
-    cur = { line: word.line, ch: forward ? word.to - 1 : word.from };
+    cur = makePos(word.line, forward ? word.to - 1 : word.from);
   }
   const shortCircuit = words.length != repeat;
   const firstWord = words[0];
@@ -4373,9 +4351,9 @@ function moveToWord(
       // We did not start in the middle of a word. Discard the extra word at the end.
       lastWord = words.pop();
     }
-    return { line: lastWord.line, ch: lastWord.from };
+    return makePos(lastWord.line, lastWord.from);
   } else if (forward && wordEnd) {
-    return { line: lastWord.line, ch: lastWord.to - 1 };
+    return makePos(lastWord.line, lastWord.to - 1);
   } else if (!forward && wordEnd) {
     // ge
     if (
@@ -4385,10 +4363,10 @@ function moveToWord(
       // We did not start in the middle of a word. Discard the extra word at the end.
       lastWord = words.pop();
     }
-    return { line: lastWord.line, ch: lastWord.to };
+    return makePos(lastWord.line, lastWord.to);
   } else {
     // b
-    return { line: lastWord.line, ch: lastWord.from };
+    return makePos(lastWord.line, lastWord.from);
   }
 }
 
@@ -4400,7 +4378,7 @@ function moveToEol(
   keepHPos: boolean
 ) {
   const cur = head;
-  const retval = { line: cur.line + motionArgs.repeat - 1, ch: Infinity };
+  const retval = makePos(cur.line + motionArgs.repeat - 1, Infinity);
   const end = cm.clipPos(retval);
   end.ch--;
   if (!keepHPos) {
@@ -4427,14 +4405,14 @@ function moveToCharacter(
     }
     start = idx;
   }
-  return { line: cm.getCursor().line, ch: idx };
+  return makePos(cm.getCursor().line, idx);
 }
 
 function moveToColumn(cm: CodeMirror, repeat: number) {
   // repeat is always >= 1, so repeat - 1 always corresponds
   // to the column we want to go to.
   const line = cm.getCursor().line;
-  return clipCursorToContent(cm, { line: line, ch: repeat - 1 });
+  return clipCursorToContent(cm, makePos(line, repeat - 1));
 }
 
 function updateMark(cm: CodeMirror, vim: VimState, markName: string, pos: Pos) {
@@ -4501,7 +4479,7 @@ function findParagraph(
       }
       i += dir;
     }
-    return { line: i, ch: 0 };
+    return makePos(i, 0);
   }
 
   const vim = cm.state.vim;
@@ -4521,7 +4499,7 @@ function findParagraph(
       }
     }
   }
-  const end = { line: 1, ch: 0 };
+  const end = makePos(1, 0);
   // select boundary before paragraph for the last one
   if (i > max && !startState) {
     startState = true;
@@ -4535,7 +4513,7 @@ function findParagraph(
       }
     }
   }
-  const start = { line: i, ch: 0 };
+  const start = makePos(i, 0);
   return [start, end];
 }
 
@@ -4719,7 +4697,7 @@ function findSentence(
     repeat--;
   }
 
-  return { line: curr_index.ln, ch: curr_index.pos };
+  return makePos(curr_index.ln, curr_index.pos);
 }
 
 // TODO: perhaps this finagling of start and end positions belongs
@@ -4760,13 +4738,13 @@ function selectCompanionObject(
   const offset = curChar === openSym ? 1 : 0;
 
   const startRes = cm.scanForBracket(
-    { line: cur.line, ch: cur.ch + offset },
+    makePos(cur.line, cur.ch + offset),
     -1,
     undefined,
     { bracketRegex: bracketRegexp }
   );
   const endRes = cm.scanForBracket(
-    { line: cur.line, ch: cur.ch + offset },
+    makePos(cur.line, cur.ch + offset),
     1,
     undefined,
     {
@@ -4859,10 +4837,7 @@ function findBeginningAndEnd(
     ++end;
   }
 
-  return [
-    { line: cur.line, ch: start },
-    { line: cur.line, ch: end },
-  ];
+  return [makePos(cur.line, start), makePos(cur.line, end)];
 }
 
 // Search functions
@@ -5242,10 +5217,10 @@ function findNext(
     if (!found) {
       // SearchCursor may have returned null because it hit EOF, wrap
       // around and try again.
-      cursor = cm.getSearchCursor(query, {
-        line: prev ? cm.lastLine() : cm.firstLine(),
-        ch: 0,
-      });
+      cursor = cm.getSearchCursor(
+        query,
+        makePos(prev ? cm.lastLine() : cm.firstLine(), 0)
+      );
       if (!cursor.find(prev)) {
         return;
       }
@@ -5286,10 +5261,10 @@ function findNextFromAndToInclusive(
     if (!found) {
       // SearchCursor may have returned null because it hit EOF, wrap
       // around and try again.
-      cursor = cm.getSearchCursor(query, {
-        line: prev ? cm.lastLine() : cm.firstLine(),
-        ch: 0,
-      });
+      cursor = cm.getSearchCursor(
+        query,
+        makePos(prev ? cm.lastLine() : cm.firstLine(), 0)
+      );
       if (!cursor.find(prev)) {
         return;
       }
@@ -5347,7 +5322,7 @@ function getUserVisibleLines(cm: CodeMirror) {
 
 function getMarkPos(cm: CodeMirror, vim: VimState, markName: string) {
   if (markName == "'" || markName == "`") {
-    return vimGlobalState.jumpList.find(cm, -1) || { line: 0, ch: 0 };
+    return vimGlobalState.jumpList.find(cm, -1) || makePos(0, 0);
   } else if (markName == ".") {
     return getLastEditPos(cm);
   }
@@ -5848,8 +5823,8 @@ const exCommands: Record<string, ExCommandFunc> = {
     if (lineStart == lineEnd) {
       return;
     }
-    const curStart = { line: lineStart, ch: 0 };
-    const curEnd = { line: lineEnd, ch: lineLength(cm, lineEnd) };
+    const curStart = makePos(lineStart, 0);
+    const curEnd = makePos(lineEnd, lineLength(cm, lineEnd));
     const text = cm.getRange(curStart, curEnd).split("\n");
     const numberRegex = pattern
       ? pattern
@@ -6115,7 +6090,7 @@ const exCommands: Record<string, ExCommandFunc> = {
       lineStart = lineEnd;
       lineEnd = lineStart + count - 1;
     }
-    const startPos = clipCursorToContent(cm, { line: lineStart, ch: 0 });
+    const startPos = clipCursorToContent(cm, makePos(lineStart, 0));
     const cursor = cm.getSearchCursor(query, startPos);
     cm.pushUndoStop();
     doReplace(
