@@ -8,8 +8,6 @@ import { SecInfoOptions, IStatusBar } from "./statusbar";
 const KeyCode = window.monaco.KeyCode;
 const SelectionDirection = window.monaco.SelectionDirection;
 
-// import { ShiftCommand } from "monaco-editor/esm/vs/editor/common/commands/shiftCommand";
-
 enum VerticalRevealType {
   Bottom = 4,
 }
@@ -72,146 +70,12 @@ function dummy(key: string) {
   };
 }
 
-const doFold = (str: string) => str.normalize("NFD").toLowerCase();
-const noFold = (str: string) => str.normalize("NFD");
-
-export class StringStream {
-  pos: number = 0;
-  start: number = 0;
-  str: string;
-  tabSize: number;
-  lastColumnPos: number = 0;
-  lastColumnValue: number = 0;
-  lineStart: number = 0;
-
-  constructor(str: string, tabSize?: number) {
-    this.str = str;
-    this.tabSize = tabSize || 8;
-  }
-
-  eol() {
-    return this.pos >= this.str.length;
-  }
-
-  sol() {
-    return this.pos == this.lineStart;
-  }
-
-  peek() {
-    return this.str.charAt(this.pos) || undefined;
-  }
-
-  next() {
-    if (this.pos < this.str.length) {
-      return this.str.charAt(this.pos++);
-    }
-  }
-
-  eat(match: string | RegExp | ((ch: string) => boolean)) {
-    const ch = this.str.charAt(this.pos);
-    const ok =
-      typeof match === "string"
-        ? ch === match
-        : ch && (match instanceof RegExp ? match.test(ch) : match(ch));
-
-    if (ok) {
-      ++this.pos;
-      return ch;
-    }
-  }
-
-  eatWhile(match: string | RegExp | ((ch: string) => boolean)) {
-    var start = this.pos;
-    while (this.eat(match)) {}
-    return this.pos > start;
-  }
-
-  eatSpace() {
-    var start = this.pos;
-    while (/[\s\u00a0]/.test(this.str.charAt(this.pos))) {
-      ++this.pos;
-    }
-    return this.pos > start;
-  }
-
-  skipToEnd() {
-    this.pos = this.str.length;
-  }
-
-  skipTo(ch: string) {
-    var found = this.str.indexOf(ch, this.pos);
-    if (found > -1) {
-      this.pos = found;
-      return true;
-    }
-  }
-
-  backUp(n: number) {
-    this.pos -= n;
-  }
-
-  column() {
-    throw new Error("not implemented");
-  }
-
-  indentation() {
-    throw new Error("not implemented");
-  }
-
-  match(
-    pattern: string,
-    consume: boolean,
-    caseInsensitive: boolean
-  ): string | boolean;
-  match(pattern: RegExp, consume: boolean): RegExpMatchArray;
-  match(
-    pattern: string | RegExp,
-    consume: boolean,
-    caseInsensitive?: boolean
-  ): string | boolean | RegExpMatchArray {
-    if (typeof pattern == "string") {
-      const cased = (str: string) => {
-        return caseInsensitive ? str.toLowerCase() : str;
-      };
-      const substr = this.str.substring(this.pos, this.pos + pattern.length);
-      if (cased(substr) == cased(pattern)) {
-        if (consume !== false) {
-          this.pos += pattern.length;
-        }
-        return true;
-      }
-    } else {
-      var match = this.str.slice(this.pos).match(pattern);
-      if (match && match.index > 0) {
-        return null;
-      }
-      if (match && consume !== false) {
-        this.pos += match[0].length;
-      }
-      return match;
-    }
-  }
-
-  current() {
-    return this.str.slice(this.start, this.pos);
-  }
-
-  hideFirstChars(n: number, inner: () => {}) {
-    this.lineStart += n;
-    try {
-      return inner();
-    } finally {
-      this.lineStart -= n;
-    }
-  }
-}
-
 function toCmPos(pos: IPosition): Pos {
   return { line: pos.lineNumber - 1, ch: pos.column - 1 };
 }
 
 function toMonacoPos(pos: Pos) {
-  return new window.monaco.Position(pos.line + 1, pos.ch + 1);
+  return makePosition(pos.line + 1, pos.ch + 1);
 }
 
 export class Marker implements Pos {
@@ -511,7 +375,7 @@ export default class CMAdapter {
     let fromReplace = false;
     let char = key;
     const pos = this.editor.getPosition();
-    let range = new window.monaco.Range(
+    let range = makeRange(
       pos.lineNumber,
       pos.column,
       pos.lineNumber,
@@ -532,7 +396,7 @@ export default class CMAdapter {
 
       fromReplace = true;
       char = lastItem;
-      range = new window.monaco.Range(
+      range = makeRange(
         pos.lineNumber,
         pos.column,
         pos.lineNumber,
@@ -562,7 +426,7 @@ export default class CMAdapter {
     ]);
 
     if (fromReplace) {
-      this.editor.setPosition(range.getStartPosition());
+      this.editor.setPosition(liftRange(range).getStartPosition());
     }
   }
 
@@ -575,10 +439,9 @@ export default class CMAdapter {
         .getLineMaxColumn(e.position.lineNumber);
 
       if (e.position.column === maxCol) {
-        this.editor.setPosition({
-          lineNumber: e.position.lineNumber,
-          column: maxCol - 1,
-        });
+        this.editor.setPosition(
+          makePosition(e.position.lineNumber, maxCol - 1)
+        );
         return;
       }
     }
@@ -701,25 +564,23 @@ export default class CMAdapter {
   }
 
   getAnchorForSelection(sel: ISelection) {
-    const selection = window.monaco.Selection.liftSelection(sel);
+    const selection = liftSelection(sel);
     if (selection.isEmpty()) {
       return selection.getPosition();
     }
 
-    const selDir = selection.getDirection();
-    return selDir === SelectionDirection.LTR
+    return selection.getDirection() === SelectionDirection.LTR
       ? selection.getStartPosition()
       : selection.getEndPosition();
   }
 
   getHeadForSelection(sel: ISelection) {
-    const selection = window.monaco.Selection.liftSelection(sel);
+    const selection = liftSelection(sel);
     if (selection.isEmpty()) {
       return selection.getPosition();
     }
 
-    const selDir = selection.getDirection();
-    return selDir === SelectionDirection.LTR
+    return selection.getDirection() === SelectionDirection.LTR
       ? selection.getEndPosition()
       : selection.getStartPosition();
   }
@@ -747,9 +608,7 @@ export default class CMAdapter {
     const p1 = toMonacoPos(start);
     const p2 = toMonacoPos(end);
 
-    return this.editor
-      .getModel()
-      .getValueInRange(window.monaco.Range.fromPositions(p1, p2));
+    return this.editor.getModel().getValueInRange(makeRange(p1, p2));
   }
 
   getSelection() {
@@ -766,7 +625,7 @@ export default class CMAdapter {
     this.editor.executeEdits("vim", [
       {
         text,
-        range: window.monaco.Range.fromPositions(p1, p2),
+        range: makeRange(p1, p2),
       },
     ]);
     // @TODO - Check if this breaks any other expectation
@@ -789,10 +648,6 @@ export default class CMAdapter {
 
   somethingSelected() {
     return !this.editor.getSelection().isEmpty();
-  }
-
-  operation(fn: () => any, force?: boolean) {
-    return fn();
   }
 
   listSelections(): CmSelection[] {
@@ -823,15 +678,9 @@ export default class CMAdapter {
       const { anchor, head } = sel;
 
       if (hasSel) {
-        return window.monaco.Selection.fromPositions(
-          toMonacoPos(anchor),
-          toMonacoPos(head)
-        );
+        return makeSelection(toMonacoPos(anchor), toMonacoPos(head));
       } else {
-        return window.monaco.Selection.fromPositions(
-          toMonacoPos(head),
-          toMonacoPos(anchor)
-        );
+        return makeSelection(toMonacoPos(head), toMonacoPos(anchor));
       }
     });
 
@@ -844,7 +693,7 @@ export default class CMAdapter {
       return;
     }
 
-    const sel = sels[0];
+    const sel = liftSelection(sels[0]);
     let posToReveal;
 
     if (sel.getDirection() === SelectionDirection.LTR) {
@@ -858,10 +707,7 @@ export default class CMAdapter {
   }
 
   setSelection(frm: Pos, to: Pos) {
-    const range = window.monaco.Range.fromPositions(
-      toMonacoPos(frm),
-      toMonacoPos(to)
-    );
+    const range = makeRange(toMonacoPos(frm), toMonacoPos(to));
     this.editor.setSelection(range);
   }
 
@@ -1009,9 +855,9 @@ export default class CMAdapter {
         const editorHeight = this.editor.getLayoutInfo().height;
         const lineHeight = this.getConfiguration().fontInfo.lineHeight;
         const finalAmount = amount * Math.floor(editorHeight / lineHeight);
-        return toCmPos(pos.delta(finalAmount));
+        return toCmPos(liftPosition(pos).delta(finalAmount));
       case "line":
-        return toCmPos(pos.delta(amount));
+        return toCmPos(liftPosition(pos).delta(amount));
       default:
         return startPos;
     }
@@ -1035,7 +881,7 @@ export default class CMAdapter {
       return { to: null };
     }
     return {
-      to: toCmPos(window.monaco.Range.lift(res[1]).getStartPosition()),
+      to: toCmPos(liftRange(res[1]).getStartPosition()),
     };
   }
 
@@ -1057,7 +903,7 @@ export default class CMAdapter {
 
   moveCurrentLineTo(viewPosition: "top" | "center" | "bottom") {
     const pos = this.editor.getPosition();
-    const range = window.monaco.Range.fromPositions(pos, pos);
+    const range = makeRange(pos, pos);
 
     switch (viewPosition) {
       case "top":
@@ -1069,6 +915,7 @@ export default class CMAdapter {
       case "bottom":
         // private api. no other way
         if (Reflect.has(this.editor, "_revealRange")) {
+          const ScrollType = window.monaco.editor.ScrollType;
           const revealRange = (this.editor as any)._revealRange as (
             range: IRange,
             verticalType: VerticalRevealType.Bottom,
@@ -1080,7 +927,7 @@ export default class CMAdapter {
               range,
               VerticalRevealType.Bottom,
               true,
-              monaco.editor.ScrollType.Smooth
+              ScrollType.Smooth
             );
           }
         }
@@ -1140,7 +987,7 @@ export default class CMAdapter {
 
         if (back) {
           const pos = lastSearch
-            ? window.monaco.Range.lift(lastSearch).getStartPosition()
+            ? liftRange(lastSearch).getStartPosition()
             : monacoPos;
           match = model.findPreviousMatch(
             query,
@@ -1157,9 +1004,7 @@ export default class CMAdapter {
         } else {
           const pos = lastSearch
             ? model.getPositionAt(
-                model.getOffsetAt(
-                  window.monaco.Range.lift(lastSearch).getEndPosition()
-                ) + 1
+                model.getOffsetAt(liftRange(lastSearch).getEndPosition()) + 1
               )
             : monacoPos;
           match = model.findNextMatch(
@@ -1170,7 +1015,10 @@ export default class CMAdapter {
             null,
             false
           );
-          if (!match || !pos.isBeforeOrEqual(match.range.getStartPosition())) {
+          if (
+            !match ||
+            !liftPosition(pos).isBeforeOrEqual(match.range.getStartPosition())
+          ) {
             return false;
           }
         }
@@ -1184,16 +1032,10 @@ export default class CMAdapter {
         return lastSearch;
       },
       from() {
-        return (
-          lastSearch &&
-          toCmPos(window.monaco.Range.lift(lastSearch).getStartPosition())
-        );
+        return lastSearch && toCmPos(liftRange(lastSearch).getStartPosition());
       },
       to() {
-        return (
-          lastSearch &&
-          toCmPos(window.monaco.Range.lift(lastSearch).getEndPosition())
-        );
+        return lastSearch && toCmPos(liftRange(lastSearch).getEndPosition());
       },
       replace(text: string) {
         if (lastSearch) {
@@ -1208,16 +1050,14 @@ export default class CMAdapter {
             ],
             (edits: monaco.editor.IValidEditOperation[]) => {
               const { endLineNumber, endColumn } = edits[0].range;
-              lastSearch = window.monaco.Range.lift(lastSearch).setEndPosition(
+              lastSearch = liftRange(lastSearch).setEndPosition(
                 endLineNumber,
                 endColumn
               );
               return null;
             }
           );
-          editor.setPosition(
-            window.monaco.Range.lift(lastSearch).getStartPosition()
-          );
+          editor.setPosition(liftRange(lastSearch).getStartPosition());
         }
       },
     };
@@ -1362,10 +1202,9 @@ export default class CMAdapter {
   }
 
   indentLine(line: number, indentRight: boolean = true) {
-    const useTabs = this.editor.getOption(
-      monaco.editor.EditorOption.useTabStops
-    );
-    const tabWidth = this.editor.getOption(monaco.editor.EditorOption.tabIndex);
+    const opts = window.monaco.editor.EditorOption;
+    const useTabs = this.editor.getOption(opts.useTabStops);
+    const tabWidth = this.editor.getOption(opts.tabIndex);
     const spaces = "".padEnd(tabWidth, " ");
 
     if (indentRight) {
@@ -1373,24 +1212,14 @@ export default class CMAdapter {
 
       this.editor.executeEdits("vim", [
         {
-          range: {
-            startLineNumber: line + 1,
-            startColumn: 1,
-            endLineNumber: line + 1,
-            endColumn: 1,
-          },
+          range: makeRange(line + 1, 1, line + 1, 1),
           text: indent,
         },
       ]);
     } else {
       const model = this.editor.getModel();
 
-      const range: IRange = {
-        startLineNumber: line + 1,
-        startColumn: 1,
-        endLineNumber: line + 1,
-        endColumn: tabWidth,
-      };
+      const range = makeRange(line + 1, 1, line + 1, tabWidth);
       const begin = model.getValueInRange(range);
 
       const edit: monaco.editor.IIdentifiedSingleEditOperation = {
@@ -1402,29 +1231,24 @@ export default class CMAdapter {
         return;
       } else if (useTabs) {
         if (begin[0] == "\t") {
-          edit.range = {
-            startLineNumber: line + 1,
-            startColumn: 1,
-            endLineNumber: line + 1,
-            endColumn: 1,
-          };
+          edit.range = makeRange(line + 1, 1, line + 1, 1);
         } else if (begin == spaces) {
           // don't edit range.
         } else {
-          edit.range = {
-            startLineNumber: line + 1,
-            startColumn: 1,
-            endLineNumber: line + 1,
-            endColumn: Array.from(begin).findIndex((ch) => ch != " "),
-          };
+          edit.range = makeRange(
+            line + 1,
+            1,
+            line + 1,
+            Array.from(begin).findIndex((ch) => ch != " ")
+          );
         }
       } else if (begin !== spaces) {
-        edit.range = {
-          startLineNumber: line + 1,
-          startColumn: 1,
-          endLineNumber: line + 1,
-          endColumn: Array.from(begin).findIndex((ch) => ch != " "),
-        };
+        edit.range = makeRange(
+          line + 1,
+          1,
+          line + 1,
+          Array.from(begin).findIndex((ch) => ch != " ")
+        );
       }
 
       this.editor.executeEdits("vim", [edit]);
@@ -1472,13 +1296,10 @@ export default class CMAdapter {
     const pos = this.editor.getPosition();
 
     if (to === "start") {
-      this.editor.setPosition({ column: 1, lineNumber: pos.lineNumber });
+      this.editor.setPosition(makePosition(pos.lineNumber, 1));
     } else if (to === "end") {
       const maxColumn = this.editor.getModel().getLineMaxColumn(pos.lineNumber);
-      this.editor.setPosition({
-        column: maxColumn,
-        lineNumber: pos.lineNumber,
-      });
+      this.editor.setPosition(makePosition(pos.lineNumber, maxColumn));
     }
   }
 
@@ -1496,3 +1317,52 @@ export default class CMAdapter {
     }
   }
 }
+
+const liftRange = (range: IRange) => window.monaco.Range.lift(range);
+
+function makeRange(startPos: IPosition, endPos: IPosition): IRange;
+function makeRange(
+  startLine: number,
+  startColumn: number,
+  endLine: number,
+  endColumn: number
+): IRange;
+function makeRange(
+  startLine: number | IPosition,
+  startColumn: number | IPosition,
+  endLine?: number,
+  endColumn?: number
+): IRange {
+  if (typeof startLine !== "number" && typeof startColumn !== "number") {
+    const start = startLine as IPosition;
+    const end = startColumn as IPosition;
+    startLine = start.lineNumber;
+    startColumn = start.column;
+    endLine = end.lineNumber;
+    endColumn = end.column;
+  }
+  return {
+    startLineNumber: startLine as number,
+    startColumn: startColumn as number,
+    endLineNumber: endLine,
+    endColumn: endColumn,
+  };
+}
+
+const liftPosition = (position: IPosition) =>
+  window.monaco.Position.lift(position);
+
+const makePosition = (lineNumber: number, column: number): IPosition => ({
+  lineNumber: lineNumber,
+  column: column,
+});
+
+const liftSelection = (selection: ISelection) =>
+  window.monaco.Selection.liftSelection(selection);
+
+const makeSelection = (start: IPosition, end: IPosition): ISelection => ({
+  selectionStartLineNumber: start.lineNumber,
+  selectionStartColumn: start.column,
+  positionLineNumber: end.lineNumber,
+  positionColumn: end.column,
+});

@@ -29,8 +29,8 @@ import CodeMirror, {
   Marker,
   Pos,
   signal,
-  StringStream,
 } from "./cm_adapter";
+import { StringStream } from "./string-stream";
 import { defaultKeymap, defaultKeymapLength } from "./defaultKeyMap";
 import { SecInfoOptions } from "./statusbar";
 
@@ -260,6 +260,7 @@ var defaultExCommandMap: ExCommand[] = [
   { name: "nmap", shortName: "nm" },
   { name: "vmap", shortName: "vm" },
   { name: "unmap" },
+  { name: "edit", shortName: "e" },
   { name: "write", shortName: "w" },
   { name: "undo", shortName: "u" },
   { name: "redo", shortName: "red" },
@@ -321,7 +322,9 @@ function cmKey(key: string, cm: CodeMirror) {
     return undefined;
   }
   if (this[key]) {
-    return this[key];
+    // return this[key];
+    console.error("cmKey: return this[key];", key);
+    throw new Error(`cmKey: return this[key]; ${key}`);
   }
   const vimKey = cmKeyToVimKey(key);
   if (!vimKey) {
@@ -1119,25 +1122,23 @@ class VimApi {
       return () => true;
     } else {
       return () => {
-        return cm.operation(() => {
-          cm.curOp.isVimOp = true;
-          try {
-            if (command.type == "keyToKey") {
-              doKeyToKey(command.toKeys);
-            } else {
-              commandDispatcher.processCommand(cm, vim, command);
-            }
-          } catch (e) {
-            // clear VIM state in case it's in a bad state.
-            cm.state.vim = undefined;
-            maybeInitVimState(cm);
-            if (!vimApi.suppressErrorLogging) {
-              console.log(e);
-            }
-            throw e;
+        cm.curOp.isVimOp = true;
+        try {
+          if (command.type == "keyToKey") {
+            doKeyToKey(command.toKeys);
+          } else {
+            commandDispatcher.processCommand(cm, vim, command);
           }
-          return true;
-        });
+        } catch (e) {
+          // clear VIM state in case it's in a bad state.
+          cm.state.vim = undefined;
+          maybeInitVimState(cm);
+          if (!vimApi.suppressErrorLogging) {
+            console.log(e);
+          }
+          throw e;
+        }
+        return true;
       };
     }
   }
@@ -3339,10 +3340,8 @@ const actions: Record<string, ActionFunc> = {
     cm.setCursor(curPosFinal);
   },
   undo: function (cm, actionArgs) {
-    cm.operation(() => {
-      repeatFn(cm, CodeMirror.commands.undo, actionArgs.repeat)();
-      cm.setCursor(cm.getCursor("anchor"));
-    });
+    repeatFn(cm, CodeMirror.commands.undo, actionArgs.repeat)();
+    cm.setCursor(cm.getCursor("anchor"));
   },
   redo: function (cm, actionArgs) {
     repeatFn(cm, CodeMirror.commands.redo, actionArgs.repeat)();
@@ -4900,7 +4899,7 @@ class SearchOverlay {
           return null;
         }
       }
-      stream.match(this.query, false);
+      stream.match(this.query);
       return "searching";
     }
     while (!stream.eol()) {
@@ -5080,7 +5079,7 @@ function unescapeRegexReplace(str: string) {
     }
     let matched = false;
     for (const matcher in unescapes) {
-      if (stream.match(matcher, true, false)) {
+      if (stream.match(matcher, true)) {
         matched = true;
         output.push(unescapes[matcher]);
         break;
@@ -5229,34 +5228,32 @@ function findNext(
   if (repeat === undefined) {
     repeat = 1;
   }
-  return cm.operation(() => {
-    const pos = cm.getCursor();
-    let cursor = cm.getSearchCursor(query, pos);
-    for (var i = 0; i < repeat; i++) {
-      let found = cursor.find(prev);
-      if (i == 0 && found && cursorEqual(cursor.from(), pos)) {
-        const lastEndPos = prev ? cursor.from() : cursor.to();
-        found = cursor.find(prev);
-        if (found && cursorEqual(cursor.from(), lastEndPos)) {
-          if (cm.getLine(lastEndPos.line).length == lastEndPos.ch) {
-            found = cursor.find(prev);
-          }
-        }
-      }
-      if (!found) {
-        // SearchCursor may have returned null because it hit EOF, wrap
-        // around and try again.
-        cursor = cm.getSearchCursor(query, {
-          line: prev ? cm.lastLine() : cm.firstLine(),
-          ch: 0,
-        });
-        if (!cursor.find(prev)) {
-          return;
+  const pos = cm.getCursor();
+  let cursor = cm.getSearchCursor(query, pos);
+  for (var i = 0; i < repeat; i++) {
+    let found = cursor.find(prev);
+    if (i == 0 && found && cursorEqual(cursor.from(), pos)) {
+      const lastEndPos = prev ? cursor.from() : cursor.to();
+      found = cursor.find(prev);
+      if (found && cursorEqual(cursor.from(), lastEndPos)) {
+        if (cm.getLine(lastEndPos.line).length == lastEndPos.ch) {
+          found = cursor.find(prev);
         }
       }
     }
-    return cursor.from();
-  });
+    if (!found) {
+      // SearchCursor may have returned null because it hit EOF, wrap
+      // around and try again.
+      cursor = cm.getSearchCursor(query, {
+        line: prev ? cm.lastLine() : cm.firstLine(),
+        ch: 0,
+      });
+      if (!cursor.find(prev)) {
+        return;
+      }
+    }
+  }
+  return cursor.from();
 }
 /**
  * Pretty much the same as `findNext`, except for the following differences:
@@ -5271,39 +5268,38 @@ function findNextFromAndToInclusive(
   query: RegExp,
   repeat: number,
   vim: VimState
-) {
+): [Pos, Pos] {
   if (repeat === undefined) {
     repeat = 1;
   }
-  return cm.operation(() => {
-    const pos = cm.getCursor();
-    let cursor = cm.getSearchCursor(query, pos);
+  const pos = cm.getCursor();
+  let cursor = cm.getSearchCursor(query, pos);
 
-    // Go back one result to ensure that if the cursor is currently a match, we keep it.
-    let found = cursor.find(!prev);
+  // Go back one result to ensure that if the cursor is currently a match, we keep it.
+  let found = cursor.find(!prev);
 
-    // If we haven't moved, go back one more (similar to if i==0 logic in findNext).
-    if (!vim.visualMode && found && cursorEqual(cursor.from(), pos)) {
-      cursor.find(!prev);
-    }
+  // If we haven't moved, go back one more (similar to if i==0 logic in findNext).
+  if (!vim.visualMode && found && cursorEqual(cursor.from(), pos)) {
+    cursor.find(!prev);
+  }
 
-    for (let i = 0; i < repeat; i++) {
-      found = cursor.find(prev);
-      if (!found) {
-        // SearchCursor may have returned null because it hit EOF, wrap
-        // around and try again.
-        cursor = cm.getSearchCursor(query, {
-          line: prev ? cm.lastLine() : cm.firstLine(),
-          ch: 0,
-        });
-        if (!cursor.find(prev)) {
-          return;
-        }
+  for (let i = 0; i < repeat; i++) {
+    found = cursor.find(prev);
+    if (!found) {
+      // SearchCursor may have returned null because it hit EOF, wrap
+      // around and try again.
+      cursor = cm.getSearchCursor(query, {
+        line: prev ? cm.lastLine() : cm.firstLine(),
+        ch: 0,
+      });
+      if (!cursor.find(prev)) {
+        return;
       }
     }
-    return [cursor.from(), cursor.to()];
-  });
+  }
+  return [cursor.from(), cursor.to()];
 }
+
 function clearSearchHighlight(cm: CodeMirror) {
   var state = getSearchState(cm);
   cm.removeOverlay();
@@ -5378,10 +5374,8 @@ class ExCommandDispatcher {
     input: string,
     opt_params?: ExCommandOptionalParameters
   ) {
-    cm.operation(() => {
-      cm.curOp.isVimOp = true;
-      this._processCommand(cm, input, opt_params);
-    });
+    cm.curOp.isVimOp = true;
+    this._processCommand(cm, input, opt_params);
   }
 
   private _processCommand(
@@ -5471,18 +5465,18 @@ class ExCommandDispatcher {
     }
 
     // Parse command name.
-    const commandMatch = inputStream.match(/^(\w+|!!|@@|[!#&*<=>@~])/, false);
+    const commandMatch = inputStream.match(/^(\w+|!!|@@|[!#&*<=>@~])/);
     if (commandMatch) {
       result.commandName = commandMatch[1];
     } else {
-      result.commandName = inputStream.match(/.*/, false)[0];
+      result.commandName = inputStream.match(/.*/)[0];
     }
 
     return result;
   }
 
   private parseLineSpec_(cm: CodeMirror, inputStream: StringStream) {
-    var numberMatch = inputStream.match(/^(\d+)/, false);
+    var numberMatch = inputStream.match(/^(\d+)/);
     if (numberMatch) {
       // Absolute line number plus offset (N+M or N-M) is probably a typo,
       // not something the user actually wanted. (NB: vim does allow this.)
@@ -5510,7 +5504,7 @@ class ExCommandDispatcher {
   }
 
   private parseLineSpecOffset_(inputStream: StringStream, line: number) {
-    var offsetMatch = inputStream.match(/^([+-])?(\d+)/, false);
+    var offsetMatch = inputStream.match(/^([+-])?(\d+)/);
     if (offsetMatch) {
       const offset = parseInt(offsetMatch[2], 10);
       if (offsetMatch[1] == "-") {
@@ -5530,7 +5524,7 @@ class ExCommandDispatcher {
     if (inputStream.eol()) {
       return;
     }
-    params.argString = inputStream.match(/.*/, false)[0];
+    params.argString = inputStream.match(/.*/)[0];
     // Parse command-line arguments
     const delim = /\s+/;
     const args = trim(params.argString).split(delim);
@@ -6140,6 +6134,12 @@ const exCommands: Record<string, ExCommandFunc> = {
   },
   redo: CodeMirror.commands.redo,
   undo: CodeMirror.commands.undo,
+  edit: function (cm) {
+    if (CodeMirror.commands.open) {
+      // If an open command is defined, call it.
+      CodeMirror.commands.open(cm);
+    }
+  },
   write: function (cm) {
     if (CodeMirror.commands.save) {
       // If a save command is defined, call it.
@@ -6186,7 +6186,7 @@ const exCommands: Record<string, ExCommandFunc> = {
 
       const sym = stream.next();
       // Check if this symbol is part of a range
-      if (stream.match("-", true, false)) {
+      if (stream.match("-", true)) {
         // This symbol is part of a range.
 
         // The range must terminate at an alphabetic character.
@@ -6267,13 +6267,11 @@ function doReplace(
   let modifiedLineNumber: number;
   let joined: boolean;
   const replaceAll = () => {
-    cm.operation(() => {
-      while (!done) {
-        replace();
-        next();
-      }
-      stop();
-    });
+    while (!done) {
+      replace();
+      next();
+    }
+    stop();
   };
   const replace = () => {
     const text = cm.getRange(searchCursor.from(), searchCursor.to());
@@ -6355,7 +6353,7 @@ function doReplace(
         // to fire too early or multiple times.
         const savedCallback = callback;
         callback = undefined;
-        cm.operation(replaceAll);
+        replaceAll();
         callback = savedCallback;
         break;
       case "L":

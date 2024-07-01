@@ -153,8 +153,25 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
 
       if (!vimAdapter.current) {
         if (props.settings.vimMode) {
-          vimAdapter.current = initVimMode(editor, statusBar);
-          vimAdapter.current.attach();
+          const adapter = initVimMode(editor, statusBar);
+          adapter.attach();
+          CMAdapter.commands["open"] = () =>
+            openFilePicker()
+              .then((text) => {
+                editor.focus();
+                editor.setValue(text);
+              })
+              .catch((err) => {
+                editor.focus();
+              });
+          CMAdapter.commands["save"] = () =>
+            saveFilePicker(editor.getValue())
+              .catch((err) => {
+                console.error(err);
+              })
+              .finally(() => editor.focus());
+
+          vimAdapter.current = adapter;
         }
       } else if (props.settings.vimMode) {
         vimAdapter.current.attach();
@@ -461,19 +478,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                         openFilePicker()
                           .then((text) => {
                             editor.focus();
-                            const selection = editor.getSelection();
-                            if (!selection) {
-                              editor.setValue(text);
-                              return;
-                            } else {
-                              editor.executeEdits("file-open", [
-                                {
-                                  range: selection,
-                                  text: text,
-                                  forceMoveMarkers: true,
-                                },
-                              ]);
-                            }
+                            editor.setValue(text);
                           })
                           .catch((err) => {
                             editor.focus();
