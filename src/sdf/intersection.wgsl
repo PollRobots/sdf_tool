@@ -1,6 +1,6 @@
 fn sdfIntersection(k: f32, d1: f32, d2: f32, c1: vec3<f32>, c2: vec3<f32>) -> vec4<f32> {
     if (k <= 0) {
-        return select(vec4<f32>(c2, d1), vec4<f32>(c1, d2), vec4<bool>(d1 < d2));
+        return select(vec4<f32>(c1, d1), vec4<f32>(c2, d2), vec4<bool>(d1 < d2));
     }
     var k4 = k * 4.0;
     var delta = d1 - d2;
