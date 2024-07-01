@@ -80,6 +80,13 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
             from: "./node_modules/monaco-editor/min-maps",
             to: "min-maps",
           },
+          {
+            from: "./node_modules/@fontsource-variable/fira-code",
+            to: "fonts/fira-code",
+            globOptions: {
+              ignore: ["**/scss/**", "**/*.md", "**/*.json"],
+            },
+          },
         ],
       }),
     ],

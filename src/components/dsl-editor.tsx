@@ -96,14 +96,16 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   React.useEffect(() => {
     if (monacoInstance.current) {
       monacoInstance.current.updateOptions({
-        fontSize: props.settings.fontSize,
+        fontSize: (props.settings.fontSize * 96) / 72,
       });
     }
   }, [props.settings.fontSize]);
 
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.updateOptions({
-      fontSize: props.settings.fontSize,
+      fontSize: (props.settings.fontSize * 96) / 72,
+      fontFamily: "Fira Code Variable",
+      fontLigatures: true,
       lineNumbers: "relative",
       minimap: { enabled: false },
     });
@@ -566,8 +568,11 @@ const StatusBar: React.FC<StatusBarProps> = (props) => {
             setModeText("--VISUAL BLOCK--");
             break;
           default:
-            setModeText("VISUAL");
+            setModeText("--VISUAL--");
         }
+        break;
+      case "normal":
+        setModeText("");
         break;
       default:
         setModeText(`--${ev.mode.toUpperCase()}--`);
@@ -631,15 +636,15 @@ const StatusBar: React.FC<StatusBarProps> = (props) => {
     <div
       style={{
         display: visible ? "grid" : "none",
-        fontSize: "80%",
-        fontFamily: "monospace",
+        fontFamily: '"Fira Code Variable",  monospace',
         borderTop: "1px solid #888",
         padding: "0.1em",
         gap: "1em",
-        gridTemplateColumns: "8em 1fr auto auto",
+        minHeight: "1.15em",
+        gridTemplateColumns: "auto 1fr auto auto",
       }}
     >
-      <div>{modeText}</div>
+      <div style={{ textAlign: "center" }}>{modeText}</div>
       {secondary ? <StatusBarSecondary {...secondary} /> : <div />}
       <div>{notification}</div>
       <div>{keyInfo}</div>
@@ -675,12 +680,19 @@ const StatusBarSecondary: React.FC<StatusBarSecondaryProps> = (props) => {
       style={{
         display: "grid",
         gap: "0.5em",
-        fontFamily: "monospace",
+        fontFamily: '"Fira Code Variable",  monospace',
         gridTemplateColumns: "auto 1fr auto",
       }}
     >
       <div>{props.prefix}</div>
       <input
+        style={{
+          border: "none",
+          background: "none",
+          outline: "none",
+          marginLeft: "-0.5em",
+          paddingLeft: 0,
+        }}
         ref={inputRef}
         type="text"
         autoCorrect="off"
