@@ -31,6 +31,7 @@ import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
+import { ErrorBoundary } from "./components/error-boundary";
 
 declare global {
   interface Window {
@@ -277,36 +278,43 @@ ${el.code}
         >
           SDF Tool
         </div>
-        <React.Suspense
-          fallback={
-            <div
-              style={{
-                gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "fit-content",
-                gap: "1em",
-              }}
-            >
-              <div>Loading Editor</div>
-              <div className="loader" style={{ fontSize: "150%" }} />
-            </div>
-          }
+        <ErrorBoundary
+          style={{
+            gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
+            height: "fit-content",
+          }}
         >
-          <EditorThemeProvider value={forcedColors ? false : currTheme}>
-            <DslEditor
-              style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
-              line=""
-              uniforms={values}
-              settings={settings}
-              onGenerating={(s: string) => generateWgsl(s)}
-              onTogglePositions={() => setEditorTop(!editorTop)}
-              onCaptureUniforms={() => captureUniforms()}
-              onSettingsChange={(v) => setSettings(v)}
-            />
-          </EditorThemeProvider>
-        </React.Suspense>
+          <React.Suspense
+            fallback={
+              <div
+                style={{
+                  gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "fit-content",
+                  gap: "1em",
+                }}
+              >
+                <div>Loading Editor</div>
+                <div className="loader" style={{ fontSize: "150%" }} />
+              </div>
+            }
+          >
+            <EditorThemeProvider value={forcedColors ? false : currTheme}>
+              <DslEditor
+                style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
+                line=""
+                uniforms={values}
+                settings={settings}
+                onGenerating={(s: string) => generateWgsl(s)}
+                onTogglePositions={() => setEditorTop(!editorTop)}
+                onCaptureUniforms={() => captureUniforms()}
+                onSettingsChange={(v) => setSettings(v)}
+              />
+            </EditorThemeProvider>
+          </React.Suspense>
+        </ErrorBoundary>
         <div
           style={{
             gridArea: editorTop ? "2/1/3/2" : "1/2/3/3",

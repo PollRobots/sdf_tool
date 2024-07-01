@@ -16,6 +16,7 @@ const kThemeNames = new Map([
 export interface PersistedSettings {
   themeName: string;
   fontSize: number;
+  vimMode?: boolean;
 }
 
 const isPersistedSettings = (obj: any): obj is PersistedSettings => {
@@ -37,6 +38,7 @@ const validatedSettings = (
     ? input.themeName
     : getBrowserColorScheme(),
   fontSize: kFontSizes.includes(input.fontSize) ? input.fontSize : 14,
+  vimMode: !!input.vimMode,
 });
 
 export const loadSettings = (): PersistedSettings => {
@@ -58,11 +60,18 @@ interface PersistedSettingsProps extends PersistedSettings {
 }
 
 export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
-  const update = (value: PersistedSettings) => {
+  const vimModeId = React.useId();
+  const update = (value: Partial<PersistedSettings>) => {
+    const updated: PersistedSettings = {
+      themeName: props.themeName,
+      fontSize: props.fontSize,
+      vimMode: props.vimMode,
+      ...value,
+    };
     try {
-      localStorage.setItem(kPersistedSettingsKey, JSON.stringify(value));
+      localStorage.setItem(kPersistedSettingsKey, JSON.stringify(updated));
     } catch {}
-    props.onChange(value);
+    props.onChange(updated);
   };
 
   return (
@@ -75,15 +84,16 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
         alignItems: "center",
       }}
     >
+      <label htmlFor={vimModeId}>Vim mode:</label>
+      <input
+        type="checkbox"
+        checked={props.vimMode}
+        onChange={() => update({ vimMode: !props.vimMode })}
+      />
       Theme:
       <select
         value={props.themeName}
-        onChange={(e) =>
-          update({
-            themeName: e.target.value,
-            fontSize: props.fontSize,
-          })
-        }
+        onChange={(e) => update({ themeName: e.target.value })}
       >
         {Array.from(kThemeNames.entries()).map(([value, name]) => (
           <option key={value} value={value}>
@@ -95,12 +105,7 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
       <select
         style={{ width: "fit-content" }}
         value={props.fontSize}
-        onChange={(e) =>
-          update({
-            themeName: props.themeName,
-            fontSize: Number(e.target.value),
-          })
-        }
+        onChange={(e) => update({ fontSize: Number(e.target.value) })}
       >
         {kFontSizes.map((el) => (
           <option key={el} value={el}>

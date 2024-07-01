@@ -27,6 +27,13 @@ import { HintProvider } from "../monaco/hint-provider";
 import { HoverProvider } from "../monaco/hover-provider";
 import { CodeLensProvider } from "../monaco/code-lens-provider";
 import { PersistedSettings, SettingsEditor } from "./persisted-settings";
+import {
+  IStatusBar,
+  ModeChangeEvent,
+  SecInfoOptions,
+} from "../monaco/vim-mode/statusbar";
+import { initVimMode } from "../monaco/vim-mode/vim-mode";
+import CMAdapter from "../monaco/vim-mode/cm_adapter";
 
 interface DslEditorProps {
   line: string;
@@ -80,13 +87,15 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const [currentVersion, setCurrentVersion] = React.useState(0);
   const [initialVersion, setInitialVersion] = React.useState(0);
   const [highVersion, setHighVersion] = React.useState(0);
-  const [editor, setEditor] =
-    React.useState<monaco.editor.IStandaloneCodeEditor>(null);
+  const monacoInstance =
+    React.useRef<monaco.editor.IStandaloneCodeEditor>(null);
+  const [statusBar, setStatusBar] = React.useState<IStatusBar>(null);
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
+  const vimAdapter = React.useRef<CMAdapter>(null);
 
   React.useEffect(() => {
-    if (editor) {
-      editor.updateOptions({
+    if (monacoInstance.current) {
+      monacoInstance.current.updateOptions({
         fontSize: props.settings.fontSize,
       });
     }
@@ -95,6 +104,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.updateOptions({
       fontSize: props.settings.fontSize,
+      lineNumbers: "relative",
       minimap: { enabled: false },
     });
     editor.focus();
@@ -129,8 +139,30 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       kLanguageId,
       codeLenseProvider.current
     );
-    setEditor(editor);
+    monacoInstance.current = editor;
   };
+
+  const onStatusBarMounted = (statusBar: IStatusBar) => {
+    setStatusBar(statusBar);
+  };
+
+  React.useEffect(() => {
+    const editor = monacoInstance.current;
+    if (editor && statusBar) {
+      statusBar.toggleVisibility(props.settings.vimMode);
+
+      if (!vimAdapter.current) {
+        if (props.settings.vimMode) {
+          vimAdapter.current = initVimMode(editor, statusBar);
+          vimAdapter.current.attach();
+        }
+      } else if (props.settings.vimMode) {
+        vimAdapter.current.attach();
+      } else {
+        vimAdapter.current.detach();
+      }
+    }
+  }, [monacoInstance.current, statusBar, props.settings.vimMode]);
 
   React.useEffect(() => {
     if (codeLenseProvider.current) {
@@ -142,7 +174,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     if (timeoutHandle.current) {
       timeoutHandle.current = null;
     }
-
+    const editor = monacoInstance.current;
     if (!editor) {
       return;
     }
@@ -222,7 +254,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
 
   const updateHints = () => {
     hintTimeoutHandle.current = null;
-
+    const editor = monacoInstance.current;
     if (!editor || !hintProvider.current) {
       return;
     }
@@ -314,6 +346,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Cut"
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -342,6 +375,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Copy"
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -364,6 +398,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       title="Paste"
                       disabled={!canPaste}
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -391,6 +426,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Undo"
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -404,6 +440,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Redo"
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -417,6 +454,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Open"
                       onClick={() => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -448,6 +486,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                       size={props.settings.fontSize * 2}
                       title="Save"
                       onClick={async () => {
+                        const editor = monacoInstance.current;
                         if (!editor) {
                           return;
                         }
@@ -483,12 +522,210 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                     onEditorMount(mounted)
                   }
                 />
+                <StatusBar
+                  onMount={(statusBar) => onStatusBarMounted(statusBar)}
+                  focusEditor={() => monacoInstance.current.focus()}
+                />
               </div>
             );
           }}
         </EditorThemeContext.Consumer>
       )}
     </ThemeContext.Consumer>
+  );
+};
+
+interface StatusBarProps {
+  onMount: (statusBar: IStatusBar) => void;
+  focusEditor: () => void;
+}
+
+const StatusBar: React.FC<StatusBarProps> = (props) => {
+  const [visible, setVisibility] = React.useState(false);
+  const [modeText, setModeText] = React.useState("");
+  const [notification, setNotification] = React.useState("");
+  const [keyInfo, setKeyInfo] = React.useState("");
+  const [secondary, setSecondary] =
+    React.useState<StatusBarSecondaryProps>(null);
+
+  const toggleVisibility = (visible: boolean) => setVisibility(visible);
+  const showNotification = (message: string) => setNotification(message);
+  const setMode = (ev: ModeChangeEvent) => {
+    switch (ev.mode) {
+      case "visual":
+        switch (ev.subMode) {
+          case "linewise":
+            setModeText("--VISUAL LINE--");
+            break;
+          case "blockwise":
+            setModeText("--VISUAL BLOCK--");
+            break;
+          default:
+            setModeText("VISUAL");
+        }
+        break;
+      default:
+        setModeText(`--${ev.mode.toUpperCase()}--`);
+    }
+  };
+  const setKeyBuffer = (key: string) => {
+    setKeyInfo(key);
+  };
+  const setSecStatic = (message: string) => {
+    setSecondary({
+      mode: "static",
+      staticMessage: message,
+      prefix: "",
+      desc: "",
+      options: {},
+      close: closeInput,
+    });
+    return closeInput;
+  };
+  const setSecPrompt = (
+    prefix: string,
+    desc: string,
+    options: SecInfoOptions
+  ) => {
+    setSecondary({
+      mode: "input",
+      staticMessage: "",
+      prefix: prefix,
+      desc: desc,
+      options: options,
+      close: closeInput,
+    });
+    return closeInput;
+  };
+  const closeInput = () => {
+    setSecondary(null);
+    props.focusEditor();
+  };
+  const clear = () => {};
+
+  React.useEffect(() => {
+    props.onMount({
+      toggleVisibility: toggleVisibility,
+      showNotification: showNotification,
+      setMode: setMode,
+      setKeyBuffer: setKeyBuffer,
+      setSecStatic: setSecStatic,
+      setSecPrompt: setSecPrompt,
+      closeInput: closeInput,
+      clear: clear,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (notification !== "") {
+      setTimeout(() => setNotification(""), 5000);
+    }
+  }, [notification]);
+
+  return (
+    <div
+      style={{
+        display: visible ? "grid" : "none",
+        fontSize: "80%",
+        fontFamily: "monospace",
+        borderTop: "1px solid #888",
+        padding: "0.1em",
+        gap: "1em",
+        gridTemplateColumns: "8em 1fr auto auto",
+      }}
+    >
+      <div>{modeText}</div>
+      {secondary ? <StatusBarSecondary {...secondary} /> : <div />}
+      <div>{notification}</div>
+      <div>{keyInfo}</div>
+    </div>
+  );
+};
+
+interface StatusBarSecondaryProps {
+  mode: "static" | "input";
+  staticMessage: string;
+  prefix: string;
+  desc: string;
+  options: SecInfoOptions;
+  close: () => void;
+}
+
+const StatusBarSecondary: React.FC<StatusBarSecondaryProps> = (props) => {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (inputRef.current) {
+      if (props.options.selectValueOnOpen) {
+        inputRef.current.select();
+      }
+      inputRef.current.focus();
+    }
+  }, [inputRef.current]);
+
+  return props.mode == "static" ? (
+    <div>{props.staticMessage}</div>
+  ) : (
+    <div
+      style={{
+        display: "grid",
+        gap: "0.5em",
+        fontFamily: "monospace",
+        gridTemplateColumns: "auto 1fr auto",
+      }}
+    >
+      <div>{props.prefix}</div>
+      <input
+        ref={inputRef}
+        type="text"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        onKeyUp={(evt) => {
+          if (props.options.onKeyUp) {
+            props.options.onKeyUp(
+              evt.nativeEvent,
+              inputRef.current.value,
+              props.close
+            );
+          }
+        }}
+        onBlur={() => {
+          if (props.options.closeOnBlur) {
+            props.close();
+          }
+        }}
+        onKeyDown={(evt) => {
+          if (props.options.onKeyDown) {
+            if (
+              props.options.onKeyDown(
+                evt.nativeEvent,
+                inputRef.current.value,
+                props.close
+              )
+            ) {
+              return;
+            }
+          }
+
+          if (
+            evt.key === "Escape" ||
+            (props.options.closeOnEnter !== false && evt.key === "Enter")
+          ) {
+            inputRef.current.blur();
+            evt.stopPropagation();
+            props.close();
+          }
+
+          if (evt.key === "Enter" && props.options.onClose) {
+            evt.stopPropagation();
+            evt.preventDefault();
+            props.options.onClose(inputRef.current.value);
+          }
+        }}
+      />
+      <div style={{ color: "#888" }}>{props.desc}</div>
+    </div>
   );
 };
 
