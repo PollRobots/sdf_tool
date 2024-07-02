@@ -1,7 +1,10 @@
 import monaco from "monaco-editor";
 import { IStatusBar, StatusBar } from "./statusbar";
 import EditorAdapter from "./adapter";
-import { IRegister, initVimAdapter, vimApi } from "./keymap_vim";
+import { initVimAdapter, vimApi } from "./keymap_vim";
+import { IRegister as IRegisterInternal } from "./Register";
+
+export type IRegister = IRegisterInternal;
 
 export const makeDomStatusBar = (
   parent: HTMLElement,
@@ -151,6 +154,13 @@ export class VimMode implements EventTarget {
   setClipboardRegister(register: IRegister) {
     vimApi.defineRegister("*", register);
     vimApi.defineRegister("+", register);
+  }
+
+  executeCommand(input: string) {
+    if (!this.attached) {
+      throw new Error("Cannot execute commands when not attached");
+    }
+    vimApi.handleEx(this.adapter_, input);
   }
 
   setOption(

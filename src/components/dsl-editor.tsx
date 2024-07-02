@@ -28,8 +28,7 @@ import { HoverProvider } from "../monaco/hover-provider";
 import { CodeLensProvider } from "../monaco/code-lens-provider";
 import { PersistedSettings, SettingsEditor } from "./persisted-settings";
 import { IStatusBar } from "../monaco/vim-mode/statusbar";
-import { VimMode } from "../monaco/vim-mode/vim-mode";
-import { IRegister } from "../monaco/vim-mode/keymap_vim";
+import { IRegister, VimMode } from "../monaco/vim-mode/vim-mode";
 import { StatusBar } from "./status-bar";
 
 interface DslEditorProps {
@@ -231,8 +230,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
 
           // Our DSL is scheme-like, so it makes sense to add the '-' character
           // to the iskeyword option, this makes w and * work with identifiers.
-          // This is equivalent to :set iskeyword+=-
-          vimMode.setOption("iskeyword", "-", { append: true });
+          vimMode.executeCommand("set iskeyword+=-");
           const clipboard = new ClipboardRegister();
           vimMode.setClipboardRegister(clipboard);
           vimMode.addEventListener("clipboard", () => clipboard.poke());
