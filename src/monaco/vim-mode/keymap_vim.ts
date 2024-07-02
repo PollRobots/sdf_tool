@@ -2487,7 +2487,9 @@ const motions: Record<string, MotionFunc> = {
     // }
     if (head.ch < lineText.length) {
       const matched = cm.findMatchingBracket(head);
-      return matched.to;
+      if (matched) {
+        return matched.pos;
+      }
     } else {
       return head;
     }
@@ -4739,17 +4741,13 @@ function selectCompanionObject(
 
   const startRes = cm.scanForBracket(
     makePos(cur.line, cur.ch + offset),
-    -1,
-    undefined,
-    { bracketRegex: bracketRegexp }
+    0,
+    bracketRegexp
   );
   const endRes = cm.scanForBracket(
     makePos(cur.line, cur.ch + offset),
     1,
-    undefined,
-    {
-      bracketRegex: bracketRegexp,
-    }
+    bracketRegexp
   );
 
   if (!startRes || !endRes) {

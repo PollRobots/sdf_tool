@@ -201,11 +201,10 @@ interface Operation {
   isVimOp?: boolean;
 }
 
-interface IBracketPairsTextModelPart {
-  matchBracket(
-    position: IPosition,
-    maxDuration?: number
-  ): [IRange, IRange] | null;
+interface MatchingBracket {
+  symbol: string;
+  mode: "open" | "close";
+  regex: RegExp;
 }
 
 export default class CMAdapter {
@@ -217,15 +216,15 @@ export default class CMAdapter {
   static keyMap: Record<string, KeyMapEntry> = {
     default: { find: () => true },
   };
-  static matchingBrackets: Record<string, string> = {
-    "(": ")>",
-    ")": "(<",
-    "[": "]>",
-    "]": "[<",
-    "{": "}>",
-    "}": "{<",
-    "<": ">>",
-    ">": "<<",
+  static matchingBrackets: Record<string, MatchingBracket> = {
+    "(": { symbol: ")", mode: "close", regex: /[()]/ },
+    ")": { symbol: "(", mode: "open", regex: /[()]/ },
+    "[": { symbol: "]", mode: "close", regex: /[[\]]/ },
+    "]": { symbol: "[", mode: "open", regex: /[[\]]/ },
+    "{": { symbol: "}", mode: "close", regex: /[{}]/ },
+    "}": { symbol: "{", mode: "open", regex: /[{}]/ },
+    "<": { symbol: ">", mode: "close", regex: /[<>]/ },
+    ">": { symbol: "<", mode: "open", regex: /[<>]/ },
   };
   static isWordChar = isWordCharBasic;
   static keyName = monacoToCmKey;
@@ -864,26 +863,23 @@ export default class CMAdapter {
     }
   }
 
-  findMatchingBracket(pos: Pos) {
-    const mPos = toMonacoPos(pos);
-    const model = this.editor.getModel();
-
-    // dirty look inside the text model
-    if (!Reflect.has(model, "bracketPairs")) {
-      return {
-        to: null,
-      };
+  findMatchingBracket(cur: Pos) {
+    const line = this.getLine(cur.line);
+    for (let ch = cur.ch; ch < line.length; ch++) {
+      const curCh = line.charAt(ch);
+      const matchable = CMAdapter.matchingBrackets[curCh];
+      if (matchable) {
+        // current character is a bracket, simply
+        // step 1 forwards (if open)
+        // scan for brackets
+        const offset = matchable.mode === "close" ? 1 : 0;
+        return this.scanForBracket(
+          makePos(cur.line, ch + offset),
+          offset,
+          matchable.regex
+        );
+      }
     }
-    const bracketPairs = (model as any)
-      .bracketPairs as IBracketPairsTextModelPart;
-    const res = bracketPairs.matchBracket(mPos);
-
-    if (!res) {
-      return { to: null };
-    }
-    return {
-      to: toCmPos(liftRange(res[1]).getStartPosition()),
-    };
   }
 
   findFirstNonWhiteSpaceCharacter(line: number) {
@@ -1137,36 +1133,28 @@ export default class CMAdapter {
     this.editor.setPosition(pos.delta(0, amount));
   }
 
-  scanForBracket(
-    pos: Pos,
-    dir: number,
-    dd: unknown,
-    config: { bracketRegex: RegExp }
-  ) {
-    const { bracketRegex } = config;
-    let mPos = toMonacoPos(pos);
+  scanForBracket(pos: Pos, dir: number, bracketRegex: RegExp) {
+    let searchPos = toMonacoPos(pos);
     const model = this.editor.getModel();
 
-    const searchFunc = (
-      dir === -1 ? model.findPreviousMatch : model.findNextMatch
-    ).bind(model);
-    const stack = [];
+    const query = bracketRegex.source;
+
+    const searchFunc =
+      dir <= 0
+        ? (start: IPosition) =>
+            model.findPreviousMatch(query, start, true, true, null, true)
+        : (start: IPosition) =>
+            model.findNextMatch(query, start, true, true, null, true);
+    let depth = 0;
     let iterations = 0;
 
     while (true) {
-      if (iterations > 10) {
+      if (iterations > 100) {
         // Searched too far, give up.
         return undefined;
       }
 
-      const match = searchFunc(
-        bracketRegex.source,
-        mPos,
-        true,
-        true,
-        null,
-        true
-      ) as monaco.editor.FindMatch;
+      const match = searchFunc(searchPos);
       const thisBracket = match.matches[0];
 
       if (match === undefined) {
@@ -1175,21 +1163,25 @@ export default class CMAdapter {
 
       const matchingBracket = CMAdapter.matchingBrackets[thisBracket];
 
-      if (matchingBracket && (matchingBracket.charAt(1) === ">") == dir > 0) {
-        stack.push(thisBracket);
-      } else if (stack.length === 0) {
+      if (matchingBracket && (matchingBracket.mode === "close") == dir > 0) {
+        depth++;
+      } else if (depth === 0) {
         const res = match.range.getStartPosition();
 
         return {
           pos: toCmPos(res),
         };
       } else {
-        stack.pop();
+        depth--;
       }
 
-      mPos = model.getPositionAt(
-        model.getOffsetAt(match.range.getStartPosition()) + dir
-      );
+      searchPos =
+        dir > 0
+          ? model.getPositionAt(
+              model.getOffsetAt(match.range.getStartPosition()) + 1
+            )
+          : match.range.getStartPosition();
+
       iterations += 1;
     }
   }
