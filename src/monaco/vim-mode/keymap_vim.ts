@@ -28,7 +28,7 @@ import EditorAdapter, {
   Marker,
 } from "./adapter";
 import { StringStream } from "./string-stream";
-import { defaultKeymap } from "./defaultKeyMap";
+import { defaultKeymap } from "./default-key-map";
 import { SecInfoOptions } from "./statusbar";
 import { VimApi } from "./vim-api";
 import {
@@ -61,7 +61,7 @@ import { ExCommandDispatcher } from "./ex-command-dispatcher";
 import { CircularJumpList, createCircularJumpList } from "./jump-list";
 import { MacroModeState } from "./macro-mode-state";
 import { InputState } from "./input-state";
-import { Register, RegisterController } from "./Register";
+import { Register, RegisterController } from "./register-controller";
 import { HistoryController } from "./history-controller";
 import { commandDispatcher, CommandDispatcher } from "./command-dispatcher";
 import { getSearchState, searchOverlay, SearchState } from "./search";

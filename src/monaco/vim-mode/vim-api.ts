@@ -1,8 +1,8 @@
 import { commandDispatcher } from "./command-dispatcher";
-import { IRegister, defineRegister } from "./Register";
+import { IRegister, defineRegister } from "./register-controller";
 import { ActionFunc, defineAction } from "./actions";
 import EditorAdapter from "./adapter";
-import { defaultKeymap, defaultKeymapLength } from "./defaultKeyMap";
+import { defaultKeymap, defaultKeymapLength } from "./default-key-map";
 import {
   InsertModeKey,
   resetVimGlobalState,

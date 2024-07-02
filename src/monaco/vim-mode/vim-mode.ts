@@ -1,10 +1,11 @@
 import monaco from "monaco-editor";
-import { IStatusBar, StatusBar } from "./statusbar";
+import { IStatusBar as IStatusBarInternal, StatusBar } from "./statusbar";
 import EditorAdapter from "./adapter";
 import { initVimAdapter, vimApi } from "./keymap_vim";
-import { IRegister as IRegisterInternal } from "./Register";
+import { IRegister as IRegisterInternal } from "./register-controller";
 
 export type IRegister = IRegisterInternal;
+export type IStatusBar = IStatusBarInternal;
 
 export const makeDomStatusBar = (
   parent: HTMLElement,

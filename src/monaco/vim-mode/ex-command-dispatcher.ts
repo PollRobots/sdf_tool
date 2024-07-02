@@ -1,6 +1,6 @@
 import EditorAdapter from "./adapter";
 import { StringStream } from "./string-stream";
-import { defaultKeymap } from "./defaultKeyMap";
+import { defaultKeymap } from "./default-key-map";
 import {
   ExCommand,
   ExCommandOptionalParameters,
