@@ -1240,7 +1240,7 @@ class VimApi {
     _mapCommand(command);
   }
 
-  defineRegister(name: string, register: Register) {
+  defineRegister(name: string, register: IRegister) {
     defineRegister(name, register);
   }
 
@@ -1295,13 +1295,22 @@ function clearInputState(cm: CodeMirror, reason?: string) {
   signal(cm, "vim-command-done", reason);
 }
 
+export interface IRegister {
+  readonly linewise: boolean;
+  readonly blockwise: boolean;
+
+  setText(text: string, linewise?: boolean, blockwise?: boolean): void;
+  pushText(text: string, linewise?: boolean): void;
+  clear(): void;
+}
+
 /*
  * Register stores information about copy and paste registers.  Besides
  * text, a register must store whether it is linewise (i.e., when it is
  * pasted, should it insert itself into a new line, or should the text be
  * inserted at the cursor position.)
  */
-class Register {
+class Register implements IRegister {
   keyBuffer: string[];
   insertModeChanges: InsertModeChanges[] = [];
   searchQueries: string[] = [];
@@ -1356,7 +1365,7 @@ class Register {
  * The register should support setText, pushText, clear, and toString(). See Register
  * for a reference implementation.
  */
-function defineRegister(name: string, register: Register) {
+function defineRegister(name: string, register: IRegister) {
   const registers = vimGlobalState.registerController.registers;
   if (!name || name.length != 1) {
     throw Error("Register name must be 1 character");
@@ -1377,7 +1386,7 @@ function defineRegister(name: string, register: Register) {
  * overridden.
  */
 class RegisterController {
-  registers: Record<string, Register>;
+  registers: Record<string, IRegister>;
   unnamedRegister: Register;
 
   constructor(registers: Record<string, Register>) {
@@ -1441,6 +1450,17 @@ class RegisterController {
     // The unnamed register always has the same value as the last used
     // register.
     this.unnamedRegister.setText(register.toString(), linewise);
+  }
+
+  // Gets a register that is defined internally, (i.e. is an instance of
+  // Register). This allows the macro and search components to access
+  // non-public register apis.
+  getInternalRegister(name: string): Register {
+    const register = this.getRegister(name);
+    if (register instanceof Register) {
+      return register;
+    }
+    return this.unnamedRegister;
   }
 
   // Gets the register named @name.  If one of @name doesn't already exist,
@@ -3400,8 +3420,17 @@ const actions: Record<string, ActionFunc> = {
   redo: function (cm, actionArgs) {
     repeatFn(cm, CodeMirror.commands.redo, actionArgs.repeat)();
   },
-  setRegister: function (_cm, actionArgs, vim) {
+  setRegister: function (cm, actionArgs, vim) {
     vim.inputState.registerName = actionArgs.selectedCharacter;
+    if (
+      actionArgs.selectedCharacter === "*" ||
+      actionArgs.selectedCharacter === "+"
+    ) {
+      // Send this signal in case fetching the external clipboard is async
+      // (which it often is) , this allows the clipboard registers to prefetch
+      // the register contents from the system clipboard
+      signal(cm, "vim-set-clipboard-register");
+    }
   },
   setMark: function (cm, actionArgs, vim) {
     const markName = actionArgs.selectedCharacter;
@@ -6531,7 +6560,8 @@ function executeMacroRegister(
   macroModeState: MacroModeState,
   registerName: string
 ) {
-  const register = vimGlobalState.registerController.getRegister(registerName);
+  const register =
+    vimGlobalState.registerController.getInternalRegister(registerName);
   if (registerName == ":") {
     // Read-only register containing last Ex command.
     if (register.keyBuffer[0]) {
@@ -6582,7 +6612,8 @@ function logInsertModeChange(macroModeState: MacroModeState) {
     return;
   }
   const registerName = macroModeState.latestRegister;
-  const register = vimGlobalState.registerController.getRegister(registerName);
+  const register =
+    vimGlobalState.registerController.getInternalRegister(registerName);
   if (register && register.pushInsertModeChanges) {
     register.pushInsertModeChanges(macroModeState.lastInsertModeChanges);
   }
@@ -6593,7 +6624,8 @@ function logSearchQuery(macroModeState: MacroModeState, query: string) {
     return;
   }
   const registerName = macroModeState.latestRegister;
-  const register = vimGlobalState.registerController.getRegister(registerName);
+  const register =
+    vimGlobalState.registerController.getInternalRegister(registerName);
   if (register && register.pushSearchQuery) {
     register.pushSearchQuery(query);
   }
@@ -6878,7 +6910,6 @@ defineOption(
       // ignore anything else
       return [];
     });
-    console.log(ranges);
     isKeywordRanges = ranges;
     isKeywordValue = value;
   },

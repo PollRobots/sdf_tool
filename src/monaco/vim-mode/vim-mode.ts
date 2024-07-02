@@ -37,8 +37,7 @@ export function initVimMode(
   });
 
   vimAdapter.on("vim-command-done", () => {
-    keyBuffer = "";
-    statusBar.setKeyBuffer(keyBuffer);
+    statusBar.setKeyBuffer("");
   });
 
   vimAdapter.on("dispose", function () {

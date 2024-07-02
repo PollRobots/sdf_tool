@@ -34,7 +34,7 @@ import {
 } from "../monaco/vim-mode/statusbar";
 import { initVimMode } from "../monaco/vim-mode/vim-mode";
 import CMAdapter from "../monaco/vim-mode/cm_adapter";
-import { vimApi } from "../monaco/vim-mode/keymap_vim";
+import { IRegister, vimApi } from "../monaco/vim-mode/keymap_vim";
 
 interface DslEditorProps {
   line: string;
@@ -77,6 +77,55 @@ const getErrors = (expr: Expression): Expression[] => {
 
   return errors;
 };
+
+class ClipboardRegister implements IRegister {
+  linewise: boolean = false;
+  blockwise: boolean = false;
+  private buffer: string[] = [];
+
+  constructor() {}
+
+  setText(text: string, linewise?: boolean, blockwise?: boolean): void {
+    this.linewise = !!linewise;
+    this.blockwise = !!blockwise;
+    this.buffer = [text];
+    navigator.clipboard.writeText(text);
+  }
+  pushText(text: string, linewise?: boolean): void {
+    if (linewise) {
+      if (!this.linewise) {
+        this.buffer.push("\n");
+      }
+      this.linewise = linewise;
+    }
+    this.buffer.push(text);
+    navigator.clipboard.writeText(this.buffer.join(""));
+  }
+
+  clear(): void {
+    this.buffer = [];
+    this.linewise = false;
+    this.blockwise = false;
+  }
+
+  toString() {
+    return this.buffer.join("");
+  }
+
+  poke() {
+    navigator.clipboard.readText().then((text) => {
+      if (text.includes("\n")) {
+        const lines = text.split("\n");
+        const blockwise = lines.every(
+          (line) => line.length === lines[0].length
+        );
+        this.setText(text, !blockwise && text.endsWith("\n"), blockwise);
+      } else {
+        this.setText(text);
+      }
+    });
+  }
+}
 
 const DslEditor: React.FC<DslEditorProps> = (props) => {
   const timeoutHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
@@ -171,7 +220,14 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
               .finally(() => editor.focus());
 
           vimAdapter.current = adapter;
+          // Our DSL is scheme-like, so it makes sense to add the '-' character
+          // to the iskeyword option, this makes w and * work with identifiers.
+          // This is equivalent to :set iskeyword+=-
           vimApi.setOption("iskeyword", "-", adapter, { append: true });
+          const clipboard = new ClipboardRegister();
+          vimApi.defineRegister("*", clipboard);
+          vimApi.defineRegister("+", clipboard);
+          adapter.on("vim-set-clipboard-register", () => clipboard.poke());
         }
       } else if (props.settings.vimMode) {
         vimAdapter.current.attach();
