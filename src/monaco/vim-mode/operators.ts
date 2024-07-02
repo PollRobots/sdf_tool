@@ -1,6 +1,12 @@
 import { actions } from "./actions";
-import EditorAdapter, { CmSelection, Pos, makePos } from "./adapter";
-import { isWhiteSpaceString, cursorMin, isUpperCase } from "./common";
+import EditorAdapter, { CmSelection } from "./adapter";
+import {
+  Pos,
+  isWhiteSpaceString,
+  cursorMin,
+  isUpperCase,
+  makePos,
+} from "./common";
 import {
   OperatorArgs,
   VimState,
@@ -56,7 +62,7 @@ export const operators: Record<string, OperatorFunc> = {
         // Push the next line back down, if there is a next line.
         if (!wasLastLine) {
           adapter.setCursor(prevLineEnd);
-          EditorAdapter.commands.newlineAndIndent(adapter);
+          EditorAdapter.commands.newlineAndIndent(adapter, {});
         }
         // make sure cursor ends up at the end of the line.
         anchor.ch = Number.MAX_VALUE;

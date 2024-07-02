@@ -129,6 +129,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const codeLenseProvider = React.useRef<CodeLensProvider>(null);
   const hoverProvider = React.useRef(null);
   const [canPaste, setCanPaste] = React.useState(true);
+  const lastFileName = React.useRef("");
   const [currentVersion, setCurrentVersion] = React.useState(0);
   const [initialVersion, setInitialVersion] = React.useState(0);
   const [highVersion, setHighVersion] = React.useState(0);
@@ -205,6 +206,35 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     setStatusBar(statusBar);
   };
 
+  const saveFile = (filename?: string) => {
+    const editor = monacoInstance.current;
+    if (!editor) {
+      return;
+    }
+    filename = filename || lastFileName.current;
+
+    saveFilePicker(editor.getValue(), filename)
+      .then((filename) => {
+        lastFileName.current = filename;
+      })
+      .catch((err) => {})
+      .finally(() => editor.focus());
+  };
+  const openFile = () => {
+    const editor = monacoInstance.current;
+    if (!editor) {
+      return;
+    }
+    openFilePicker()
+      .then((file) => {
+        lastFileName.current = file.name;
+        return file.text();
+      })
+      .then((text) => editor.setValue(text))
+      .catch((err) => {})
+      .finally(() => editor.focus());
+  };
+
   React.useEffect(() => {
     const editor = monacoInstance.current;
     if (editor && statusBar) {
@@ -214,18 +244,9 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
         if (props.settings.vimMode) {
           const vimMode = new VimMode(editor, statusBar);
           vimMode.enable();
-          vimMode.addEventListener("open-file", () =>
-            openFilePicker()
-              .then((text) => {
-                editor.setValue(text);
-              })
-              .catch((err) => {})
-              .finally(() => editor.focus())
-          );
-          vimMode.addEventListener("save-file", () =>
-            saveFilePicker(editor.getValue())
-              .catch((err) => {})
-              .finally(() => editor.focus())
+          vimMode.addEventListener("open-file", (evt) => openFile());
+          vimMode.addEventListener("save-file", (evt) =>
+            saveFile(evt.filename)
           );
 
           // Our DSL is scheme-like, so it makes sense to add the '-' character
@@ -534,39 +555,14 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                 <IconButton
                   size={props.settings.fontSize * 2}
                   title="Open"
-                  onClick={() => {
-                    const editor = monacoInstance.current;
-                    if (!editor) {
-                      return;
-                    }
-                    openFilePicker()
-                      .then((text) => {
-                        editor.focus();
-                        editor.setValue(text);
-                      })
-                      .catch((err) => {
-                        editor.focus();
-                      });
-                  }}
+                  onClick={() => openFile()}
                 >
                   <Open />
                 </IconButton>
                 <IconButton
                   size={props.settings.fontSize * 2}
                   title="Save"
-                  onClick={async () => {
-                    const editor = monacoInstance.current;
-                    if (!editor) {
-                      return;
-                    }
-
-                    const content = editor.getValue();
-                    saveFilePicker(content)
-                      .catch((err) => {
-                        console.error(err);
-                      })
-                      .finally(() => editor.focus());
-                  }}
+                  onClick={() => saveFile("")}
                 >
                   <Save />
                 </IconButton>
@@ -592,6 +588,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
               }
             />
             <StatusBar
+              filename={lastFileName.current}
               onMount={(statusBar) => onStatusBarMounted(statusBar)}
               focusEditor={() => monacoInstance.current.focus()}
             />

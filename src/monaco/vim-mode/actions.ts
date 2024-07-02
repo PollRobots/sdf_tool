@@ -1,5 +1,7 @@
-import EditorAdapter, { signal, makePos, Pos, CmSelection } from "./adapter";
+import EditorAdapter, { CmSelection } from "./adapter";
 import {
+  makePos,
+  Pos,
   copyCursor,
   cursorMin,
   cursorMax,
@@ -119,11 +121,11 @@ export const actions: Record<string, ActionFunc> = {
     if (!adapter.state.overwrite) {
       adapter.toggleOverwrite(true);
       adapter.setOption("keyMap", "vim-replace");
-      signal(adapter, "vim-mode-change", { mode: "replace" });
+      adapter.dispatch("vim-mode-change", { mode: "replace" });
     } else {
       adapter.toggleOverwrite(false);
       adapter.setOption("keyMap", "vim-insert");
-      signal(adapter, "vim-mode-change", { mode: "insert" });
+      adapter.dispatch("vim-mode-change", { mode: "insert" });
     }
   },
   enterInsertMode: function (adapter, actionArgs, vim) {
@@ -194,11 +196,11 @@ export const actions: Record<string, ActionFunc> = {
       // Handle Replace-mode as a special case of insert mode.
       adapter.toggleOverwrite(true);
       adapter.setOption("keyMap", "vim-replace");
-      signal(adapter, "vim-mode-change", { mode: "replace" });
+      adapter.dispatch("vim-mode-change", { mode: "replace" });
     } else {
       adapter.toggleOverwrite(false);
       adapter.setOption("keyMap", "vim-insert");
-      signal(adapter, "vim-mode-change", { mode: "insert" });
+      adapter.dispatch("vim-mode-change", { mode: "insert" });
     }
     if (!vimGlobalState.macroModeState.isPlaying) {
       // Only record if not replaying.
@@ -226,7 +228,7 @@ export const actions: Record<string, ActionFunc> = {
         makePos(anchor.line, anchor.ch + repeat - 1)
       );
       vim.sel = new CmSelection(anchor, head);
-      signal(adapter, "vim-mode-change", {
+      adapter.dispatch("vim-mode-change", {
         mode: "visual",
         subMode: vim.visualLine
           ? "linewise"
@@ -244,7 +246,7 @@ export const actions: Record<string, ActionFunc> = {
       // Toggling between modes
       vim.visualLine = !!actionArgs.linewise;
       vim.visualBlock = !!actionArgs.blockwise;
-      signal(adapter, "vim-mode-change", {
+      adapter.dispatch("vim-mode-change", {
         mode: "visual",
         subMode: vim.visualLine
           ? "linewise"
@@ -276,7 +278,7 @@ export const actions: Record<string, ActionFunc> = {
       updateCmSelection(adapter);
       updateMark(adapter, vim, "<", cursorMin(anchor, head));
       updateMark(adapter, vim, ">", cursorMax(anchor, head));
-      signal(adapter, "vim-mode-change", {
+      adapter.dispatch("vim-mode-change", {
         mode: "visual",
         subMode: vim.visualLine
           ? "linewise"
@@ -343,7 +345,7 @@ export const actions: Record<string, ActionFunc> = {
       const newlineFn =
         EditorAdapter.commands.newlineAndIndentContinueComment ||
         EditorAdapter.commands.newlineAndIndent;
-      newlineFn(adapter);
+      newlineFn(adapter, {});
     }
     this.enterInsertMode(adapter, { repeat: actionArgs.repeat }, vim);
   },
@@ -506,11 +508,17 @@ export const actions: Record<string, ActionFunc> = {
     adapter.setCursor(curPosFinal);
   },
   undo: function (adapter, actionArgs) {
-    repeatFn(adapter, EditorAdapter.commands.undo, actionArgs.repeat)();
+    repeatFn(
+      () => EditorAdapter.commands.undo(adapter, {}),
+      actionArgs.repeat
+    )();
     adapter.setCursor(adapter.getCursor("anchor"));
   },
   redo: function (adapter, actionArgs) {
-    repeatFn(adapter, EditorAdapter.commands.redo, actionArgs.repeat)();
+    repeatFn(
+      () => EditorAdapter.commands.redo(adapter, {}),
+      actionArgs.repeat
+    )();
   },
   setRegister: function (adapter, actionArgs, vim) {
     vim.inputState.registerName = actionArgs.selectedCharacter;
@@ -521,7 +529,7 @@ export const actions: Record<string, ActionFunc> = {
       // Send this signal in case fetching the external clipboard is async
       // (which it often is) , this allows the clipboard registers to prefetch
       // the register contents from the system clipboard
-      signal(adapter, "vim-set-clipboard-register");
+      adapter.dispatch("vim-set-clipboard-register");
     }
   },
   setMark: function (adapter, actionArgs, vim) {
@@ -551,7 +559,7 @@ export const actions: Record<string, ActionFunc> = {
       (
         EditorAdapter.commands.newlineAndIndentContinueComment ||
         EditorAdapter.commands.newlineAndIndent
-      )(adapter);
+      )(adapter, {});
     } else {
       if (vim.visualBlock) {
         // Tabs are split in visua block before replacing
@@ -818,14 +826,10 @@ function selectBlock(adapter: EditorAdapter, selectionEnd: Pos) {
   return base;
 }
 
-function repeatFn(
-  adapter: EditorAdapter,
-  fn: (adapter: EditorAdapter) => void,
-  repeat: number
-) {
+function repeatFn(fn: () => void, repeat: number) {
   return () => {
     for (let i = 0; i < repeat; i++) {
-      fn(adapter);
+      fn();
     }
   };
 }

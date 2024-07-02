@@ -3,8 +3,9 @@
  *     position of the cursor.
  */
 
-import EditorAdapter, { Pos, makePos, signal } from "./adapter";
+import EditorAdapter from "./adapter";
 import {
+  Pos,
   copyCursor,
   cursorEqual,
   cursorIsBefore,
@@ -15,6 +16,7 @@ import {
   isEndOfSentenceSymbol,
   isLowerCase,
   isWhiteSpaceString,
+  makePos,
 } from "./common";
 import {
   MotionArgs,
@@ -145,7 +147,7 @@ export const motions: Record<string, MotionFunc> = {
       if (vim.visualLine || vim.visualBlock) {
         vim.visualLine = false;
         vim.visualBlock = false;
-        signal(adapter, "vim-mode-change", {
+        adapter.dispatch("vim-mode-change", {
           mode: "visual",
           subMode: "",
         });
@@ -174,7 +176,7 @@ export const motions: Record<string, MotionFunc> = {
       vim.visualMode = true;
       vim.visualLine = false;
       vim.visualBlock = false;
-      signal(adapter, "vim-mode-change", {
+      adapter.dispatch("vim-mode-change", {
         mode: "visual",
         subMode: "",
       });

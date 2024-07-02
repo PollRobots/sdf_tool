@@ -1,5 +1,5 @@
-import EditorAdapter, { Marker, Pos } from "./adapter";
-import { cursorEqual } from "./common";
+import EditorAdapter, { Marker } from "./adapter";
+import { cursorEqual, Pos } from "./common";
 
 export class CircularJumpList {
   size = 100;

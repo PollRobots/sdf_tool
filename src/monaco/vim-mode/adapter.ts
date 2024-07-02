@@ -3,35 +3,15 @@
  */
 import { IPosition, IRange, ISelection } from "monaco-editor";
 import monaco from "monaco-editor";
-import { SecInfoOptions, IStatusBar, ModeChangeEvent } from "./statusbar";
+import { SecInfoOptions, ModeChangeEvent } from "./statusbar";
+import { v4 as uuidv4 } from "uuid";
+import { ExCommandOptionalParameters } from "./keymap_vim";
+import { Pos, getEventKeyName, makePos } from "./common";
 
-const KeyCode = window.monaco.KeyCode;
 const SelectionDirection = window.monaco.SelectionDirection;
 
 const nonASCIISingleCaseWordChar =
   /[\u00df\u0587\u0590-\u05f4\u0600-\u06ff\u3040-\u309f\u30a0-\u30ff\u3400-\u4db5\u4e00-\u9fcc\uac00-\ud7af]/;
-
-function isWordCharBasic(ch: string) {
-  return (
-    /\w/.test(ch) ||
-    (ch > "\x80" &&
-      (ch.toUpperCase() != ch.toLowerCase() ||
-        nonASCIISingleCaseWordChar.test(ch)))
-  );
-}
-
-export interface Pos {
-  line: number;
-  ch: number;
-}
-
-export const isPos = (value: any): value is Pos =>
-  value && typeof value.line === "number" && typeof value.ch === "number";
-
-export const makePos = (line: number, ch: number): Pos => ({
-  line: line,
-  ch: ch,
-});
 
 export class CmSelection {
   /// Where the selection started from
@@ -61,21 +41,7 @@ export class CmSelection {
   }
 }
 
-export const signal = (
-  cm: EditorAdapter,
-  signal: string,
-  ...args: any[]
-): void => {
-  cm.dispatch(signal, ...args);
-};
-
-function dummy(key: string) {
-  return function (...args: any[]) {
-    // console.log(key, 'dummy function called with', Array.prototype.slice.call(arguments));
-  };
-}
-
-function toCmPos(pos: IPosition): Pos {
+function toAdapterPos(pos: IPosition): Pos {
   return makePos(pos.lineNumber - 1, pos.column - 1);
 }
 
@@ -84,22 +50,22 @@ function toMonacoPos(pos: Pos) {
 }
 
 export class Marker implements Pos {
-  cm: EditorAdapter;
+  adapter: EditorAdapter;
   id: number;
   insertRight: boolean = false;
   line: number;
   ch: number;
 
-  constructor(cm: EditorAdapter, id: number, line: number, ch: number) {
+  constructor(adapter: EditorAdapter, id: number, line: number, ch: number) {
     this.line = line;
     this.ch = ch;
-    this.cm = cm;
+    this.adapter = adapter;
     this.id = id;
-    cm.marks.set(this.id, this);
+    adapter.marks.set(this.id, this);
   }
 
   clear() {
-    this.cm.marks.delete(this.id);
+    this.adapter.marks.delete(this.id);
   }
 
   find(): Pos {
@@ -107,80 +73,11 @@ export class Marker implements Pos {
   }
 }
 
-function monacoToCmKey(e: monaco.IKeyboardEvent | KeyboardEvent, skip = false) {
-  let addQuotes = true;
-  let keyName = KeyCode[e.keyCode];
-
-  if ((e as any).key) {
-    keyName = (e as any).key as string;
-    addQuotes = false;
-  }
-
-  let key = keyName;
-  let skipOnlyShiftCheck = skip;
-
-  switch (e.keyCode) {
-    case KeyCode.Shift:
-    case KeyCode.Meta:
-    case KeyCode.Alt:
-    case KeyCode.Ctrl:
-      return key;
-    case KeyCode.Escape:
-      skipOnlyShiftCheck = true;
-      key = "Esc";
-      break;
-    case KeyCode.Space:
-      skipOnlyShiftCheck = true;
-      break;
-  }
-
-  // `Key` check for monaco >= 0.30.0
-  if (keyName.startsWith("Key") || keyName.startsWith("KEY_")) {
-    key = keyName[keyName.length - 1].toLowerCase();
-  } else if (keyName.startsWith("Digit")) {
-    key = keyName.slice(5, 6);
-  } else if (keyName.startsWith("Numpad")) {
-    key = keyName.slice(6, 7);
-  } else if (keyName.endsWith("Arrow")) {
-    skipOnlyShiftCheck = true;
-    key = keyName.substring(0, keyName.length - 5);
-  } else if (
-    keyName.startsWith("US_") ||
-    // `Bracket` check for monaco >= 0.30.0
-    keyName.startsWith("Bracket") ||
-    !key
-  ) {
-    if (Reflect.has(e, "browserEvent")) {
-      key = (e as monaco.IKeyboardEvent).browserEvent.key;
-    }
-  }
-
-  if (!skipOnlyShiftCheck && !e.altKey && !e.ctrlKey && !e.metaKey) {
-    key = (e as any).key || (e as monaco.IKeyboardEvent).browserEvent.key;
-  } else {
-    if (e.altKey) {
-      key = `Alt-${key}`;
-    }
-    if (e.ctrlKey) {
-      key = `Ctrl-${key}`;
-    }
-    if (e.metaKey) {
-      key = `Meta-${key}`;
-    }
-    if (e.shiftKey) {
-      key = `Shift-${key}`;
-    }
-  }
-
-  if (key.length === 1 && addQuotes) {
-    key = `'${key}'`;
-  }
-
-  return key;
-}
-
-export type BindingFunction = (cm: EditorAdapter, next?: KeyMapEntry) => void;
-type CallFunction = (key: any, cm: EditorAdapter) => any;
+export type BindingFunction = (
+  adapter: EditorAdapter,
+  next?: KeyMapEntry
+) => void;
+type CallFunction = (key: any, adapter: EditorAdapter) => any;
 type Binding = string | BindingFunction | string[];
 
 export interface KeyMapEntry {
@@ -211,62 +108,33 @@ interface MatchingBracket {
   regex: RegExp;
 }
 
+const kMatchingBrackets: Record<string, MatchingBracket> = {
+  "(": { symbol: ")", mode: "close", regex: /[()]/ },
+  ")": { symbol: "(", mode: "open", regex: /[()]/ },
+  "[": { symbol: "]", mode: "close", regex: /[[\]]/ },
+  "]": { symbol: "[", mode: "open", regex: /[[\]]/ },
+  "{": { symbol: "}", mode: "close", regex: /[{}]/ },
+  "}": { symbol: "{", mode: "open", regex: /[{}]/ },
+  "<": { symbol: ">", mode: "close", regex: /[<>]/ },
+  ">": { symbol: "<", mode: "open", regex: /[<>]/ },
+};
+
 export default class EditorAdapter {
-  static on = dummy("on");
-  static off = dummy("off");
-  static addClass = dummy("addClass");
-  static rmClass = dummy("rmClass");
-  static defineOption = dummy("defineOption");
   static keyMap: Record<string, KeyMapEntry> = {
     default: { find: () => true },
   };
-  static matchingBrackets: Record<string, MatchingBracket> = {
-    "(": { symbol: ")", mode: "close", regex: /[()]/ },
-    ")": { symbol: "(", mode: "open", regex: /[()]/ },
-    "[": { symbol: "]", mode: "close", regex: /[[\]]/ },
-    "]": { symbol: "[", mode: "open", regex: /[[\]]/ },
-    "{": { symbol: "}", mode: "close", regex: /[{}]/ },
-    "}": { symbol: "{", mode: "open", regex: /[{}]/ },
-    "<": { symbol: ">", mode: "close", regex: /[<>]/ },
-    ">": { symbol: "<", mode: "open", regex: /[<>]/ },
-  };
-  static isWordChar = isWordCharBasic;
-  static keyName = monacoToCmKey;
-  static e_stop(e: Event) {
-    if (e.stopPropagation) {
-      e.stopPropagation();
-    } else {
-      e.cancelBubble = true;
-    }
-    EditorAdapter.e_preventDefault(e);
-    return false;
-  }
-
-  static e_preventDefault(e: Event | monaco.IKeyboardEvent) {
-    if (e.preventDefault) {
-      e.preventDefault();
-
-      if (Reflect.has(e, "browserEvent")) {
-        (e as monaco.IKeyboardEvent).browserEvent.preventDefault();
-      }
-    } else {
-      if (Reflect.has(e, "returnValue")) {
-        (e as Event).returnValue = false;
-      }
-    }
-
-    return false;
-  }
-
-  static commands: Record<string, (cm: EditorAdapter) => void> = {
-    redo: function (cm: EditorAdapter) {
-      cm.triggerEditorAction("redo");
+  static commands: Record<
+    string,
+    (adapter: EditorAdapter, params: ExCommandOptionalParameters) => void
+  > = {
+    redo: function (adapter: EditorAdapter) {
+      adapter.triggerEditorAction("redo");
     },
-    undo: function (cm: EditorAdapter) {
-      cm.triggerEditorAction("undo");
+    undo: function (adapter: EditorAdapter) {
+      adapter.triggerEditorAction("undo");
     },
-    newlineAndIndent: function (cm: EditorAdapter) {
-      cm.triggerEditorAction("editor.action.insertLineAfter");
+    newlineAndIndent: function (adapter: EditorAdapter) {
+      adapter.triggerEditorAction("editor.action.insertLineAfter");
     },
   };
 
@@ -307,7 +175,6 @@ export default class EditorAdapter {
   listeners: Record<string, ((...args: any) => void)[]> = {};
   curOp: Operation = {};
   attached: boolean = false;
-  statusBar?: IStatusBar;
   options: any = {};
   ctxInsert: monaco.editor.IContextKey<boolean>;
   replaceMode: boolean = false;
@@ -340,6 +207,7 @@ export default class EditorAdapter {
   }
 
   handleKeyDown(e: monaco.IKeyboardEvent) {
+    const KeyCode = window.monaco.KeyCode;
     // Allow previously registered keydown listeners to handle the event and
     // prevent this extension from also handling it.
     if (e.browserEvent.defaultPrevented && e.keyCode !== KeyCode.Escape) {
@@ -350,7 +218,7 @@ export default class EditorAdapter {
       return;
     }
 
-    const key = monacoToCmKey(e);
+    const key = getEventKeyName(e);
 
     if (this.replaceMode) {
       this.handleReplaceMode(key, e);
@@ -510,14 +378,28 @@ export default class EditorAdapter {
     }
   }
 
-  dispatch(signal: "change", cm: EditorAdapter, change: Change): void;
+  dispatch(
+    signal: "status-prompt",
+    prefix: string,
+    desc: string,
+    options: SecInfoOptions,
+    id: string
+  ): void;
+  dispatch(signal: "status-close-prompt", id: string): void;
+  dispatch(signal: "status-display", message: string, id: string): void;
+  dispatch(signal: "status-close-display", id: string): void;
+  dispatch(signal: "status-notify", message: string): void;
+  dispatch(signal: "change", adapter: EditorAdapter, change: Change): void;
   dispatch(
     signal: "cursorActivity",
-    cm: EditorAdapter,
+    adapter: EditorAdapter,
     e: monaco.editor.ICursorPositionChangedEvent
   ): void;
   dispatch(signal: "dispose"): void;
-  dispatch(signal: string, ...args: any[]): void;
+  dispatch(signal: "vim-command-done", reason?: string): void;
+  dispatch(signal: "vim-set-clipboard-register"): void;
+  dispatch(signal: "vim-mode-change", mode: ModeChangeEvent): void;
+  dispatch(signal: "vim-keypress", key: string): void;
   dispatch(signal: string, ...args: any[]): void {
     const listeners = this.listeners[signal];
     if (!listeners) {
@@ -527,13 +409,32 @@ export default class EditorAdapter {
     listeners.forEach((handler) => handler(...args));
   }
 
+  on(
+    event: "status-prompt",
+    handler: (
+      prefix: string,
+      desc: string,
+      options: SecInfoOptions,
+      id: string
+    ) => void
+  ): void;
+  on(event: "status-close-prompt", handler: (id: string) => void): void;
+  on(
+    event: "status-display",
+    handler: (message: string, id: string) => void
+  ): void;
+  on(event: "status-close-display", handler: (id: string) => void): void;
+  on(
+    event: "status-display" | "status-notify",
+    handler: (message: string) => void
+  ): void;
   on(event: "cursorActivity", handler: (adapter: EditorAdapter) => void): void;
   on(
     event: "change",
     handler: (adapter: EditorAdapter, change: Change) => void
   ): void;
   on(event: "dispose", handler: () => void): void;
-  on(event: "vim-command-done", handler: () => void): void;
+  on(event: "vim-command-done", handler: (reason?: string) => void): void;
   on(event: "vim-set-clipboard-register", handler: () => void): void;
   on(event: "vim-mode-change", handler: (mode: ModeChangeEvent) => void): void;
   on(event: "vim-keypress", handler: (key: string) => void): void;
@@ -608,7 +509,7 @@ export default class EditorAdapter {
 
   getCursor(type: string | null = null) {
     if (!type) {
-      return toCmPos(this.editor.getPosition());
+      return toAdapterPos(this.editor.getPosition());
     }
 
     const sel = this.editor.getSelection();
@@ -622,7 +523,7 @@ export default class EditorAdapter {
       pos = this.getHeadForSelection(sel);
     }
 
-    return toCmPos(pos);
+    return toAdapterPos(pos);
   }
 
   getRange(start: Pos, end: Pos) {
@@ -683,8 +584,8 @@ export default class EditorAdapter {
     return selections.map(
       (sel) =>
         new CmSelection(
-          this.clipPos(toCmPos(this.getAnchorForSelection(sel))),
-          this.clipPos(toCmPos(this.getHeadForSelection(sel)))
+          this.clipPos(toAdapterPos(this.getAnchorForSelection(sel))),
+          this.clipPos(toAdapterPos(this.getHeadForSelection(sel)))
         )
     );
   }
@@ -776,7 +677,7 @@ export default class EditorAdapter {
 
   clipPos(p: Pos) {
     const pos = this.editor.getModel().validatePosition(toMonacoPos(p));
-    return toCmPos(pos);
+    return toAdapterPos(pos);
   }
 
   setBookmark(cursor: Pos, options?: { insertLeft?: boolean }) {
@@ -876,9 +777,9 @@ export default class EditorAdapter {
         const editorHeight = this.editor.getLayoutInfo().height;
         const lineHeight = this.getConfiguration().fontInfo.lineHeight;
         const finalAmount = amount * Math.floor(editorHeight / lineHeight);
-        return toCmPos(liftPosition(pos).delta(finalAmount));
+        return toAdapterPos(liftPosition(pos).delta(finalAmount));
       case "line":
-        return toCmPos(liftPosition(pos).delta(amount));
+        return toAdapterPos(liftPosition(pos).delta(amount));
       default:
         return startPos;
     }
@@ -888,7 +789,7 @@ export default class EditorAdapter {
     const line = this.getLine(cur.line);
     for (let ch = cur.ch; ch < line.length; ch++) {
       const curCh = line.charAt(ch);
-      const matchable = EditorAdapter.matchingBrackets[curCh];
+      const matchable = kMatchingBrackets[curCh];
       if (matchable) {
         // current character is a bracket, simply
         // step 1 forwards (if open)
@@ -1051,10 +952,14 @@ export default class EditorAdapter {
         return lastSearch;
       },
       from() {
-        return lastSearch && toCmPos(liftRange(lastSearch).getStartPosition());
+        return (
+          lastSearch && toAdapterPos(liftRange(lastSearch).getStartPosition())
+        );
       },
       to() {
-        return lastSearch && toCmPos(liftRange(lastSearch).getEndPosition());
+        return (
+          lastSearch && toAdapterPos(liftRange(lastSearch).getEndPosition())
+        );
       },
       replace(text: string) {
         if (lastSearch) {
@@ -1183,7 +1088,7 @@ export default class EditorAdapter {
         return undefined;
       }
 
-      const matchingBracket = EditorAdapter.matchingBrackets[thisBracket];
+      const matchingBracket = kMatchingBrackets[thisBracket];
 
       if (matchingBracket && (matchingBracket.mode === "close") == dir > 0) {
         depth++;
@@ -1191,7 +1096,7 @@ export default class EditorAdapter {
         const res = match.range.getStartPosition();
 
         return {
-          pos: toCmPos(res),
+          pos: toAdapterPos(res),
         };
       } else {
         depth--;
@@ -1213,7 +1118,7 @@ export default class EditorAdapter {
   }
 
   posFromIndex(offset: number) {
-    return toCmPos(this.editor.getModel().getPositionAt(offset));
+    return toAdapterPos(this.editor.getModel().getPositionAt(offset));
   }
 
   indentLine(line: number, indentRight: boolean = true) {
@@ -1270,15 +1175,12 @@ export default class EditorAdapter {
     }
   }
 
-  setStatusBar(statusBar: IStatusBar) {
-    this.statusBar = statusBar;
-  }
-
   displayMessage(message: string): () => void {
-    if (!this.statusBar) {
-      return () => {};
-    }
-    return this.statusBar.setSecStatic(message);
+    const id = uuidv4();
+    this.dispatch("status-display", message, id);
+    return () => {
+      this.dispatch("status-close-display", id);
+    };
   }
 
   openPrompt(
@@ -1286,19 +1188,15 @@ export default class EditorAdapter {
     desc: string,
     options: SecInfoOptions
   ): () => void {
-    if (!this.statusBar) {
-      return () => {};
-    }
-
-    return this.statusBar.setSecPrompt(prefix, desc, options);
+    const id = uuidv4();
+    this.dispatch("status-prompt", prefix, desc, options, id);
+    return () => {
+      this.dispatch("status-close-prompt", id);
+    };
   }
 
   openNotification(message: string) {
-    if (!this.statusBar) {
-      return;
-    }
-
-    this.statusBar.showNotification(message);
+    this.dispatch("status-notify", message);
   }
 
   smartIndent() {

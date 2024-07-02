@@ -1,5 +1,14 @@
-import EditorAdapter, { CmSelection, makePos, Pos } from "./adapter";
-import { copyCursor, cursorIsBefore, cursorMax, cursorMin } from "./common";
+import EditorAdapter, { CmSelection } from "./adapter";
+import {
+  Pos,
+  copyCursor,
+  cursorIsBefore,
+  cursorMax,
+  cursorMin,
+  makePos,
+  getEventKeyName,
+  stopEvent,
+} from "./common";
 import { motions } from "./motions";
 import { actions } from "./actions";
 import { operators } from "./operators";
@@ -222,7 +231,7 @@ export class CommandDispatcher {
       query: string,
       close: (input?: string) => void
     ) => {
-      const keyName = EditorAdapter.keyName(e);
+      const keyName = getEventKeyName(e);
       let up: boolean;
       let offset: number;
       if (keyName == "Up" || keyName == "Down") {
@@ -270,7 +279,7 @@ export class CommandDispatcher {
       query: string,
       close: (text?: string) => void
     ): boolean => {
-      const keyName = EditorAdapter.keyName(e);
+      const keyName = getEventKeyName(e);
       if (
         keyName == "Esc" ||
         keyName == "Ctrl-C" ||
@@ -282,15 +291,15 @@ export class CommandDispatcher {
         updateSearchQuery(adapter, originalQuery.source);
         clearSearchHighlight(adapter);
         adapter.scrollTo(originalScrollPos.left, originalScrollPos.top);
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
         clearInputState(adapter);
         close();
         adapter.focus();
       } else if (keyName == "Up" || keyName == "Down") {
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
       } else if (keyName == "Ctrl-U") {
         // Ctrl-U clears input.
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
         close("");
       }
       return false;
@@ -366,7 +375,7 @@ export class CommandDispatcher {
       input: string,
       close: (value?: string) => void
     ): boolean => {
-      const keyName = EditorAdapter.keyName(e);
+      const keyName = getEventKeyName(e);
       let up;
       let offset;
       if (
@@ -377,14 +386,14 @@ export class CommandDispatcher {
       ) {
         vimGlobalState.exCommandHistoryController.pushInput(input);
         vimGlobalState.exCommandHistoryController.reset();
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
         clearInputState(adapter);
         close();
         adapter.focus();
       }
       const target = e.target as HTMLInputElement;
       if (keyName == "Up" || keyName == "Down") {
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
         up = keyName == "Up" ? true : false;
         offset = target ? target.selectionEnd : 0;
         input =
@@ -397,7 +406,7 @@ export class CommandDispatcher {
           );
       } else if (keyName == "Ctrl-U") {
         // Ctrl-U clears input.
-        EditorAdapter.e_stop(e);
+        stopEvent(e);
         close("");
       } else {
         if (

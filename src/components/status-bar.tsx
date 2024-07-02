@@ -4,13 +4,16 @@ import {
   ModeChangeEvent,
   SecInfoOptions,
 } from "../monaco/vim-mode/statusbar";
+import { ThemeContext } from "./theme-provider";
 
 interface StatusBarProps {
+  filename: string;
   onMount: (statusBar: IStatusBar) => void;
   focusEditor: () => void;
 }
 
 export const StatusBar: React.FC<StatusBarProps> = (props) => {
+  const theme = React.useContext(ThemeContext);
   const [visible, setVisibility] = React.useState(false);
   const [modeText, setModeText] = React.useState("");
   const [notification, setNotification] = React.useState("");
@@ -91,9 +94,26 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
 
   React.useEffect(() => {
     if (notification !== "") {
-      setTimeout(() => setNotification(""), 5000);
+      setTimeout(() => setNotification(""), 50000);
     }
   }, [notification]);
+
+  const haveMultilineNotification = notification.includes("\n");
+  const notificationLines = haveMultilineNotification
+    ? notification.split("\n").length
+    : 0;
+
+  const notificationStyle: React.CSSProperties = haveMultilineNotification
+    ? {
+        whiteSpace: "pre-line",
+        position: "relative",
+        bottom: "1.25em",
+        marginTop: `-${notificationLines * 1.25}em`,
+        boxShadow: `0 0.25em 0.5em ${theme.base00}`,
+        background: theme.boldBackground,
+        zIndex: 100,
+      }
+    : {};
 
   return (
     <div
@@ -103,13 +123,14 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
         borderTop: "1px solid #888",
         padding: "0.1em",
         gap: "1em",
-        minHeight: "1.15em",
-        gridTemplateColumns: "auto 1fr auto auto",
+        minHeight: "1.25em",
+        gridTemplateColumns: "auto auto 1fr auto auto",
       }}
     >
-      <div style={{ textAlign: "center" }}>{modeText}</div>
+      <div>[{props.filename || "No Name"}]</div>
+      <div>{modeText}</div>
       {secondary ? <StatusBarSecondary {...secondary} /> : <div />}
-      <div>{notification}</div>
+      <div style={notificationStyle}>{notification}</div>
       <div>{keyInfo}</div>
     </div>
   );

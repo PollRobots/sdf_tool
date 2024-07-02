@@ -3,8 +3,8 @@ import mime from "mime";
 export function reference(...els: any[]) {}
 // mime.define({ "text/x-scheme": [".scm"] }, true);
 
-export async function saveFilePicker(text: string) {
-  return saveFilePickerComplete([text], "untitled.scm");
+export async function saveFilePicker(text: string, filename?: string) {
+  return saveFilePickerComplete([text], filename || "untitled.scm");
 }
 
 export function getMimeType(path: string): string {
@@ -17,7 +17,7 @@ export function getMimeType(path: string): string {
 export async function saveFilePickerComplete(
   data: BlobPart[] | Blob,
   suggestedName: string
-) {
+): Promise<string> {
   const blob = Array.isArray(data)
     ? new Blob(data, { type: getMimeType(suggestedName) })
     : data;
@@ -55,6 +55,7 @@ export async function saveFilePickerComplete(
   const writable = await handle.createWritable();
   await writable.write(blob);
   await writable.close();
+  return handle.name;
 }
 
 function saveFallback(blob: Blob) {
@@ -62,9 +63,10 @@ function saveFallback(blob: Blob) {
   anchor.href = window.URL.createObjectURL(blob);
   anchor.download = "untitled.scm";
   anchor.click();
+  return "untitled.scm";
 }
 
-export async function openFilePicker(): Promise<string> {
+export async function openFilePicker(): Promise<File> {
   let text = "";
   if (!Reflect.has(window, "showOpenFilePicker")) {
     return openFallback();
@@ -83,11 +85,11 @@ export async function openFilePicker(): Promise<string> {
   });
 
   const file = await handle.getFile();
-  return file.text();
+  return file;
 }
 
-function openFallback(): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
+function openFallback(): Promise<File> {
+  return new Promise<File>((resolve, reject) => {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = false;
@@ -106,7 +108,7 @@ function openFallback(): Promise<string> {
         return reject(new Error("No File"));
       }
       window.clearTimeout(timeout);
-      resolve(await file.text());
+      resolve(file);
     });
 
     input.click();

@@ -24,12 +24,8 @@ THE SOFTWARE.
 import EditorAdapter, {
   Change,
   CmSelection,
-  isPos,
   KeyMapEntry,
-  makePos,
   Marker,
-  Pos,
-  signal,
 } from "./adapter";
 import { StringStream } from "./string-stream";
 import { defaultKeymap } from "./defaultKeyMap";
@@ -41,11 +37,16 @@ import {
   cursorIsBefore,
   cursorMax,
   cursorMin,
+  stopEvent,
   inArray,
   isLowerCase,
   isNumber,
   isUpperCase,
   isWhiteSpaceString,
+  getEventKeyName,
+  Pos,
+  isPos,
+  makePos,
 } from "./common";
 import { MotionFunc } from "./motions";
 import {
@@ -263,7 +264,7 @@ export interface ExCommand {
 function enterVimMode(adapter: EditorAdapter) {
   adapter.setOption("disableInput", true);
   adapter.setOption("showCursorWhenSelecting", false);
-  signal(adapter, "vim-mode-change", { mode: "normal" });
+  adapter.dispatch("vim-mode-change", { mode: "normal" });
   adapter.on("cursorActivity", onCursorActivity);
   maybeInitVimState(adapter);
   // EditorAdapter.on(adapter.getInputField(), 'paste', getOnPasteFn(adapter));
@@ -310,7 +311,7 @@ function cmKey(key: string, adapter: EditorAdapter) {
   }
   const cmd = vimApi.findKey(adapter, vimKey);
   if (typeof cmd == "function") {
-    signal(adapter, "vim-keypress", vimKey);
+    adapter.dispatch("vim-keypress", vimKey);
   }
   return cmd;
 }
@@ -534,7 +535,7 @@ export function resetVimGlobalState() {
 
 export function clearInputState(adapter: EditorAdapter, reason?: string) {
   (adapter.state.vim as VimState).inputState = new InputState();
-  signal(adapter, "vim-command-done", reason);
+  adapter.dispatch("vim-command-done", reason);
 }
 
 /*
@@ -810,7 +811,7 @@ export function exitVisualMode(adapter: EditorAdapter, moveHead?: boolean) {
   vim.visualMode = false;
   vim.visualLine = false;
   vim.visualBlock = false;
-  if (!vim.insertMode) signal(adapter, "vim-mode-change", { mode: "normal" });
+  if (!vim.insertMode) adapter.dispatch("vim-mode-change", { mode: "normal" });
 }
 
 // Remove any trailing newlines from the selection. For
@@ -1801,16 +1802,28 @@ export const exCommands: Record<string, ExCommandFunc> = {
   },
   redo: EditorAdapter.commands.redo,
   undo: EditorAdapter.commands.undo,
-  edit: function (adapter) {
+  edit: function (adapter, params) {
     if (EditorAdapter.commands.open) {
       // If an open command is defined, call it.
-      EditorAdapter.commands.open(adapter);
+      EditorAdapter.commands.open(adapter, params);
     }
   },
-  write: function (adapter) {
+  save: function (adapter, params) {
+    if (!params.args || params.args.length !== 1) {
+      showConfirm(adapter, `save requires a single argument`);
+      return;
+    } else {
+      params.argString = params.args[0];
+    }
     if (EditorAdapter.commands.save) {
       // If a save command is defined, call it.
-      EditorAdapter.commands.save(adapter);
+      EditorAdapter.commands.save(adapter, params);
+    }
+  },
+  write: function (adapter, params) {
+    if (EditorAdapter.commands.save) {
+      // If a save command is defined, call it.
+      EditorAdapter.commands.save(adapter, params);
     }
   },
   nohlsearch: function (adapter) {
@@ -2007,8 +2020,8 @@ function doReplace(
     close: () => void
   ) => {
     // Swallow all keys.
-    EditorAdapter.e_stop(e);
-    const keyName = EditorAdapter.keyName(e);
+    stopEvent(e);
+    const keyName = getEventKeyName(e);
     switch (keyName) {
       case "Y":
         replace();
@@ -2090,7 +2103,7 @@ export function exitInsertMode(adapter: EditorAdapter) {
   adapter.toggleOverwrite(false); // exit replace mode if we were in it.
   // update the ". register before exiting insert mode
   insertModeChangeRegister.setText(lastChange.changes.join(""));
-  signal(adapter, "vim-mode-change", { mode: "normal" });
+  adapter.dispatch("vim-mode-change", { mode: "normal" });
   if (macroModeState.isRecording) {
     logInsertModeChange(macroModeState);
   }
@@ -2253,7 +2266,7 @@ function handleExternalSelection(adapter: EditorAdapter, vim: VimState) {
   ) {
     vim.visualMode = true;
     vim.visualLine = false;
-    signal(adapter, "vim-mode-change", { mode: "visual" });
+    adapter.dispatch("vim-mode-change", { mode: "visual" });
   }
   if (vim.visualMode) {
     // Bind EditorAdapter selection model to vim selection model.
@@ -2347,7 +2360,7 @@ export function repeatInsertModeChanges(
 ) {
   const keyHandler = (binding: string | ((adapter: EditorAdapter) => void)) => {
     if (typeof binding == "string") {
-      EditorAdapter.commands[binding](adapter);
+      EditorAdapter.commands[binding](adapter, {});
     } else {
       binding(adapter);
     }

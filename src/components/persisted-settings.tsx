@@ -86,6 +86,7 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
     >
       <label htmlFor={vimModeId}>Vim mode:</label>
       <input
+        id={vimModeId}
         type="checkbox"
         checked={props.vimMode}
         onChange={() => update({ vimMode: !props.vimMode })}

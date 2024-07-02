@@ -19,14 +19,35 @@ interface SetOptionConfig {
   adapterOption?: boolean;
 }
 
+export class FileEvent extends Event {
+  readonly filename: string;
+
+  constructor(type: "open-file" | "save-file", filename: string) {
+    super(type);
+    this.filename = filename;
+  }
+}
+interface Listener<T> {
+  (evt: T): void;
+}
+
+interface ListenerObject<T> {
+  handleEvent(object: T): void;
+}
+
+type EventHandler<T> = Listener<T> | ListenerObject<T>;
+
 export class VimMode implements EventTarget {
   private editor_: monaco.editor.IStandaloneCodeEditor;
   private statusBar_?: IStatusBar;
   private adapter_: EditorAdapter;
   private keyBuffer_: string = "";
   private attached_: boolean = false;
-  private listeners_: Map<string, EventListenerOrEventListenerObject[]> =
-    new Map();
+  private listeners_: Map<
+    string,
+    (EventHandler<Event> | EventHandler<FileEvent>)[]
+  > = new Map();
+  private closers_: Map<string, () => void> = new Map();
 
   constructor(
     editor: monaco.editor.IStandaloneCodeEditor,
@@ -65,19 +86,47 @@ export class VimMode implements EventTarget {
         this.statusBar_.setKeyBuffer(this.keyBuffer_);
       });
 
+      this.adapter_.on("status-display", (msg, id) => {
+        const closer = this.statusBar_.setSecStatic(msg);
+        this.closers_.set(id, closer);
+      });
+
+      this.adapter_.on("status-close-display", (id) => {
+        const closer = this.closers_.get(id);
+        if (closer) {
+          closer();
+          this.closers_.delete(id);
+        }
+      });
+
+      this.adapter_.on("status-prompt", (prefix, desc, options, id) => {
+        const closer = this.statusBar_.setSecPrompt(prefix, desc, options);
+        this.closers_.set(id, closer);
+      });
+
+      this.adapter_.on("status-close-prompt", (id) => {
+        const closer = this.closers_.get(id);
+        if (closer) {
+          closer();
+          this.closers_.delete(id);
+        }
+      });
+
+      this.adapter_.on("status-notify", (msg) => {
+        this.statusBar_.showNotification(msg);
+      });
+
       this.adapter_.on("dispose", () => {
         this.statusBar_.toggleVisibility(false);
         this.statusBar_.closeInput();
         this.statusBar_.clear();
       });
-
-      this.adapter_.setStatusBar(this.statusBar_);
     }
 
-    EditorAdapter.commands["open"] = () =>
-      this.dispatchEvent(new Event("open-file"));
-    EditorAdapter.commands["save"] = () =>
-      this.dispatchEvent(new Event("save-file"));
+    EditorAdapter.commands["open"] = (adapter, params) =>
+      this.dispatchEvent(new FileEvent("open-file", params.argString || ""));
+    EditorAdapter.commands["save"] = (adapter, params) =>
+      this.dispatchEvent(new FileEvent("save-file", params.argString || ""));
   }
 
   get attached(): boolean {
@@ -85,13 +134,18 @@ export class VimMode implements EventTarget {
   }
 
   addEventListener(
-    type: "clipboard" | "open-file" | "save-file",
-    callback: EventListenerOrEventListenerObject,
+    type: "open-file" | "save-file",
+    callback: EventHandler<FileEvent>,
+    options?: boolean | AddEventListenerOptions
+  ): void;
+  addEventListener(
+    type: "clipboard",
+    callback: EventHandler<Event>,
     options?: boolean | AddEventListenerOptions
   ): void;
   addEventListener(
     type: string,
-    callback: EventListenerOrEventListenerObject,
+    callback: EventHandler<Event> | EventHandler<FileEvent>,
     options?: boolean | AddEventListenerOptions
   ): void {
     const typeListeners = this.listeners_.get(type);
@@ -122,7 +176,7 @@ export class VimMode implements EventTarget {
 
   removeEventListener(
     type: string,
-    callback: EventListenerOrEventListenerObject,
+    callback: EventHandler<Event> | EventHandler<FileEvent>,
     options?: boolean | EventListenerOptions
   ): void {
     const typeListeners = this.listeners_.get(type);

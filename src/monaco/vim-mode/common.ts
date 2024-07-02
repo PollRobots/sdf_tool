@@ -1,4 +1,17 @@
-import { Pos } from "./adapter";
+import { IKeyboardEvent } from "monaco-editor";
+
+export interface Pos {
+  line: number;
+  ch: number;
+}
+
+export const isPos = (value: any): value is Pos =>
+  value && typeof value.line === "number" && typeof value.ch === "number";
+
+export const makePos = (line: number, ch: number): Pos => ({
+  line: line,
+  ch: ch,
+});
 
 export function findFirstNonWhiteSpaceCharacter(text: string) {
   if (!text) {
@@ -58,3 +71,90 @@ export const cursorMax = (...cursors: Pos[]): Pos =>
 export const cursorIsBetween = (low: Pos, test: Pos, high: Pos): boolean =>
   // returns true if cur2 is between cur1 and cur3.
   cursorIsBefore(low, test) && cursorIsBefore(test, high);
+
+export const stopEvent = (evt: Event | IKeyboardEvent) => {
+  evt.stopPropagation();
+  evt.preventDefault();
+
+  if (Reflect.has(evt, "browserEvent")) {
+    (evt as IKeyboardEvent).browserEvent.preventDefault();
+  }
+
+  return false;
+};
+
+export const getEventKeyName = (
+  e: IKeyboardEvent | KeyboardEvent,
+  skip = false
+) => {
+  const KeyCode = window.monaco.KeyCode;
+  let addQuotes = true;
+  let keyName = KeyCode[e.keyCode];
+
+  if ((e as any).key) {
+    keyName = (e as any).key as string;
+    addQuotes = false;
+  }
+
+  let key = keyName;
+  let skipOnlyShiftCheck = skip;
+
+  switch (e.keyCode) {
+    case KeyCode.Shift:
+    case KeyCode.Meta:
+    case KeyCode.Alt:
+    case KeyCode.Ctrl:
+      return key;
+    case KeyCode.Escape:
+      skipOnlyShiftCheck = true;
+      key = "Esc";
+      break;
+    case KeyCode.Space:
+      skipOnlyShiftCheck = true;
+      break;
+  }
+
+  // `Key` check for monaco >= 0.30.0
+  if (keyName.startsWith("Key") || keyName.startsWith("KEY_")) {
+    key = keyName[keyName.length - 1].toLowerCase();
+  } else if (keyName.startsWith("Digit")) {
+    key = keyName.slice(5, 6);
+  } else if (keyName.startsWith("Numpad")) {
+    key = keyName.slice(6, 7);
+  } else if (keyName.endsWith("Arrow")) {
+    skipOnlyShiftCheck = true;
+    key = keyName.substring(0, keyName.length - 5);
+  } else if (
+    keyName.startsWith("US_") ||
+    // `Bracket` check for monaco >= 0.30.0
+    keyName.startsWith("Bracket") ||
+    !key
+  ) {
+    if (Reflect.has(e, "browserEvent")) {
+      key = (e as IKeyboardEvent).browserEvent.key;
+    }
+  }
+
+  if (!skipOnlyShiftCheck && !e.altKey && !e.ctrlKey && !e.metaKey) {
+    key = (e as KeyboardEvent).key || (e as IKeyboardEvent).browserEvent.key;
+  } else {
+    if (e.altKey) {
+      key = `Alt-${key}`;
+    }
+    if (e.ctrlKey) {
+      key = `Ctrl-${key}`;
+    }
+    if (e.metaKey) {
+      key = `Meta-${key}`;
+    }
+    if (e.shiftKey) {
+      key = `Shift-${key}`;
+    }
+  }
+
+  if (key.length === 1 && addQuotes) {
+    key = `'${key}'`;
+  }
+
+  return key;
+};
