@@ -30,7 +30,7 @@ export const Editor: React.FC<EditorProps> = (props) => {
     if (!editorRef.current) {
       return;
     }
-    editorRef.current.updateOptions({ theme: props.theme });
+    window.monaco.editor.setTheme(props.theme);
   }, [props.theme]);
 
   React.useEffect(() => {

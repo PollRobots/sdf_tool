@@ -1,13 +1,8 @@
 import React from "react";
 import { WebGPUCanvas } from "./components/web-gpu-canvas";
 import shader from "./shader.wgsl";
-import { kSolarizedDark, kSolarizedLight } from "./monaco/solarized";
-import { EditorThemeProvider } from "./components/theme-provider";
-import {
-  kSolarizedContrastDark,
-  kSolarizedContrastLight,
-} from "./monaco/solarized-contrast";
-import { kTerminalDark, kTerminalLight } from "./monaco/terminal";
+import { kSolarizedDark } from "./monaco/solarized";
+import { ThemeProvider, kDefinedThemes } from "./components/theme-provider";
 import { updateStyleSheet } from "./components/style-sheet";
 import { read } from "./read";
 import { print } from "./print";
@@ -45,15 +40,6 @@ const DslEditor = React.lazy(async () => {
   return import("./components/dsl-editor");
 });
 
-const kEditorThemes = new Map([
-  ["dark", kSolarizedDark],
-  ["light", kSolarizedLight],
-  ["term-dark", kTerminalDark],
-  ["term-light", kTerminalLight],
-  ["hico-dark", kSolarizedContrastDark],
-  ["hico-light", kSolarizedContrastLight],
-]);
-
 const makeShader = (template: string, generated: string, valueCount: number) =>
   template
     .replace(
@@ -78,7 +64,7 @@ export const App: React.FC = () => {
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
 
-  const currTheme = kEditorThemes.get(settings.themeName) || kSolarizedDark;
+  const currTheme = kDefinedThemes.get(settings.themeName) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
 
   if (!forcedColors) {
@@ -301,7 +287,7 @@ ${el.code}
               </div>
             }
           >
-            <EditorThemeProvider value={forcedColors ? false : currTheme}>
+            <ThemeProvider value={currTheme}>
               <DslEditor
                 style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
                 line=""
@@ -312,7 +298,7 @@ ${el.code}
                 onCaptureUniforms={() => captureUniforms()}
                 onSettingsChange={(v) => setSettings(v)}
               />
-            </EditorThemeProvider>
+            </ThemeProvider>
           </React.Suspense>
         </ErrorBoundary>
         <div

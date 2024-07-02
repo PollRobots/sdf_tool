@@ -2,7 +2,7 @@ import React from "react";
 import monaco from "monaco-editor";
 
 import { IconButton } from "./icon-button";
-import { EditorThemeContext, ThemeContext } from "./theme-provider";
+import { ThemeContext, kDefinedThemes } from "./theme-provider";
 import {
   Cut,
   Copy,
@@ -27,14 +27,10 @@ import { HintProvider } from "../monaco/hint-provider";
 import { HoverProvider } from "../monaco/hover-provider";
 import { CodeLensProvider } from "../monaco/code-lens-provider";
 import { PersistedSettings, SettingsEditor } from "./persisted-settings";
-import {
-  IStatusBar,
-  ModeChangeEvent,
-  SecInfoOptions,
-} from "../monaco/vim-mode/statusbar";
-import { initVimMode } from "../monaco/vim-mode/vim-mode";
-import CMAdapter from "../monaco/vim-mode/cm_adapter";
-import { IRegister, vimApi } from "../monaco/vim-mode/keymap_vim";
+import { IStatusBar } from "../monaco/vim-mode/statusbar";
+import { VimMode } from "../monaco/vim-mode/vim-mode";
+import { IRegister } from "../monaco/vim-mode/keymap_vim";
+import { StatusBar } from "./status-bar";
 
 interface DslEditorProps {
   line: string;
@@ -141,7 +137,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     React.useRef<monaco.editor.IStandaloneCodeEditor>(null);
   const [statusBar, setStatusBar] = React.useState<IStatusBar>(null);
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
-  const vimAdapter = React.useRef<CMAdapter>(null);
+  const vimAdapter = React.useRef<VimMode>(null);
 
   React.useEffect(() => {
     if (monacoInstance.current) {
@@ -150,6 +146,18 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       });
     }
   }, [props.settings.fontSize]);
+
+  React.useEffect(() => {
+    if (vimAdapter.current && vimAdapter.current.attached) {
+      vimAdapter.current.setOption(
+        "theme",
+        kDefinedThemes.get(props.settings.themeName).name,
+        {
+          adapterOption: true,
+        }
+      );
+    }
+  }, [props.settings.themeName]);
 
   const onEditorMount = (editor: monaco.editor.IStandaloneCodeEditor) => {
     editor.updateOptions({
@@ -205,34 +213,43 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
 
       if (!vimAdapter.current) {
         if (props.settings.vimMode) {
-          const adapter = initVimMode(editor, statusBar);
-          adapter.attach();
-          CMAdapter.commands["open"] = () =>
+          const vimMode = new VimMode(editor, statusBar);
+          vimMode.enable();
+          vimMode.addEventListener("open-file", () =>
             openFilePicker()
               .then((text) => {
                 editor.setValue(text);
               })
               .catch((err) => {})
-              .finally(() => editor.focus());
-          CMAdapter.commands["save"] = () =>
+              .finally(() => editor.focus())
+          );
+          vimMode.addEventListener("save-file", () =>
             saveFilePicker(editor.getValue())
               .catch((err) => {})
-              .finally(() => editor.focus());
+              .finally(() => editor.focus())
+          );
 
-          vimAdapter.current = adapter;
           // Our DSL is scheme-like, so it makes sense to add the '-' character
           // to the iskeyword option, this makes w and * work with identifiers.
           // This is equivalent to :set iskeyword+=-
-          vimApi.setOption("iskeyword", "-", adapter, { append: true });
+          vimMode.setOption("iskeyword", "-", { append: true });
           const clipboard = new ClipboardRegister();
-          vimApi.defineRegister("*", clipboard);
-          vimApi.defineRegister("+", clipboard);
-          adapter.on("vim-set-clipboard-register", () => clipboard.poke());
+          vimMode.setClipboardRegister(clipboard);
+          vimMode.addEventListener("clipboard", () => clipboard.poke());
+
+          vimAdapter.current = vimMode;
         }
       } else if (props.settings.vimMode) {
-        vimAdapter.current.attach();
+        vimAdapter.current.enable();
+        vimAdapter.current.setOption(
+          "theme",
+          kDefinedThemes.get(props.settings.themeName).name,
+          {
+            adapterOption: true,
+          }
+        );
       } else {
-        vimAdapter.current.detach();
+        vimAdapter.current.disable();
       }
     }
   }, [monacoInstance.current, statusBar, props.settings.vimMode]);
@@ -375,428 +392,215 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
 
   return (
     <ThemeContext.Consumer>
-      {(theme) => (
-        <EditorThemeContext.Consumer>
-          {(maybeTheme) => {
-            const editorTheme = maybeTheme || theme;
-            const themeName = checkForForcedTheme(editorTheme.name);
-            return (
+      {(theme) => {
+        const themeName = checkForForcedTheme(theme.name);
+        return (
+          <div
+            style={{
+              color: theme.foreground,
+              background: theme.background,
+              ...(props.style || {}),
+              border: `solid 1px ${theme.base00}`,
+            }}
+          >
+            <div
+              style={{
+                display: "grid",
+                background: theme.boldBackground,
+                padding: "0.25em",
+                gridTemplateColumns: "auto 1fr auto",
+              }}
+            >
               <div
                 style={{
-                  color: editorTheme.foreground,
-                  background: editorTheme.background,
-                  ...(props.style || {}),
-                  border: `solid 1px ${editorTheme.base00}`,
+                  display: "grid",
+                  gridTemplateColumns:
+                    "1fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
+                  columnGap: "0.25em",
+                  alignSelf: "center",
                 }}
               >
-                <div
-                  style={{
-                    display: "grid",
-                    background: editorTheme.boldBackground,
-                    padding: "0.25em",
-                    gridTemplateColumns: "auto 1fr auto",
+                <div />
+                <IconButton
+                  title="Toggle Positions"
+                  size={props.settings.fontSize * 2}
+                  onClick={() => props.onTogglePositions()}
+                >
+                  <Switch />
+                </IconButton>
+                <div />
+                <IconButton
+                  size={props.settings.fontSize * 2}
+                  title="Cut"
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    editor.focus();
+                    const selection = editor.getSelection();
+                    if (!selection || selection.isEmpty()) {
+                      navigator.clipboard.writeText("");
+                      return;
+                    }
+                    const data = editor.getModel()?.getValueInRange(selection);
+                    navigator.clipboard.writeText(data || "");
+                    editor.executeEdits("clipboard", [
+                      {
+                        range: selection,
+                        text: "",
+                        forceMoveMarkers: true,
+                      },
+                    ]);
                   }}
                 >
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "1fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
-                      columnGap: "0.25em",
-                      alignSelf: "center",
-                    }}
-                  >
-                    <div />
-                    <IconButton
-                      title="Toggle Positions"
-                      size={props.settings.fontSize * 2}
-                      onClick={() => props.onTogglePositions()}
-                    >
-                      <Switch />
-                    </IconButton>
-                    <div />
-                    <IconButton
-                      size={props.settings.fontSize * 2}
-                      title="Cut"
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        editor.focus();
-                        const selection = editor.getSelection();
-                        if (!selection || selection.isEmpty()) {
-                          navigator.clipboard.writeText("");
-                          return;
-                        }
-                        const data = editor
-                          .getModel()
-                          ?.getValueInRange(selection);
-                        navigator.clipboard.writeText(data || "");
-                        editor.executeEdits("clipboard", [
-                          {
-                            range: selection,
-                            text: "",
-                            forceMoveMarkers: true,
-                          },
-                        ]);
-                      }}
-                    >
-                      <Cut />
-                    </IconButton>
-                    <IconButton
-                      size={props.settings.fontSize * 2}
-                      title="Copy"
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        editor.focus();
-                        const selection = editor.getSelection();
-                        if (!selection || selection.isEmpty()) {
-                          navigator.clipboard.writeText("");
-                          return;
-                        }
-                        const data = editor
-                          .getModel()
-                          ?.getValueInRange(selection);
-                        navigator.clipboard.writeText(data || "");
-                      }}
-                    >
-                      <Copy />
-                    </IconButton>
-                    <IconButton
-                      size={props.settings.fontSize * 2}
-                      title="Paste"
-                      disabled={!canPaste}
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        editor.focus();
-                        navigator.clipboard.readText().then((v) => {
-                          const selection = editor.getSelection();
-                          if (!selection) {
-                            return;
-                          }
-                          editor.executeEdits("clipboard", [
-                            {
-                              range: selection,
-                              text: v,
-                              forceMoveMarkers: true,
-                            },
-                          ]);
-                        });
-                      }}
-                    >
-                      <Paste />
-                    </IconButton>
-                    <div />
-                    <IconButton
-                      disabled={currentVersion <= initialVersion}
-                      size={props.settings.fontSize * 2}
-                      title="Undo"
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        editor.trigger("toolbar", "undo", null);
-                      }}
-                    >
-                      <Undo />
-                    </IconButton>
-                    <IconButton
-                      disabled={currentVersion >= highVersion}
-                      size={props.settings.fontSize * 2}
-                      title="Redo"
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        editor.trigger("toolbar", "redo", null);
-                      }}
-                    >
-                      <Redo />
-                    </IconButton>
-                    <div />
-                    <IconButton
-                      size={props.settings.fontSize * 2}
-                      title="Open"
-                      onClick={() => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-                        openFilePicker()
-                          .then((text) => {
-                            editor.focus();
-                            editor.setValue(text);
-                          })
-                          .catch((err) => {
-                            editor.focus();
-                          });
-                      }}
-                    >
-                      <Open />
-                    </IconButton>
-                    <IconButton
-                      size={props.settings.fontSize * 2}
-                      title="Save"
-                      onClick={async () => {
-                        const editor = monacoInstance.current;
-                        if (!editor) {
-                          return;
-                        }
-
-                        const content = editor.getValue();
-                        saveFilePicker(content)
-                          .catch((err) => {
-                            console.error(err);
-                          })
-                          .finally(() => editor.focus());
-                      }}
-                    >
-                      <Save />
-                    </IconButton>
-                  </div>
-                  <div />
-                  {forcedColors ? null : (
-                    <SettingsEditor
-                      {...props.settings}
-                      onChange={(value) => props.onSettingsChange(value)}
-                    />
-                  )}
-                </div>
-                <Editor
-                  style={{
-                    height: "93vh",
-                    maxWidth: "calc(95vw - 8rem)",
+                  <Cut />
+                </IconButton>
+                <IconButton
+                  size={props.settings.fontSize * 2}
+                  title="Copy"
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    editor.focus();
+                    const selection = editor.getSelection();
+                    if (!selection || selection.isEmpty()) {
+                      navigator.clipboard.writeText("");
+                      return;
+                    }
+                    const data = editor.getModel()?.getValueInRange(selection);
+                    navigator.clipboard.writeText(data || "");
                   }}
-                  theme={themeName}
-                  defaultLanguage={kLanguageId}
-                  defaultValue={props.line}
-                  onMount={(mounted: monaco.editor.IStandaloneCodeEditor) =>
-                    onEditorMount(mounted)
-                  }
-                />
-                <StatusBar
-                  onMount={(statusBar) => onStatusBarMounted(statusBar)}
-                  focusEditor={() => monacoInstance.current.focus()}
-                />
+                >
+                  <Copy />
+                </IconButton>
+                <IconButton
+                  size={props.settings.fontSize * 2}
+                  title="Paste"
+                  disabled={!canPaste}
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    editor.focus();
+                    navigator.clipboard.readText().then((v) => {
+                      const selection = editor.getSelection();
+                      if (!selection) {
+                        return;
+                      }
+                      editor.executeEdits("clipboard", [
+                        {
+                          range: selection,
+                          text: v,
+                          forceMoveMarkers: true,
+                        },
+                      ]);
+                    });
+                  }}
+                >
+                  <Paste />
+                </IconButton>
+                <div />
+                <IconButton
+                  disabled={currentVersion <= initialVersion}
+                  size={props.settings.fontSize * 2}
+                  title="Undo"
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    editor.trigger("toolbar", "undo", null);
+                  }}
+                >
+                  <Undo />
+                </IconButton>
+                <IconButton
+                  disabled={currentVersion >= highVersion}
+                  size={props.settings.fontSize * 2}
+                  title="Redo"
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    editor.trigger("toolbar", "redo", null);
+                  }}
+                >
+                  <Redo />
+                </IconButton>
+                <div />
+                <IconButton
+                  size={props.settings.fontSize * 2}
+                  title="Open"
+                  onClick={() => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+                    openFilePicker()
+                      .then((text) => {
+                        editor.focus();
+                        editor.setValue(text);
+                      })
+                      .catch((err) => {
+                        editor.focus();
+                      });
+                  }}
+                >
+                  <Open />
+                </IconButton>
+                <IconButton
+                  size={props.settings.fontSize * 2}
+                  title="Save"
+                  onClick={async () => {
+                    const editor = monacoInstance.current;
+                    if (!editor) {
+                      return;
+                    }
+
+                    const content = editor.getValue();
+                    saveFilePicker(content)
+                      .catch((err) => {
+                        console.error(err);
+                      })
+                      .finally(() => editor.focus());
+                  }}
+                >
+                  <Save />
+                </IconButton>
               </div>
-            );
-          }}
-        </EditorThemeContext.Consumer>
-      )}
+              <div />
+              {forcedColors ? null : (
+                <SettingsEditor
+                  {...props.settings}
+                  onChange={(value) => props.onSettingsChange(value)}
+                />
+              )}
+            </div>
+            <Editor
+              style={{
+                height: "93vh",
+                maxWidth: "calc(95vw - 8rem)",
+              }}
+              theme={themeName}
+              defaultLanguage={kLanguageId}
+              defaultValue={props.line}
+              onMount={(mounted: monaco.editor.IStandaloneCodeEditor) =>
+                onEditorMount(mounted)
+              }
+            />
+            <StatusBar
+              onMount={(statusBar) => onStatusBarMounted(statusBar)}
+              focusEditor={() => monacoInstance.current.focus()}
+            />
+          </div>
+        );
+      }}
     </ThemeContext.Consumer>
-  );
-};
-
-interface StatusBarProps {
-  onMount: (statusBar: IStatusBar) => void;
-  focusEditor: () => void;
-}
-
-const StatusBar: React.FC<StatusBarProps> = (props) => {
-  const [visible, setVisibility] = React.useState(false);
-  const [modeText, setModeText] = React.useState("");
-  const [notification, setNotification] = React.useState("");
-  const [keyInfo, setKeyInfo] = React.useState("");
-  const [secondary, setSecondary] =
-    React.useState<StatusBarSecondaryProps>(null);
-
-  const toggleVisibility = (visible: boolean) => setVisibility(visible);
-  const showNotification = (message: string) => setNotification(message);
-  const setMode = (ev: ModeChangeEvent) => {
-    switch (ev.mode) {
-      case "visual":
-        switch (ev.subMode) {
-          case "linewise":
-            setModeText("--VISUAL LINE--");
-            break;
-          case "blockwise":
-            setModeText("--VISUAL BLOCK--");
-            break;
-          default:
-            setModeText("--VISUAL--");
-        }
-        break;
-      case "normal":
-        setModeText("");
-        break;
-      default:
-        setModeText(`--${ev.mode.toUpperCase()}--`);
-    }
-  };
-  const setKeyBuffer = (key: string) => {
-    setKeyInfo(key);
-  };
-  const setSecStatic = (message: string) => {
-    setSecondary({
-      mode: "static",
-      staticMessage: message,
-      prefix: "",
-      desc: "",
-      options: {},
-      close: closeInput,
-    });
-    return closeInput;
-  };
-  const setSecPrompt = (
-    prefix: string,
-    desc: string,
-    options: SecInfoOptions
-  ) => {
-    setSecondary({
-      mode: "input",
-      staticMessage: "",
-      prefix: prefix,
-      desc: desc,
-      options: options,
-      close: closeInput,
-    });
-    return closeInput;
-  };
-  const closeInput = () => {
-    setSecondary(null);
-    props.focusEditor();
-  };
-  const clear = () => {};
-
-  React.useEffect(() => {
-    props.onMount({
-      toggleVisibility: toggleVisibility,
-      showNotification: showNotification,
-      setMode: setMode,
-      setKeyBuffer: setKeyBuffer,
-      setSecStatic: setSecStatic,
-      setSecPrompt: setSecPrompt,
-      closeInput: closeInput,
-      clear: clear,
-    });
-  }, []);
-
-  React.useEffect(() => {
-    if (notification !== "") {
-      setTimeout(() => setNotification(""), 5000);
-    }
-  }, [notification]);
-
-  return (
-    <div
-      style={{
-        display: visible ? "grid" : "none",
-        fontFamily: '"Fira Code Variable",  monospace',
-        borderTop: "1px solid #888",
-        padding: "0.1em",
-        gap: "1em",
-        minHeight: "1.15em",
-        gridTemplateColumns: "auto 1fr auto auto",
-      }}
-    >
-      <div style={{ textAlign: "center" }}>{modeText}</div>
-      {secondary ? <StatusBarSecondary {...secondary} /> : <div />}
-      <div>{notification}</div>
-      <div>{keyInfo}</div>
-    </div>
-  );
-};
-
-interface StatusBarSecondaryProps {
-  mode: "static" | "input";
-  staticMessage: string;
-  prefix: string;
-  desc: string;
-  options: SecInfoOptions;
-  close: () => void;
-}
-
-const StatusBarSecondary: React.FC<StatusBarSecondaryProps> = (props) => {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    if (inputRef.current) {
-      if (props.options.selectValueOnOpen) {
-        inputRef.current.select();
-      }
-      inputRef.current.focus();
-    }
-  }, [inputRef.current]);
-
-  return props.mode == "static" ? (
-    <div>{props.staticMessage}</div>
-  ) : (
-    <div
-      style={{
-        display: "grid",
-        gap: "0.5em",
-        fontFamily: '"Fira Code Variable",  monospace',
-        gridTemplateColumns: "auto 1fr auto",
-      }}
-    >
-      <div>{props.prefix}</div>
-      <input
-        style={{
-          border: "none",
-          background: "none",
-          outline: "none",
-          marginLeft: "-0.5em",
-          paddingLeft: 0,
-        }}
-        ref={inputRef}
-        type="text"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck="false"
-        onKeyUp={(evt) => {
-          if (props.options.onKeyUp) {
-            props.options.onKeyUp(
-              evt.nativeEvent,
-              inputRef.current.value,
-              props.close
-            );
-          }
-        }}
-        onBlur={() => {
-          if (props.options.closeOnBlur) {
-            props.close();
-          }
-        }}
-        onKeyDown={(evt) => {
-          if (props.options.onKeyDown) {
-            if (
-              props.options.onKeyDown(
-                evt.nativeEvent,
-                inputRef.current.value,
-                props.close
-              )
-            ) {
-              return;
-            }
-          }
-
-          if (
-            evt.key === "Escape" ||
-            (props.options.closeOnEnter !== false && evt.key === "Enter")
-          ) {
-            inputRef.current.blur();
-            evt.stopPropagation();
-            props.close();
-          }
-
-          if (evt.key === "Enter" && props.options.onClose) {
-            evt.stopPropagation();
-            evt.preventDefault();
-            props.options.onClose(inputRef.current.value);
-          }
-        }}
-      />
-      <div style={{ color: "#888" }}>{props.desc}</div>
-    </div>
   );
 };
 

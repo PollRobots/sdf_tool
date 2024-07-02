@@ -3,7 +3,7 @@
  */
 import { IPosition, IRange, ISelection } from "monaco-editor";
 import monaco from "monaco-editor";
-import { SecInfoOptions, IStatusBar } from "./statusbar";
+import { SecInfoOptions, IStatusBar, ModeChangeEvent } from "./statusbar";
 
 const KeyCode = window.monaco.KeyCode;
 const SelectionDirection = window.monaco.SelectionDirection;
@@ -61,7 +61,11 @@ export class CmSelection {
   }
 }
 
-export const signal = (cm: CMAdapter, signal: string, ...args: any[]): void => {
+export const signal = (
+  cm: EditorAdapter,
+  signal: string,
+  ...args: any[]
+): void => {
   cm.dispatch(signal, ...args);
 };
 
@@ -80,13 +84,13 @@ function toMonacoPos(pos: Pos) {
 }
 
 export class Marker implements Pos {
-  cm: CMAdapter;
+  cm: EditorAdapter;
   id: number;
   insertRight: boolean = false;
   line: number;
   ch: number;
 
-  constructor(cm: CMAdapter, id: number, line: number, ch: number) {
+  constructor(cm: EditorAdapter, id: number, line: number, ch: number) {
     this.line = line;
     this.ch = ch;
     this.cm = cm;
@@ -175,8 +179,8 @@ function monacoToCmKey(e: monaco.IKeyboardEvent | KeyboardEvent, skip = false) {
   return key;
 }
 
-export type BindingFunction = (cm: CMAdapter, next?: KeyMapEntry) => void;
-type CallFunction = (key: any, cm: CMAdapter) => any;
+export type BindingFunction = (cm: EditorAdapter, next?: KeyMapEntry) => void;
+type CallFunction = (key: any, cm: EditorAdapter) => any;
 type Binding = string | BindingFunction | string[];
 
 export interface KeyMapEntry {
@@ -207,7 +211,7 @@ interface MatchingBracket {
   regex: RegExp;
 }
 
-export default class CMAdapter {
+export default class EditorAdapter {
   static on = dummy("on");
   static off = dummy("off");
   static addClass = dummy("addClass");
@@ -234,7 +238,7 @@ export default class CMAdapter {
     } else {
       e.cancelBubble = true;
     }
-    CMAdapter.e_preventDefault(e);
+    EditorAdapter.e_preventDefault(e);
     return false;
   }
 
@@ -254,14 +258,14 @@ export default class CMAdapter {
     return false;
   }
 
-  static commands: Record<string, (cm: CMAdapter) => void> = {
-    redo: function (cm: CMAdapter) {
+  static commands: Record<string, (cm: EditorAdapter) => void> = {
+    redo: function (cm: EditorAdapter) {
       cm.triggerEditorAction("redo");
     },
-    undo: function (cm: CMAdapter) {
+    undo: function (cm: EditorAdapter) {
       cm.triggerEditorAction("undo");
     },
-    newlineAndIndent: function (cm: CMAdapter) {
+    newlineAndIndent: function (cm: EditorAdapter) {
       cm.triggerEditorAction("editor.action.insertLineAfter");
     },
   };
@@ -272,7 +276,7 @@ export default class CMAdapter {
     handle?: (binding: Binding) => boolean
   ): "nothing" | "multi" | "handled" | undefined {
     if (typeof map === "string") {
-      map = CMAdapter.keyMap[map];
+      map = EditorAdapter.keyMap[map];
     }
 
     const found = map.find
@@ -287,9 +291,9 @@ export default class CMAdapter {
 
     if (map.fallthrough) {
       if (!Array.isArray(map.fallthrough))
-        return CMAdapter.lookupKey(key, map.fallthrough, handle);
+        return EditorAdapter.lookupKey(key, map.fallthrough, handle);
       for (let i = 0; i < map.fallthrough.length; i++) {
-        const result = CMAdapter.lookupKey(key, map.fallthrough[i], handle);
+        const result = EditorAdapter.lookupKey(key, map.fallthrough[i], handle);
         if (result) return result;
       }
     }
@@ -311,6 +315,7 @@ export default class CMAdapter {
   initialCursorWidth: number = 0;
   decorations: Map<string, monaco.editor.IEditorDecorationsCollection> =
     new Map();
+  theme: string;
 
   constructor(editor: monaco.editor.IStandaloneCodeEditor) {
     this.editor = editor;
@@ -319,11 +324,11 @@ export default class CMAdapter {
   }
 
   attach() {
-    CMAdapter.keyMap.vim.attach(this);
+    EditorAdapter.keyMap.vim.attach(this);
   }
 
   detach() {
-    CMAdapter.keyMap.vim.detach(this);
+    EditorAdapter.keyMap.vim.detach(this);
   }
 
   addLocalListeners() {
@@ -356,8 +361,8 @@ export default class CMAdapter {
     }
 
     const keymap = this.state.keyMap as string;
-    if (CMAdapter.keyMap[keymap] && CMAdapter.keyMap[keymap].call) {
-      const cmd = CMAdapter.keyMap[keymap].call(key, this);
+    if (EditorAdapter.keyMap[keymap] && EditorAdapter.keyMap[keymap].call) {
+      const cmd = EditorAdapter.keyMap[keymap].call(key, this);
       if (cmd) {
         e.preventDefault();
         e.stopPropagation();
@@ -469,8 +474,9 @@ export default class CMAdapter {
     this.state[key] = value;
 
     if (key === "theme") {
+      this.theme = value as string;
       this.editor.updateOptions({
-        theme: value as string,
+        theme: this.theme,
       });
     }
   }
@@ -488,21 +494,26 @@ export default class CMAdapter {
   }
 
   getOption(key: string): any {
-    if (key === "readOnly") {
-      return this.getConfiguration().readOnly;
-    } else if (key === "firstLineNumber") {
-      return this.firstLine() + 1;
-    } else if (key === "indentWithTabs") {
-      return !this.editor.getModel().getOptions().insertSpaces;
-    } else {
-      return (this.editor.getRawOptions() as Record<string, any>)[key];
+    switch (key) {
+      case "readOnly":
+        return this.getConfiguration().readOnly;
+      case "firstLineNumber":
+        return this.firstLine() + 1;
+      case "indentWithTabs":
+        return !this.editor.getModel().getOptions().insertSpaces;
+      case "theme":
+        if (this.theme) {
+          return this.theme;
+        }
+      default:
+        return (this.editor.getRawOptions() as Record<string, any>)[key];
     }
   }
 
-  dispatch(signal: "change", cm: CMAdapter, change: Change): void;
+  dispatch(signal: "change", cm: EditorAdapter, change: Change): void;
   dispatch(
     signal: "cursorActivity",
-    cm: CMAdapter,
+    cm: EditorAdapter,
     e: monaco.editor.ICursorPositionChangedEvent
   ): void;
   dispatch(signal: "dispose"): void;
@@ -516,7 +527,17 @@ export default class CMAdapter {
     listeners.forEach((handler) => handler(...args));
   }
 
-  on(event: string, handler: (...args: any) => void) {
+  on(event: "cursorActivity", handler: (adapter: EditorAdapter) => void): void;
+  on(
+    event: "change",
+    handler: (adapter: EditorAdapter, change: Change) => void
+  ): void;
+  on(event: "dispose", handler: () => void): void;
+  on(event: "vim-command-done", handler: () => void): void;
+  on(event: "vim-set-clipboard-register", handler: () => void): void;
+  on(event: "vim-mode-change", handler: (mode: ModeChangeEvent) => void): void;
+  on(event: "vim-keypress", handler: (key: string) => void): void;
+  on(event: string, handler: (...args: any) => void): void {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
@@ -788,8 +809,8 @@ export default class CMAdapter {
     this.dispatch("dispose");
     this.removeOverlay();
 
-    if (CMAdapter.keyMap.vim) {
-      CMAdapter.keyMap.vim.detach(this);
+    if (EditorAdapter.keyMap.vim) {
+      EditorAdapter.keyMap.vim.detach(this);
     }
 
     this.disposables.forEach((d) => d.dispose());
@@ -867,7 +888,7 @@ export default class CMAdapter {
     const line = this.getLine(cur.line);
     for (let ch = cur.ch; ch < line.length; ch++) {
       const curCh = line.charAt(ch);
-      const matchable = CMAdapter.matchingBrackets[curCh];
+      const matchable = EditorAdapter.matchingBrackets[curCh];
       if (matchable) {
         // current character is a bracket, simply
         // step 1 forwards (if open)
@@ -932,15 +953,16 @@ export default class CMAdapter {
     }
   }
 
-  getSearchCursor(query: string | RegExp, pos: Pos) {
+  getSearchCursor(pattern: string | RegExp, pos: Pos) {
     let matchCase = false;
     let isRegex = false;
 
-    if (query instanceof RegExp) {
-      matchCase = !query.ignoreCase;
-      query = query.source;
+    if (pattern instanceof RegExp) {
+      matchCase = !pattern.ignoreCase;
       isRegex = true;
     }
+
+    const query = typeof pattern === "string" ? pattern : pattern.source;
 
     if (pos.ch == undefined) pos.ch = Number.MAX_VALUE;
 
@@ -1161,7 +1183,7 @@ export default class CMAdapter {
         return undefined;
       }
 
-      const matchingBracket = CMAdapter.matchingBrackets[thisBracket];
+      const matchingBracket = EditorAdapter.matchingBrackets[thisBracket];
 
       if (matchingBracket && (matchingBracket.mode === "close") == dir > 0) {
         depth++;

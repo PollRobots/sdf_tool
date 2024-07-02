@@ -1,5 +1,5 @@
 import React from "react";
-import { ThemeContext, EditorThemeContext } from "./theme-provider";
+import { ThemeContext } from "./theme-provider";
 
 interface IconButtonProps {
   size: number;
@@ -17,7 +17,6 @@ export const IconButton: React.FC<React.PropsWithChildren<IconButtonProps>> = (
   props
 ) => {
   const theme = React.useContext(ThemeContext);
-  const editorTheme = React.useContext(EditorThemeContext) || theme;
   const [state, setState] = React.useState<IconButtonState>({
     down: false,
     in: false,
@@ -28,13 +27,11 @@ export const IconButton: React.FC<React.PropsWithChildren<IconButtonProps>> = (
     <div
       style={{
         cursor: props.disabled ? undefined : "pointer",
-        background: isDown
-          ? editorTheme.boldBackground
-          : editorTheme.background,
+        background: isDown ? theme.boldBackground : theme.background,
         opacity: props.disabled ? 0.7 : 1,
         borderWidth: 1,
         borderStyle: "solid",
-        borderColor: editorTheme.base00,
+        borderColor: theme.base00,
         display: "flex",
         width: props.size,
         height: props.size,
