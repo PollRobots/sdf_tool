@@ -34,6 +34,7 @@ import {
 } from "../monaco/vim-mode/statusbar";
 import { initVimMode } from "../monaco/vim-mode/vim-mode";
 import CMAdapter from "../monaco/vim-mode/cm_adapter";
+import { vimApi } from "../monaco/vim-mode/keymap_vim";
 
 interface DslEditorProps {
   line: string;
@@ -160,20 +161,17 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
           CMAdapter.commands["open"] = () =>
             openFilePicker()
               .then((text) => {
-                editor.focus();
                 editor.setValue(text);
               })
-              .catch((err) => {
-                editor.focus();
-              });
+              .catch((err) => {})
+              .finally(() => editor.focus());
           CMAdapter.commands["save"] = () =>
             saveFilePicker(editor.getValue())
-              .catch((err) => {
-                console.error(err);
-              })
+              .catch((err) => {})
               .finally(() => editor.focus());
 
           vimAdapter.current = adapter;
+          vimApi.setOption("iskeyword", "-", adapter, { append: true });
         }
       } else if (props.settings.vimMode) {
         vimAdapter.current.attach();

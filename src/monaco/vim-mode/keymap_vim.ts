@@ -412,10 +412,10 @@ function cmKeyToVimKey(key: string) {
 // }
 
 const numberRegex = /[\d]/;
-const wordCharTest = [
-  CodeMirror.isWordChar,
+const keywordCharTest = [
+  (ch: string) => isKeywordTest(ch),
   function (ch: string) {
-    return ch && !CodeMirror.isWordChar(ch) && !/\s/.test(ch);
+    return ch && !isKeywordTest(ch) && !/\s/.test(ch);
   },
 ];
 const bigWordCharTest = [
@@ -481,13 +481,14 @@ function inArray<T>(val: T, arr: T[]) {
 type OptionCallback = (
   value?: string | number | boolean,
   cm?: CodeMirror
-) => string | number | boolean | undefined;
+) => string | number | boolean;
 
 interface Option {
   type: "string" | "number" | "boolean";
   value?: string | number | boolean;
   defaultValue: string | number | boolean | undefined;
   callback: OptionCallback;
+  setConfig?: OptionConfig;
 }
 
 const options = new Map<string, Option>();
@@ -497,7 +498,8 @@ function defineOption(
   defaultValue: string | number | boolean | undefined,
   type: "string" | "number" | "boolean",
   aliases?: string[],
-  callback?: OptionCallback
+  callback?: OptionCallback,
+  setConfig?: OptionConfig
 ): void {
   if (defaultValue === undefined && !callback) {
     throw Error("defaultValue is required unless callback is provided");
@@ -509,6 +511,7 @@ function defineOption(
     type: type,
     defaultValue: defaultValue,
     callback: callback,
+    setConfig: setConfig,
   };
   options.set(name, option);
   if (aliases) {
@@ -519,31 +522,91 @@ function defineOption(
   }
 }
 
-interface Config {
-  scope?: "local" | "global";
-}
-
 function setOption(
   name: string,
   value: string | number | boolean,
   cm?: CodeMirror,
-  cfg?: Config
+  cfg?: OptionConfig
 ) {
   const option = options.get(name);
   if (!option) {
-    return new Error("Unknown option: " + name);
+    return new Error(`Unknown option: ${name}`);
   }
 
   cfg = cfg || {};
+  if (option.setConfig) {
+    cfg = { ...option.setConfig, ...cfg };
+  }
   const scope = cfg.scope;
   if (option.type == "boolean") {
     if (value && value !== true) {
-      return new Error("Invalid argument: " + name + "=" + value);
+      return new Error(`Invalid argument: ${name}=${value}`);
     } else if (value !== false) {
       // Boolean options are set to true if value is not defined.
       value = true;
     }
   }
+  if (option.type === "boolean" && (cfg.append || cfg.remove)) {
+    return new Error(
+      `Cannot ${cfg.append ? "append to" : "remove from"} ${name}`
+    );
+  }
+
+  const optionValue = getOption(name, cm, cfg);
+
+  if (option.type === "number") {
+    const numeric = Number(value);
+    if (isNaN(numeric)) {
+      return new Error(`Invalid argument: ${name}=${value}`);
+    }
+    if (cfg.append) {
+      value = numeric + (optionValue as number);
+    } else if (cfg.remove) {
+      value = (optionValue as number) - numeric;
+    } else {
+      value = numeric;
+    }
+  } else if (option.type === "string") {
+    value = value.toString();
+    const prior = optionValue ? optionValue.toString() : "";
+    if (cfg.commas) {
+      const existing = prior.split(",");
+      const specified = value.split(",");
+      if (cfg.append) {
+        existing.push(...specified.filter((el) => !existing.includes(el)));
+        value = existing.join(",");
+      } else if (cfg.remove) {
+        value = existing.filter((el) => !specified.includes(el)).join(",");
+      }
+    } else if (cfg.flags && cfg.append) {
+      const newFlags = value
+        .split("")
+        .filter((f) => !prior.includes(f))
+        .join("");
+      if (newFlags.length) {
+        value = `${prior}${newFlags}`;
+      } else {
+        return;
+      }
+    } else {
+      if (cfg.append) {
+        value = `${prior}${value}`;
+      }
+      if (cfg.remove) {
+        const offset = prior.indexOf(value);
+        if (offset >= 0) {
+          value = `${prior.substring(0, offset)}${prior.substring(
+            offset + value.length
+          )}`;
+        } else {
+          return;
+        }
+      } else {
+        // value is as provided
+      }
+    }
+  }
+
   if (option.callback) {
     if (scope !== "local") {
       option.callback(value, undefined);
@@ -561,7 +624,7 @@ function setOption(
   }
 }
 
-function getOption(name: string, cm?: CodeMirror, cfg?: Config) {
+function getOption(name: string, cm?: CodeMirror, cfg?: OptionConfig) {
   const option = options.get(name);
   cfg = cfg || {};
   const scope = cfg.scope;
@@ -915,12 +978,12 @@ class VimApi {
     name: string,
     value: string | number | boolean,
     cm?: CodeMirror,
-    cfg?: Config
+    cfg?: OptionConfig
   ) {
     setOption(name, value, cm, cfg);
   }
 
-  getOption(name: string, cm?: CodeMirror, cfg?: Config) {
+  getOption(name: string, cm?: CodeMirror, cfg?: OptionConfig) {
     return getOption(name, cm, cfg);
   }
 
@@ -929,9 +992,10 @@ class VimApi {
     defaultValue: string | number | boolean | undefined,
     type: "string" | "number" | "boolean",
     aliases?: string[],
-    callback?: OptionCallback
+    callback?: OptionCallback,
+    config?: OptionConfig
   ): void {
-    defineOption(name, defaultValue, type, aliases, callback);
+    defineOption(name, defaultValue, type, aliases, callback, config);
   }
 
   defineEx(name: string, prefix: string, func: ExCommandFunc) {
@@ -3962,7 +4026,9 @@ function expandWordUnderCursor(
 
   // Seek to first word or non-whitespace character, depending on if
   // noSymbol is true.
-  let test = noSymbol ? wordCharTest[0] : bigWordCharTest[0];
+  let test: (ch: string) => boolean = noSymbol
+    ? keywordCharTest[0]
+    : bigWordCharTest[0];
   while (!test(line.charAt(idx))) {
     idx++;
     if (idx >= line.length) {
@@ -3973,9 +4039,9 @@ function expandWordUnderCursor(
   if (bigWord) {
     test = bigWordCharTest[0];
   } else {
-    test = wordCharTest[0];
+    test = isKeywordTest;
     if (!test(line.charAt(idx))) {
-      test = wordCharTest[1];
+      test = keywordCharTest[1];
     }
   }
 
@@ -4240,7 +4306,7 @@ function findWord(
   let pos = cur.ch;
   let line = cm.getLine(lineNum);
   const dir = forward ? 1 : -1;
-  const charTests = bigWord ? bigWordCharTest : wordCharTest;
+  const charTests = bigWord ? bigWordCharTest : keywordCharTest;
 
   if (emptyLineIsWord && line == "") {
     lineNum += dir;
@@ -5614,11 +5680,17 @@ interface ExCommandOptionalParameters {
   args?: string[];
 }
 
+interface OptionConfig {
+  scope?: "local" | "global";
+  append?: boolean;
+  remove?: boolean;
+  commas?: boolean;
+  flags?: boolean;
+}
+
 interface ExCommandParams extends ExCommandOptionalParameters {
   input: string;
-  setCfg?: {
-    scope?: "local" | "global";
-  };
+  setCfg?: OptionConfig;
 }
 
 type ExCommandFunc = (
@@ -5691,13 +5763,19 @@ const exCommands: Record<string, ExCommandFunc> = {
     let value: string | boolean = expr[1];
     let forceGet = false;
 
-    if (optionName.charAt(optionName.length - 1) == "?") {
+    if (optionName.endsWith("?")) {
       // If post-fixed with ?, then the set is actually a get.
       if (value) {
         throw Error("Trailing characters: " + params.argString);
       }
       optionName = optionName.substring(0, optionName.length - 1);
       forceGet = true;
+    } else if (optionName.endsWith("-")) {
+      optionName = optionName.substring(0, optionName.length - 1);
+      setCfg.remove = true;
+    } else if (optionName.endsWith("+")) {
+      optionName = optionName.substring(0, optionName.length - 1);
+      setCfg.append = true;
     }
     if (value === undefined && optionName.substring(0, 2) == "no") {
       // To set boolean options to false, the option name is prefixed with
@@ -5718,9 +5796,9 @@ const exCommands: Record<string, ExCommandFunc> = {
       if (oldValue instanceof Error) {
         showConfirm(cm, oldValue.message);
       } else if (oldValue === true || oldValue === false) {
-        showConfirm(cm, " " + (oldValue ? "" : "no") + optionName);
+        showConfirm(cm, `${oldValue ? "" : "no"}${optionName}`);
       } else {
-        showConfirm(cm, "  " + optionName + "=" + oldValue);
+        showConfirm(cm, `${optionName}=${oldValue}`);
       }
     } else {
       const setOptionReturn = setOption(optionName, value, cm, setCfg);
@@ -6742,4 +6820,71 @@ export const initVimAdapter = () => {
   };
 };
 
-const vimApi = new VimApi();
+interface CharRange {
+  from: number;
+  to: number;
+}
+const kDefaultIsKeyword = "@,48-57,_,192-255";
+let isKeywordRanges: CharRange[] = [];
+let isKeywordValue: string;
+
+const isKeywordTest = (ch: string): boolean => {
+  if (!ch) {
+    return false;
+  }
+  const code = ch.charCodeAt(0);
+  return isKeywordRanges.some((r) => code >= r.from && code <= r.to);
+};
+
+defineOption(
+  "iskeyword",
+  "@,48-57,_,192-255",
+  "string",
+  ["isk"],
+  (value, cm) => {
+    if (typeof value !== "string") {
+      return isKeywordValue || kDefaultIsKeyword;
+    }
+    const parts = value.split(",");
+
+    const ranges: CharRange[] = parts.flatMap((p) => {
+      // @ represents alpha characters
+      if (p === "@") {
+        return [
+          { from: "A".charCodeAt(0), to: "Z".charCodeAt(0) },
+          { from: "a".charCodeAt(0), to: "z".charCodeAt(0) },
+        ];
+      }
+      // @-@ represents the character @
+      if (p === "@-@") {
+        const at = "@".charCodeAt(0);
+        return { from: at, to: at };
+      }
+      //  <num>-<num> is an inclusive range of characters
+      const m = p.match(/^(\d+)-(\d+)$/);
+      if (m) {
+        return { from: Number(m[1]), to: Number(m[2]) };
+      }
+      // <num> is a single character code
+      const n = Number(p);
+      if (!isNaN(n)) {
+        return { from: n, to: n };
+      }
+      // any single character is itself
+      if (p.length == 1) {
+        const ch = p.charCodeAt(0);
+        return { from: ch, to: ch };
+      }
+      // ignore anything else
+      return [];
+    });
+    console.log(ranges);
+    isKeywordRanges = ranges;
+    isKeywordValue = value;
+  },
+  {
+    commas: true,
+  }
+);
+
+export const vimApi = new VimApi();
