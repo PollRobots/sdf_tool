@@ -243,7 +243,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
         if (props.settings.vimMode) {
           const vimMode = new VimMode(editor, statusBar);
           vimMode.enable();
-          vimMode.addEventListener("open-file", (evt) => openFile());
+          vimMode.addEventListener("open-file", () => openFile());
           vimMode.addEventListener("save-file", (evt) =>
             saveFile(evt.filename)
           );

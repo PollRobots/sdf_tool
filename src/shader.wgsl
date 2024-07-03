@@ -34,7 +34,7 @@ fn vertex_main(
 
 fn colormap(pos: vec3<f32>) -> vec4<f32> {
     var res = map(pos);
-    return vec4<f32>(res.rgb * 0.3, res.w);
+    return vec4<f32>(res.rgb * 0.4, res.w);
 }
 
 fn distmap(pos: vec3<f32>) -> f32 {

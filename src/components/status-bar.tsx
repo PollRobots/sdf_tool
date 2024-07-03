@@ -1,5 +1,5 @@
 import React from "react";
-import { IStatusBar, ModeChangeEvent, SecInfoOptions } from "vim-monaco";
+import { IStatusBar, ModeChangeEvent, StatusBarInputOptions } from "vim-monaco";
 import { ThemeContext } from "./theme-provider";
 
 interface StatusBarProps {
@@ -57,7 +57,7 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
   const setSecPrompt = (
     prefix: string,
     desc: string,
-    options: SecInfoOptions
+    options: StatusBarInputOptions
   ) => {
     setSecondary({
       mode: "input",
@@ -81,8 +81,8 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
       showNotification: showNotification,
       setMode: setMode,
       setKeyBuffer: setKeyBuffer,
-      setSecStatic: setSecStatic,
-      setSecPrompt: setSecPrompt,
+      startDisplay: setSecStatic,
+      startPrompt: setSecPrompt,
       closeInput: closeInput,
       clear: clear,
     });
@@ -137,7 +137,7 @@ interface StatusBarSecondaryProps {
   staticMessage: string;
   prefix: string;
   desc: string;
-  options: SecInfoOptions;
+  options: StatusBarInputOptions;
   close: () => void;
 }
 
