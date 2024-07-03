@@ -54,7 +54,6 @@
       return new Promise((resolve, reject) => {
         require(["vs/editor/editor.main"], function (monaco) {
           window.monaco = monaco;
-          console.log("Loaded editor.main");
           resolve();
         }, (err) => {
           console.error("Error loading monaco:", err);
@@ -63,5 +62,5 @@
       });
     }
   </script>
-<  </body>
+  </body>
 </html>
