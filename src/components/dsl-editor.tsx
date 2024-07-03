@@ -27,8 +27,7 @@ import { HintProvider } from "../monaco/hint-provider";
 import { HoverProvider } from "../monaco/hover-provider";
 import { CodeLensProvider } from "../monaco/code-lens-provider";
 import { PersistedSettings, SettingsEditor } from "./persisted-settings";
-import { IStatusBar } from "../monaco/vim-mode/statusbar";
-import { IRegister, VimMode } from "../monaco/vim-mode/vim-mode";
+import { IStatusBar, IRegister, VimMode } from "vim-monaco";
 import { StatusBar } from "./status-bar";
 
 interface DslEditorProps {

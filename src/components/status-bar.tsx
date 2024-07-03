@@ -1,9 +1,5 @@
 import React from "react";
-import {
-  IStatusBar,
-  ModeChangeEvent,
-  SecInfoOptions,
-} from "../monaco/vim-mode/statusbar";
+import { IStatusBar, ModeChangeEvent, SecInfoOptions } from "vim-monaco";
 import { ThemeContext } from "./theme-provider";
 
 interface StatusBarProps {
