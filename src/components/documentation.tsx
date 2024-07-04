@@ -20,6 +20,7 @@ interface DocumentationProps {
   style: CSSProperties;
   onClose: () => void;
   onAddToEditor: (fragment: string) => void;
+  colorize: (code: string) => Promise<string>;
 }
 
 const kTopics = new Map([
@@ -44,6 +45,11 @@ const makeEnv = () => {
 export const Documentation: React.FC<DocumentationProps> = (props) => {
   const [doc, setDoc] = React.useState("howto");
   const env = React.useRef(makeEnv());
+
+  const colorize = async (fragment: string) => {
+    const html = await props.colorize(fragment);
+    return <code dangerouslySetInnerHTML={{ __html: html }} />;
+  };
 
   const markdownComponents: Partial<Components> = {
     p: (props) => <div className="para">{props.children}</div>,
@@ -70,10 +76,13 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
           <Example
             code={p.children.toString()}
             onAddToEditor={props.onAddToEditor}
+            colorize={props.colorize}
           />
         );
       } else {
-        return <code {...p} />;
+        return (
+          <Colorized code={p.children.toString()} colorize={props.colorize} />
+        );
       }
     },
     a: (props) => {
@@ -137,5 +146,28 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
         />
       </div>
     </div>
+  );
+};
+
+const Colorized: React.FC<{
+  code: string;
+  colorize: (frag: string) => Promise<string>;
+}> = (props) => {
+  const [html, setHtml] = React.useState<string>(null);
+
+  React.useEffect(() => {
+    props.colorize(props.code).then((h) => {
+      if (h.endsWith("<br/>")) {
+        setHtml(h.substring(0, h.length - 5));
+      } else {
+        setHtml(h);
+      }
+    });
+  }, [props.code]);
+
+  return html ? (
+    <code dangerouslySetInnerHTML={{ __html: html }} />
+  ) : (
+    <code>{props.code}</code>
   );
 };

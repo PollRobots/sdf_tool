@@ -269,7 +269,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   );
 };
 
-class WebGpuWidget {
+export class WebGpuWidget {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: GPUCanvasContext;
   device?: GPUDevice;
@@ -308,8 +308,10 @@ class WebGpuWidget {
     await this.updateShader(shaderSrc, vertex, fragment);
 
     const devicePixelRatio = window.devicePixelRatio;
-    this.canvas.width = this.canvas.clientWidth * devicePixelRatio;
-    this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
+    if (this.canvas.clientWidth && this.canvas.clientHeight) {
+      this.canvas.width = this.canvas.clientWidth * devicePixelRatio;
+      this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
+    }
 
     const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 

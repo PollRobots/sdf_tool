@@ -13,7 +13,7 @@ import {
   kDefaultUniform,
 } from "./components/uniform";
 import { isVectorName } from "./dsl";
-import type monacoTypes from "monaco-editor";
+import monacoTypes from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
 import { Documentation } from "./components/documentation";
@@ -24,7 +24,7 @@ import {
   makeShader,
   readDefaultUniformValues,
 } from "./make-wgsl";
-import { editor } from "monaco-editor";
+import { kLanguageId } from "./monaco/language";
 
 declare global {
   interface Window {
@@ -117,6 +117,13 @@ export const App: React.FC = () => {
     ]);
 
     setDocs(false);
+  };
+
+  const colorize = (fragment: string) => {
+    if (!window.monaco) {
+      return Promise.resolve(fragment);
+    }
+    return window.monaco.editor.colorize(fragment, kLanguageId, {});
   };
 
   return (
@@ -322,6 +329,7 @@ export const App: React.FC = () => {
             }}
             onClose={() => setDocs(false)}
             onAddToEditor={(frag) => addFragment(frag)}
+            colorize={(frag) => colorize(frag)}
           />
         </div>
       </div>

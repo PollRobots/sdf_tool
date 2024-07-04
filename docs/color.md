@@ -6,7 +6,7 @@ When [combinators](combinators) are applied to shapes with different colors with
 a smoothing factor that is non-zero, then the colors are also smoothed together,
 for example:
 
-```
+```example
 (union 0.15
     (color (rgb-xyz #<1 0 0>)
         (sphere #<-0.5 1 0> 1))

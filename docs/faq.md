@@ -28,7 +28,7 @@ operations on SDFs, see the [DSL](dsl) documentation for more details.
 
 **Example:**
 
-```
+```example
 #|start-interactive-values
   Captured at 7/3/2024, 9:37:30 PM
   rgb-box.x = 0 [0:1:0.01]

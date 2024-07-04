@@ -76,21 +76,21 @@ Shapes are functions that return a numeric value that is understood to be an eva
 Internally this is represented as a separate type. To write your own distance
 functions you can promote a numeric value to an SDF using `(sdf d)`.
 
-So the SDF for a sphere centered at $ ( 0.6, -0.4, 0.2) $ and radius $ 0.3 $
+So the SDF for a sphere centered at `(0.6, 1, 0.2)` and radius `0.8`
 
-```scheme
+```example
 (sdf
   (- (length (- :pos
-                #<0.6 -0.4 0.2>))
-     0.3))
+                #<0.6 1 0.2>))
+     0.8))
 ```
 
 The length of the vector from `pos` to the center, less the radius.
 
 But for common sdf's you don't need to write that, instead
 
-```scheme
-(sphere #<0.6 -0.4 0.2> 0.3)
+```example
+(sphere #<0.6 1 0.2> 0.8)
 ```
 
 is already defined. See [shapes](shapes) for the complete set of supported shapes.
@@ -102,9 +102,9 @@ provided to scale, translate and rotate.
 
 For exmple the sphere above can be specified as a unit sphere at the origin, and scaled and translated for an equivalent result:
 
-```scheme
-(translate #<0.6 -0.4 0,2>
-    (scale 0.3
+```example
+(translate #<0.6 1 0.2>
+    (scale 0.8
       (sphere #<0> 1)))
 ```
 
@@ -120,7 +120,7 @@ variety of options.
 
 The lens formed by the intersection of two spheres can be created by:
 
-```scheme
+```example
 (intersect
     (sphere #<-0.5 1 0> 1)
     (sphere #<0.5 1 0> 1))
@@ -137,7 +137,7 @@ There are some other convenient manipulations of shapes that are supported. For 
 
 For example, this will only show the sphere on the positive-x side.
 
-```scheme
+```example
 (union
     (hide sphere #<-0.5 1 0> 1)
     (sphere #<0.5 1 0> 1))
