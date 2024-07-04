@@ -729,9 +729,69 @@ const kBuiltins: Internal[] = [
   fnOfOne("tan", Math.tan),
   fnOfOne("asin", Math.asin),
   fnOfOne("acos", Math.acos),
-  fnOfOne("atan", Math.atan),
   fnOfOne("radians", (x) => (x * Math.PI) / 180),
   fnOfOne("degrees", (x) => (x * 180) / Math.PI),
+
+  {
+    name: "atan",
+    impl: (args) => {
+      requireArity("atan", [1, 2], args);
+      const values = requireValueArgs("atan", args);
+      const pos = getArgsPosition(args);
+      if (values.length === 1) {
+        if (values[0].type === "number") {
+          return makeNumber(
+            Math.atan(values[0].value as number),
+            pos.offset,
+            pos.length
+          );
+        } else {
+          const vec = values[0].value as Vector;
+          return makeVector(
+            Math.atan(vec.x),
+            Math.atan(vec.y),
+            Math.atan(vec.z),
+            pos.offset,
+            pos.length
+          );
+        }
+      } else {
+        const y = values[0];
+        const x = values[1];
+        if (y.type === "number" && x.type === "number") {
+          return makeNumber(
+            Math.atan2(y.value as number, x.value as number),
+            pos.offset,
+            pos.length
+          );
+        } else {
+          const yVec = getValueAsVector(y);
+          const xVec = getValueAsVector(x);
+          return makeVector(
+            Math.atan2(yVec.x, xVec.x),
+            Math.atan2(yVec.y, xVec.y),
+            Math.atan2(yVec.z, xVec.z),
+            pos.offset,
+            pos.length
+          );
+        }
+      }
+    },
+    generate: (args) => {
+      requireArity("atan", [1, 2], args);
+      if (args.length === 1) {
+        return { type: args[0].type, code: `atan(${args[0].code})` };
+      } else {
+        if (hasVectors(args)) {
+          args = args.map((el) => coerce(el, "vec"));
+        }
+        return {
+          type: args[0].type,
+          code: `atan2(${args[0].code}, ${args[1].code})`,
+        };
+      }
+    },
+  },
 
   {
     name: "min",
@@ -1616,7 +1676,7 @@ const kShapes: MacroDef[] = [
       "Creates an ellipsoid centered on *c* with radius *r*.",
       "*c* and *r* must be vectors.",
       "**Example:**",
-      "```" +
+      "```example" +
         `
 (ellipsoid #<0.5 0.25 0> #<0.5 0.25 0.5>)
 ` +
@@ -1634,7 +1694,7 @@ const kShapes: MacroDef[] = [
       "Creates a sphere centered on *c* with radius *r*.",
       "*c* must be a vector, and *r* must be a numeric value.",
       "**Example:**",
-      "```" +
+      "```example" +
         `
 (sphere #<0.5 0.25 0> 0.25)
 ` +
@@ -1653,7 +1713,7 @@ const kShapes: MacroDef[] = [
         "value of the respective component of *s*.",
       "Both *c* and *s* must be vectors.",
       "**Example:**",
-      "```\n(box #<0 0.5 0> #<0.5>)\n```",
+      "```example\n(box #<0 0.5 0> #<0.5>)\n```",
       "Will create a unit cube centered at `(0, 0.5, 0)`",
     ],
   },
@@ -1669,7 +1729,7 @@ const kShapes: MacroDef[] = [
         "a radius of *r*.",
       "Both *c* and *s* must be vectors, *r* must be a numeric value",
       "**Example:**",
-      "```\n(rounded-box #<0 0.5 0> #<0.5> 0.1)\n```",
+      "```example\n(rounded-box #<0 0.5 0> #<0.5> 0.1)\n```",
       "Will create a rounded unit cube centered at `(0, 0.5, 0)`, with edges rounded to a radius of `0.1`",
     ],
   },
@@ -1683,6 +1743,14 @@ const kShapes: MacroDef[] = [
         "respectively.",
       "The torus is created parallel with the x-z plane.",
       "*c* must be a vector, *major* and *minor* must be numeric values.",
+      "**Example:**",
+      "```example" +
+        `
+(torus #<0 0.5 0> 1 0.5)
+` +
+        "```",
+      "Will create a torus centered at `(0, 0.5, 0)`, with major and minor " +
+        "radii of `1` and `0.5` respectively",
     ],
   },
   {
@@ -1691,9 +1759,17 @@ const kShapes: MacroDef[] = [
     body: "`(shape cone ,c ,a ,h)",
     docs: [
       "(**cone** *c* *angle* *height*)",
-      "Creates a cone with thes point at *c*, specified by *angle* (in radians), and " +
+      "Creates a cone with the apex/point at *c*, specified by *angle* (in radians), and " +
         "*height*. The cone is generated aligned with the y-axis.",
       "*c* must be a vector, *angle* and *height* must be numeric values.",
+      "**Example:**",
+      "```example" +
+        `
+(cone #<0 2 0> (radians 30) 2)
+` +
+        "```",
+      "Will create a cone with its tip at `(0, 1, 0)` an angle of `30°`, and " +
+        "a height of `2`.",
     ],
   },
   {
@@ -1701,10 +1777,19 @@ const kShapes: MacroDef[] = [
     symbols: ["c", "a"],
     body: "`(shape infinite-cone ,c ,a)",
     docs: [
-      "(**infinite-cone** *c* *angle* *height*)",
-      "Creates an infinite cone with thes point at *c*, specified by *angle* " +
+      "(**infinite-cone** *c* *angle*)",
+      "Creates an infinite cone with the apex/point at *c*, specified by *angle* " +
         "(in radians). The cone is generated aligned with the y-axis.",
       "*c* must be a vector, *angle* must be a numeric value.",
+      "**Example:**",
+      "```example" +
+        `
+(translate-y 2 (rotate-z (radians -90)
+    (infinite-cone #<0> (radians 5))))
+` +
+        "```",
+      "This creates an infinite cone with its apex at the origin and then " +
+        "rotates and translates it into view.",
     ],
   },
   {
@@ -1715,6 +1800,14 @@ const kShapes: MacroDef[] = [
       "(**infinite-cylinder** *c* *dir* *radius*)",
       "Creates an infinite cylinder, whose axis parallel to *dir* passes through *c*.",
       "*c* and *dir* must be vectors, *radius* must be a numeric value.",
+      "**Example:**",
+      "```example" +
+        `
+(infinite-cylinder #<0 1 0> #<0.866 0.5 0> 0.5)
+` +
+        "```",
+      "Creates an infinite cylinder of radius `0.5`, with an axis that passes " +
+        "through the point `(0, 1, 0)` and is angled 30° to the x-axis.",
     ],
   },
   {
@@ -1725,6 +1818,16 @@ const kShapes: MacroDef[] = [
       "(**hide** *...shapes*)",
       "Prevents *shapes* from rendering. This is useful as a way of " +
         '"commenting out" parts of a sketch.',
+      "**Example:**",
+      "```example" +
+        `
+(union
+    (hide sphere #<-1 1 0> 1)
+    (sphere #<1 1 0> 1))
+` +
+        "```",
+      "This prevents one of the spheres in the union from rendering, simply " +
+        "deleting the word `hide` will include the sphere back in the sketch.",
     ],
   },
   {
@@ -1739,7 +1842,7 @@ const kShapes: MacroDef[] = [
         "reflected copies of *shape* will be generated.",
       "*v* must be a vector.",
       "**Example:**",
-      "```\n(reflect #<1 0 0> (sphere #<1 1 0> 0.5))\n```",
+      "```example\n(reflect #<1 0 0> (sphere #<1 1 0> 0.5))\n```",
       "This will reflect the sphere in the x-axis, creating two spheres, " +
         "centered at `(1, 1, 0)` and `(-1, 1, 0)`",
       "**Note:** due to the way signed distance fields are computed, this is no " +
@@ -1761,6 +1864,26 @@ const kShapes: MacroDef[] = [
       "(**plane** *normal* *offset*)",
       "Creates a plane with the supplied *normal* at an *offset* from the origin.",
       "*normal* and *offset* must be vectors.",
+      "**Example:**",
+      "```example" +
+        `
+(union
+    (intersect
+        (plane #<0 1 0> -4)
+        (union
+            (plane #<1 0 1> 3)
+            (plane #<-1 0 1> 3)))
+    (sphere #<0 1 0> 1))
+` +
+        "```",
+      "This uses the union and intersection of three planes to create walls " +
+        "behind a sphere",
+      "**Note:** planar shapes are a mixed blessing, their SDFs are trivial to " +
+        "compute, but if the raycasting algorithm is projecting a ray parallel, or " +
+        "close to parallel to the plane, and close to the surface of the plane, " +
+        "then the step size the raycaster uses becomes very small and this can cause " +
+        "visible glitches where the ray doesn't terminate in a reasonable number of " +
+        "iterations.",
     ],
   },
   {
@@ -1773,7 +1896,7 @@ const kShapes: MacroDef[] = [
       "*c* must be a vector. The components are interpreted as CIE XYZ colorspace coordinates.",
       "To convert from sRGB to XYZ use the `rgb-xzy` function.",
       "**Example:**",
-      "```" +
+      "```example" +
         `
 (color (rgb-xyz #<0 0 1>) (sphere #<0 1 0> 1))
 ` +
@@ -1791,6 +1914,12 @@ const kShapes: MacroDef[] = [
         "(on a per-component basis) from *r1* when the respective component of the " +
         "current point is less that the *c* and from *r2* otherwise.",
       "All three arguments must be vectors.",
+      "**Example:**",
+      "```example" +
+        `
+(asymmetric-ellipsoid #<0 1 0> #<1 0.25 1> #<1 0.5 0.75>)
+` +
+        "```",
     ],
   },
 ];

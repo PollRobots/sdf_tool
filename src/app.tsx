@@ -13,7 +13,7 @@ import {
   kDefaultUniform,
 } from "./components/uniform";
 import { isVectorName } from "./dsl";
-import monaco from "monaco-editor";
+import type monacoTypes from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
 import { Documentation } from "./components/documentation";
@@ -24,10 +24,11 @@ import {
   makeShader,
   readDefaultUniformValues,
 } from "./make-wgsl";
+import { editor } from "monaco-editor";
 
 declare global {
   interface Window {
-    monaco: typeof monaco;
+    monaco: typeof monacoTypes;
     getMonaco: () => Promise<void>;
   }
 }
@@ -38,6 +39,8 @@ const DslEditor = React.lazy(async () => {
 });
 
 export const App: React.FC = () => {
+  const editorRef =
+    React.useRef<monacoTypes.editor.IStandaloneCodeEditor>(null);
   const [settings, setSettings] = React.useState(loadSettings());
   const width = Math.round(window.visualViewport.width / 2);
   const height = Math.round((width * 9) / 16);
@@ -95,6 +98,26 @@ export const App: React.FC = () => {
         const value = values.get(name);
         return `  ${name} = ${value.value} [${value.min}:${value.max}:${value.step}]`;
       });
+
+  const addFragment = (fragment: string) => {
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+    const model = editor.getModel();
+    if (!model) {
+      return;
+    }
+    model.applyEdits([
+      {
+        range: editor.getSelection(),
+        text: fragment,
+        forceMoveMarkers: true,
+      },
+    ]);
+
+    setDocs(false);
+  };
 
   return (
     <ThemeProvider value={currTheme}>
@@ -174,6 +197,7 @@ export const App: React.FC = () => {
               }
             >
               <DslEditor
+                editorRef={editorRef}
                 style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
                 line=""
                 uniforms={values}
@@ -297,6 +321,7 @@ export const App: React.FC = () => {
               display: docs ? null : "none",
             }}
             onClose={() => setDocs(false)}
+            onAddToEditor={(frag) => addFragment(frag)}
           />
         </div>
       </div>

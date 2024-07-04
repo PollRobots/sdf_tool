@@ -9,14 +9,17 @@ import modifiers from "../../docs/modifiers.md";
 import shapes from "../../docs/shapes.md";
 import transforms from "../../docs/transforms.md";
 import utility from "../../docs/utility.md";
+import examples from "../../docs/examples.md";
 import { Env } from "../env";
 import { addBuiltins } from "../builtins";
 import { isDocumentedObject } from "../dsl";
 import { IconButton } from "./icon-button";
+import { Example } from "./example";
 
 interface DocumentationProps {
   style: CSSProperties;
   onClose: () => void;
+  onAddToEditor: (fragment: string) => void;
 }
 
 const kTopics = new Map([
@@ -29,6 +32,7 @@ const kTopics = new Map([
   ["modifiers", { title: "Modifiers", body: modifiers }],
   ["color", { title: "Color", body: color }],
   ["utility", { title: "Utilities", body: utility }],
+  ["examples", { title: "Examples", body: examples }],
 ]);
 
 const makeEnv = () => {
@@ -59,6 +63,18 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
           components={markdownComponents}
         />
       );
+    },
+    code: (p) => {
+      if (p.className === "language-example") {
+        return (
+          <Example
+            code={p.children.toString()}
+            onAddToEditor={props.onAddToEditor}
+          />
+        );
+      } else {
+        return <code {...p} />;
+      }
     },
     a: (props) => {
       if (props.href.startsWith("https")) {

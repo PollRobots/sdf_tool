@@ -7,4 +7,4 @@ export { Save } from "./save";
 export { Switch } from "./switch";
 export { Text } from "./text";
 export { Undo } from "./undo";
-export { Unknown } from "./unknown";
+export { Image } from "./image";

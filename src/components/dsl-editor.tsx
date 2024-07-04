@@ -31,6 +31,7 @@ import { IStatusBar, IRegister, VimMode } from "vim-monaco";
 import { StatusBar } from "./status-bar";
 
 interface DslEditorProps {
+  editorRef: React.MutableRefObject<monaco.editor.IStandaloneCodeEditor>;
   line: string;
   style?: React.CSSProperties;
   uniforms: Map<string, Uniform>;
@@ -200,6 +201,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       codeLenseProvider.current
     );
     monacoInstance.current = editor;
+    props.editorRef.current = editor;
   };
 
   const onStatusBarMounted = (statusBar: IStatusBar) => {

@@ -44,7 +44,12 @@ export class HoverProvider implements monaco.languages.HoverProvider {
                 endColumn: end.column,
                 endLineNumber: end.lineNumber,
               },
-              contents: def.value.docs.map((el) => ({ value: el })),
+              contents: def.value.docs.map((el) => {
+                if (el.startsWith("```example")) {
+                  return { value: "```" + el.substring(10) };
+                }
+                return { value: el };
+              }),
             };
             return res;
           }

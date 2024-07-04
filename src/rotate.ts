@@ -32,13 +32,15 @@ const parseWgslConstVector = (vec: string): Vector => {
 //     return mat * pos;
 // }
 
+const f = (v: number) => Number(v.toFixed(4));
+
 export const generateConstRotationMatrix = (
   axis: string,
   angle: number
 ): string[] => {
   const axis_vec = parseWgslConstVector(axis);
   const length = Math.sqrt(
-    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z + axis_vec.z
+    axis_vec.x * axis_vec.x + axis_vec.y * axis_vec.y + axis_vec.z * axis_vec.z
   );
   const u: Vector = {
     x: axis_vec.x / length,
@@ -54,9 +56,9 @@ export const generateConstRotationMatrix = (
   // prettier-ignore
   return [
     "  const rot = mat3x3<f32>(",
-    `    vec3<f32>(${ic * u.x * u.x +    c}, ${ic * u.x * u.y + su.z}, ${ic * u.x * u.z - su.y}),`,
-    `    vec3<f32>(${ic * u.y * u.x - su.z}, ${ic * u.y * u.y +    c}, ${ic * u.y * u.z + su.x}),`,
-    `    vec3<f32>(${ic * u.z * u.x + su.y}, ${ic * u.z * u.y - su.x}, ${ic * u.z * u.z +    c}));`,
+    `    vec3<f32>(${f(ic * u.x * u.x +    c)}, ${f(ic * u.x * u.y + su.z)}, ${f(ic * u.x * u.z - su.y)}),`,
+    `    vec3<f32>(${f(ic * u.y * u.x - su.z)}, ${f(ic * u.y * u.y +    c)}, ${f(ic * u.y * u.z + su.x)}),`,
+    `    vec3<f32>(${f(ic * u.z * u.x + su.y)}, ${f(ic * u.z * u.y - su.x)}, ${f(ic * u.z * u.z +    c)}));`,
   ];
 };
 
@@ -79,6 +81,7 @@ export const generateConstAxisRotationMatrix = (
   const ic = `  var ic = 1 - c;`;
 
   const m = (a: string, b: number): string => {
+    b = f(b);
     if (Math.abs(b) < 1e-10) {
       return "0";
     } else if (Math.abs(b - 1) < 1e-10) {
@@ -88,13 +91,27 @@ export const generateConstAxisRotationMatrix = (
     }
   };
 
+  const add = (op: "+" | "-", a: string, b: string): string => {
+    if (op === "+" && a === "ic" && b === "c") {
+      return "1";
+    } else if (a === "0" && b === "0") {
+      return "0";
+    } else if (a === "0") {
+      return op === "+" ? b : `-${b}`;
+    } else if (b === "0") {
+      return a;
+    } else {
+      return `${a} ${op} ${b}`;
+    }
+  };
+
   // prettier-ignore
   return [
     c, s, ic,
     "  var rot = mat3x3<f32>(",
-    `    vec3<f32>(${m('ic', u.x * u.x)} +              c, ${m('ic', u.x * u.y)} + ${m('s', u.z)}, ${m('ic', u.x * u.z)} - ${m('s', u.y)}),`,
-    `    vec3<f32>(${m('ic', u.y * u.x)} - ${m('s', u.z)}, ${m('ic', u.y * u.y)} +              c, ${m('ic', u.y * u.z)} + ${m('s', u.x)}),`,
-    `    vec3<f32>(${m('ic', u.z * u.x)} + ${m('s', u.y)}, ${m('ic', u.z * u.y)} - ${m('s', u.x)}, ${m('ic', u.z * u.z)} +              c));`,
+    `    vec3<f32>(${add('+', m('ic', u.x * u.x),         'c')}, ${add('+', m('ic', u.x * u.y), m('s', u.z))}, ${add('-', m('ic', u.x * u.z), m('s', u.y))}),`,
+    `    vec3<f32>(${add('-', m('ic', u.y * u.x), m('s', u.z))}, ${add('+', m('ic', u.y * u.y),         'c')}, ${add('+', m('ic', u.y * u.z), m('s', u.x))}),`,
+    `    vec3<f32>(${add('+', m('ic', u.z * u.x), m('s', u.y))}, ${add('-', m('ic', u.z * u.y), m('s', u.x))}, ${add('+', m('ic', u.z * u.z),         'c')}));`,
   ];
 };
 
