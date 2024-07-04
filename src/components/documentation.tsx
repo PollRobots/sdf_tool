@@ -61,18 +61,22 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
       );
     },
     a: (props) => {
-      return (
-        <span
-          className="doc-link"
-          onClick={() => {
-            if (kTopics.has(props.href)) {
-              setDoc(props.href);
-            }
-          }}
-        >
-          {props.children}
-        </span>
-      );
+      if (props.href.startsWith("https")) {
+        return <a className="doc-link" {...props} target="_blank" />;
+      } else {
+        return (
+          <span
+            className="doc-link"
+            onClick={() => {
+              if (kTopics.has(props.href)) {
+                setDoc(props.href);
+              }
+            }}
+          >
+            {props.children}
+          </span>
+        );
+      }
     },
   };
 

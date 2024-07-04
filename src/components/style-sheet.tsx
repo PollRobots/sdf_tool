@@ -166,6 +166,7 @@ export const updateStyleSheet = (theme: Theme) => {
       padding:0;
       background: none;
     }
+    a.doc-link { text-decoration: none; }
     .doc-link {
       color: ${theme.violet};
       font-weight: bold;
