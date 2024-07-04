@@ -196,6 +196,7 @@ ${el.code}
       setOffsets(ctx.offsets);
       setGenerated(wgsl.join("\n"));
       setErrors("");
+      setDocs(false);
     } catch (err) {
       if (log.length > 0) {
         lines.unshift(`Generator log:`, ...log, "");

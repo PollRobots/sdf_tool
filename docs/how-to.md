@@ -29,13 +29,16 @@ also interact with it using a mouse.
 
 ## Code editor
 
-This is a fairly standard code editor. It knows about the DSL used to describe
-the SDF. It supports a VIM mode if you like that kind of thing.
+This is a fairly standard code editor. It knows about the [DSL](dsl) used to
+describe the SDF. It supports a VIM mode if you like that kind of thing.
 
 Updates to the code editor are automatically applied if you stop typing for long
 enough. This may cause the generated image to fritz out if you are in the middle
 of something, but also makes the process interactive without needing to
 explicitly _Run_ something.
+
+The [FAQ](faq) has a simple example that you can cut and paste into the editor
+to see the whole process in action.
 
 ## Interactive value panel
 
@@ -69,3 +72,9 @@ captured into the document by selecting the "Capture interactive values" element
 in the code editor. This allows saving the values alongside the code, and when a
 file is opened, the interactive values are intialized from that block if
 available
+
+### Generated code
+
+Below the interactive values, if any, is the generated shader code that is used
+by the renderer. This can be useful for diagnosing why a scene failed, or simply
+for lifting a model into WGSL.

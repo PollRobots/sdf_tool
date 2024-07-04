@@ -17,7 +17,7 @@ For this project, because I wanted to. In general, they provide an interesting
 approach to rendering image which is amenable to computation on the GPU (within
 a shader), which is what this tool does.
 
-## How are SDF's represented
+## How are SDF's represented?
 
 This tool uses a custom DSL (Domain Specific Language) to specify an SDF. That
 is then translated into WGSL, the shading language used by WebGPU, and rendered
@@ -25,6 +25,38 @@ in a simple scene.
 
 The DSL is a simple lisp-like language with primitives for common SDFs and
 operations on SDFs, see the [DSL](dsl) documentation for more details.
+
+**Example:**
+
+```
+#|start-interactive-values
+  Captured at 7/3/2024, 9:37:30 PM
+  rgb-box.x = 0 [0:1:0.01]
+  rgb-box.y = 0 [0:1:0.01]
+  rgb-box.z = 1 [0:1:0.01]
+  rgb-cone.x = 1 [0:1:0.01]
+  rgb-cone.y = 0 [0:1:0.01]
+  rgb-cone.z = 0 [0:1:0.01]
+  rgb-sphere.x = 0 [0:1:0.01]
+  rgb-sphere.y = 1 [0:1:0.01]
+  rgb-sphere.z = 0 [0:1:0.01]
+  box-theta = 0 [-180:180:1]
+  k = 0.1 [0:0.2:0.001]
+  off = 2 [0:5:0.01]
+end-interactive-values|#
+
+(union :k
+    (color (rgb-xyz :#<rgb-sphere>)
+        (sphere #<0 1 0> 1))
+    (color (rgb-xyz :#<rgb-box>)
+        (translate-x :off (rotate-y (radians :box-theta)
+            (box #<0 1 0> #<0.8 1 0.8>))))
+    (color (rgb-xyz :#<rgb-cone>)
+        (cone #<(- :off) 2 0> (radians 27) 2)))
+```
+
+Copy paste this into the editor and see the results. Play around with the
+interactive values and see how they change the model in realtime.
 
 # Acknowledgments
 

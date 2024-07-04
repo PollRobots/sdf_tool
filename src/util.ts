@@ -1,10 +1,9 @@
 import mime from "mime";
 
 export function reference(...els: any[]) {}
-// mime.define({ "text/x-scheme": [".scm"] }, true);
 
 export async function saveFilePicker(text: string, filename?: string) {
-  return saveFilePickerComplete([text], filename || "untitled.scm");
+  return saveFilePickerComplete([text], filename || "untitled.sdf");
 }
 
 export function getMimeType(path: string): string {
@@ -30,9 +29,9 @@ export async function saveFilePickerComplete(
     suggestedName: suggestedName,
     types: [
       {
-        description: "Scheme files",
+        description: "SDF Tool files",
         accept: {
-          "text/x-scheme": [".scm"],
+          "text/plain": [".sdf"],
         },
       },
       {
@@ -61,9 +60,9 @@ export async function saveFilePickerComplete(
 function saveFallback(blob: Blob) {
   const anchor = document.createElement("a");
   anchor.href = window.URL.createObjectURL(blob);
-  anchor.download = "untitled.scm";
+  anchor.download = "untitled.sdf";
   anchor.click();
-  return "untitled.scm";
+  return "untitled.sdf";
 }
 
 export async function openFilePicker(): Promise<File> {
@@ -75,9 +74,9 @@ export async function openFilePicker(): Promise<File> {
   const [handle] = await showOpenFilePicker({
     types: [
       {
-        description: "Scheme file",
+        description: "SDF Tool file",
         accept: {
-          "text/x-scheme": [".scm"],
+          "text/plain": [".sdf"],
         },
       },
     ],
@@ -93,7 +92,7 @@ function openFallback(): Promise<File> {
     const input = document.createElement("input");
     input.type = "file";
     input.multiple = false;
-    input.accept = ".scm,text/plain,text/x-script.scheme,text/x-scheme";
+    input.accept = ".sdf,text/plain";
     const timeout = window.setTimeout(
       () => reject(new Error("Timed out opening file")),
       10 * 60 * 1000 // times out after 10 minutes
