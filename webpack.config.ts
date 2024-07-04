@@ -21,7 +21,7 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
     entry: "./src/index.tsx",
     output: {
       path: dist,
-      filename: "sdf_tool.[contenthash].js",
+      filename: "sdf-tool.[name].[contenthash].js",
     },
     devServer: {
       port: 8080,
@@ -102,6 +102,9 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
     optimization: {
       minimize: isProduction,
       minimizer: [new TerserWebpackPlugin()],
+      splitChunks: {
+        chunks: "all",
+      },
     },
   };
 };
