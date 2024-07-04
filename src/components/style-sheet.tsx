@@ -144,6 +144,45 @@ export const updateStyleSheet = (theme: Theme) => {
         border-radius: 4px;
     }
 `);
+  styles.push(`
+    .doc {
+      padding: 1em;
+      font-variant-ligatures: none;
+    }
+    .doc .para {
+      margin-bottom: 1em;
+    }
+    .doc code {
+      font-family: "Fira Code Variable", monospace;
+      padding: 0.1em;
+      background: ${theme.background};
+    }
+    .doc pre {
+      background: ${theme.background};
+      padding: 0.5em;
+      overflow-x: auto;
+    }
+    .doc pre > code {
+      padding:0;
+      background: none;
+    }
+    .doc-link {
+      color: ${theme.violet};
+      font-weight: bold;
+      cursor: pointer;
+      border: 1px solid;
+      border-bottom-color: ${theme.base00};
+      border-top-color: transparent;
+      border-left-color: transparent;
+      border-right-color: transparent;
+      border-radius: 0.2em;
+    }
+    .doc-link:hover {
+      color: ${theme.blue};
+      font-weight: bold;
+      border-color: ${theme.base00};
+    }
+`);
   new CSSStyleSheet()
     .replace(styles.join("\n"))
     .then((sheet) => {

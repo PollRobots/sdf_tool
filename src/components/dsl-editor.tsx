@@ -39,6 +39,7 @@ interface DslEditorProps {
   onTogglePositions: () => void;
   onCaptureUniforms: () => string[];
   onSettingsChange: (updated: PersistedSettings) => void;
+  onShowDocs: () => void;
 }
 
 const checkForForcedTheme = (name: string): string => {
@@ -433,7 +434,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                 style={{
                   display: "grid",
                   gridTemplateColumns:
-                    "1fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
+                    "1fr 3fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
                   columnGap: "0.25em",
                   alignSelf: "center",
                 }}
@@ -445,6 +446,18 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
                   onClick={() => props.onTogglePositions()}
                 >
                   <Switch />
+                </IconButton>
+                <IconButton
+                  title="Show docs"
+                  size={props.settings.fontSize * 2}
+                  onClick={() => props.onShowDocs()}
+                  style={{
+                    padding: 0,
+                    fontWeight: "bold",
+                    justifyContent: "center",
+                  }}
+                >
+                  ?
                 </IconButton>
                 <div />
                 <IconButton

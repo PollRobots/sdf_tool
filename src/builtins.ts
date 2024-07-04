@@ -641,6 +641,11 @@ const kBuiltins: Internal[] = [
       code: `dot(${args[0].code}, ${args[1].code})`,
       type: "float",
     }),
+    docs: [
+      "(**dot** *a* *b*)",
+      "Computes the dot product of *a* and *b*.",
+      `Both *a* and *b* must be vectors`,
+    ],
   },
 
   {
@@ -663,6 +668,7 @@ const kBuiltins: Internal[] = [
       code: `normalize(${args[0].code})`,
       type: "vec",
     }),
+    docs: ["(**normalize** *v*)", "Normalizes the vector *v*"],
   },
 
   {
@@ -682,6 +688,7 @@ const kBuiltins: Internal[] = [
       code: `length(${args[0].code})`,
       type: "float",
     }),
+    docs: ["(**length** *v*)", "Returns the length or magnitude of *v*"],
   },
 
   {
@@ -706,6 +713,11 @@ const kBuiltins: Internal[] = [
       code: `cross(${args[0].code}, ${args[1].code})`,
       type: "vec",
     }),
+    docs: [
+      "(**cross** *a* *b*)",
+      "Computes the cross product of *a* and *b*.",
+      `Both *a* and *b* must be vectors`,
+    ],
   },
 
   fnOfOne("abs", Math.abs),
@@ -1640,7 +1652,6 @@ const kShapes: MacroDef[] = [
         "faces will be offset from *c* along each component-axis by the absolute " +
         "value of the respective component of *s*.",
       "Both *c* and *s* must be vectors.",
-      "-----",
       "**Example:**",
       "```\n(box #<0 0.5 0> #<0.5>)\n```",
       "Will create a unit cube centered at `(0, 0.5, 0)`",
@@ -1657,7 +1668,6 @@ const kShapes: MacroDef[] = [
         "value of the respective component of *s*. The edges will be rounded with " +
         "a radius of *r*.",
       "Both *c* and *s* must be vectors, *r* must be a numeric value",
-      "-----",
       "**Example:**",
       "```\n(rounded-box #<0 0.5 0> #<0.5> 0.1)\n```",
       "Will create a rounded unit cube centered at `(0, 0.5, 0)`, with edges rounded to a radius of `0.1`",
@@ -1728,7 +1738,6 @@ const kShapes: MacroDef[] = [
       "Depending on the component values of *v*, one two four or eight " +
         "reflected copies of *shape* will be generated.",
       "*v* must be a vector.",
-      "-----",
       "**Example:**",
       "```\n(reflect #<1 0 0> (sphere #<1 1 0> 0.5))\n```",
       "This will reflect the sphere in the x-axis, creating two spheres, " +

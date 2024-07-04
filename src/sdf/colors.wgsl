@@ -29,7 +29,7 @@ fn colXyzToSRgb(xyz: vec3<f32>) -> vec3<f32> {
   return rgb;
 }
 
-const kReferenceD65 = vec3<f32>(0.950489, 1.00, 1.08884);
+const kReferenceD65 = vec3<f32>(95.0489, 100, 108.884);
 
 const kXyzToLabMat = mat4x3<f32>(
   vec3<f32>(0, 500, 0),
@@ -52,7 +52,7 @@ fn colXyzToCIELab(xyz: vec3<f32>) -> vec3<f32> {
 
 const kLabToXyzMat = mat4x3<f32>(
   vec3<f32>(1.0/116.0),
-  vec3<f32>(0, 1.0/500.0, 0),
+  vec3<f32>(1.0/500.0, 0, 0),
   vec3<f32>(0, 0, -1.0/200.0),
   vec3<f32>(16.0/116.0));
 

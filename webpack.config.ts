@@ -50,6 +50,10 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
           test: /\.wgsl$/,
           use: "raw-loader",
         },
+        {
+          test: /\.md$/,
+          use: "raw-loader",
+        },
       ],
     },
     plugins: [

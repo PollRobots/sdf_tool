@@ -27,6 +27,8 @@ import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
+import { ProgressPlugin } from "webpack";
+import { Documentation } from "./components/documentation";
 
 declare global {
   interface Window {
@@ -63,6 +65,7 @@ export const App: React.FC = () => {
   const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
+  const [docs, setDocs] = React.useState(false);
 
   const currTheme = kDefinedThemes.get(settings.themeName) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
@@ -212,82 +215,82 @@ ${el.code}
       });
 
   return (
-    <div
-      style={{
-        backgroundColor: currTheme.background,
-        color: currTheme.foreground,
-        fontSize: `${settings.fontSize}pt`,
-      }}
-    >
+    <ThemeProvider value={currTheme}>
       <div
         style={{
-          display: "grid",
-          gap: "1em",
-          gridTemplateColumns: "calc(50vw - 1.5em) calc(50vw - 1.5em)",
-          gridTemplateRows: "auto 1fr",
+          backgroundColor: currTheme.background,
+          color: currTheme.foreground,
+          fontSize: `${settings.fontSize}pt`,
         }}
       >
-        <WebGPUCanvas
-          style={{
-            width: `calc(48vw - 4em)`,
-            height: `calc(9 * (48vw - 4em) / 16)`,
-            gridArea: "1/1/2/2",
-            border: `solid 1px ${currTheme.base00}`,
-          }}
-          width={width}
-          height={height}
-          shader={makeShader(
-            shader,
-            generated,
-            offsets.length == 0
-              ? 0
-              : offsets.reduce((a, e) => Math.max(a, e)) + 4
-          )}
-          vertexShader="vertex_main"
-          fragmentShader="frag_main"
-          uniformValues={uniforms
-            .map((el) => values.get(el) || kDefaultUniform)
-            .map((el) => el.value)}
-          uniformOffsets={offsets}
-          onShaderError={(shaderError) => setErrors(shaderError)}
-        />
         <div
           style={{
-            gridArea: "1/1/2/2",
-            pointerEvents: "none",
-            fontSize: "2em",
-            margin: "1rem",
-            opacity: 0.8,
-            fontWeight: "bolder",
-            color: currTheme.base00,
+            display: "grid",
+            gap: "1em",
+            gridTemplateColumns: "calc(50vw - 1.5em) calc(50vw - 1.5em)",
+            gridTemplateRows: "auto 1fr",
           }}
         >
-          SDF Tool
-        </div>
-        <ErrorBoundary
-          style={{
-            gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
-            height: "fit-content",
-          }}
-        >
-          <React.Suspense
-            fallback={
-              <div
-                style={{
-                  gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "fit-content",
-                  gap: "1em",
-                }}
-              >
-                <div>Loading Editor</div>
-                <div className="loader" style={{ fontSize: "150%" }} />
-              </div>
-            }
+          <WebGPUCanvas
+            style={{
+              width: `calc(48vw - 4em)`,
+              height: `calc(9 * (48vw - 4em) / 16)`,
+              gridArea: "1/1/2/2",
+              border: `solid 1px ${currTheme.base00}`,
+            }}
+            width={width}
+            height={height}
+            shader={makeShader(
+              shader,
+              generated,
+              offsets.length == 0
+                ? 0
+                : offsets.reduce((a, e) => Math.max(a, e)) + 4
+            )}
+            vertexShader="vertex_main"
+            fragmentShader="frag_main"
+            uniformValues={uniforms
+              .map((el) => values.get(el) || kDefaultUniform)
+              .map((el) => el.value)}
+            uniformOffsets={offsets}
+            onShaderError={(shaderError) => setErrors(shaderError)}
+          />
+          <div
+            style={{
+              gridArea: "1/1/2/2",
+              pointerEvents: "none",
+              fontSize: "2em",
+              margin: "1rem",
+              opacity: 0.8,
+              fontWeight: "bolder",
+              color: currTheme.base00,
+            }}
           >
-            <ThemeProvider value={currTheme}>
+            SDF Tool
+          </div>
+          <ErrorBoundary
+            style={{
+              gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
+              height: "fit-content",
+            }}
+          >
+            <React.Suspense
+              fallback={
+                <div
+                  style={{
+                    gridArea: editorTop ? "1/2/3/3" : "2/1/3/2",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "fit-content",
+                    gap: "1em",
+                  }}
+                >
+                  <div>Loading Editor</div>
+                  <div className="loader" style={{ fontSize: "150%" }} />
+                </div>
+              }
+            >
               <DslEditor
                 style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
                 line=""
@@ -297,112 +300,124 @@ ${el.code}
                 onTogglePositions={() => setEditorTop(!editorTop)}
                 onCaptureUniforms={() => captureUniforms()}
                 onSettingsChange={(v) => setSettings(v)}
+                onShowDocs={() => setDocs(!docs)}
               />
-            </ThemeProvider>
-          </React.Suspense>
-        </ErrorBoundary>
-        <div
-          style={{
-            gridArea: editorTop ? "2/1/3/2" : "1/2/3/3",
-            overflowY: "auto",
-          }}
-        >
-          {uniforms.length == 0 ? null : (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.5em 2em",
-                padding: "0.5em 0",
-                alignItems: "center",
-              }}
-            >
-              {uniforms
-                .filter((el) => isVectorName(el))
-                .reduce((accum, el) => {
-                  if (accum.length == 0) {
-                    return [[el]];
-                  }
-                  const last = accum[accum.length - 1];
-                  const prefix = last[0].substring(0, last[0].length - 2);
-                  if (el.startsWith(prefix)) {
-                    last.push(el);
-                  } else {
-                    accum.push([el]);
-                  }
-                  return accum;
-                }, [] as string[][])
-                .map((els) => {
-                  if (els.length === 3 && els[0].startsWith("rgb-")) {
-                    return (
-                      <UniformRgbColor
-                        key={els.join("-")}
-                        names={els}
-                        values={els.map(
-                          (el) => values.get(el) || getDefaultUniform(el)
-                        )}
-                        onChange={(update) => setUniformValues(update)}
-                      />
-                    );
-                  }
-                  return (
-                    <div
-                      key={els.join("-")}
-                      style={{
-                        borderLeft: `solid 1px ${currTheme.base00}`,
-                        borderRadius: "0.5em",
-                        paddingLeft: "0.5em",
-                        flexGrow: 1,
-                      }}
-                    >
-                      {" "}
-                      {els.map((el) => (
-                        <UniformEditor
-                          key={el}
-                          name={el}
-                          grouped
-                          {...(values.get(el) || getDefaultUniform(el))}
-                          onChange={(v) => setUniformValue(el, v)}
-                        />
-                      ))}
-                    </div>
-                  );
-                })}
-              {uniforms
-                .filter((el) => !isVectorName(el))
-                .map((el) => {
-                  return (
-                    <UniformEditor
-                      key={el}
-                      name={el}
-                      {...(values.get(el) || getDefaultUniform(el))}
-                      onChange={(v) => setUniformValue(el, v)}
-                    />
-                  );
-                })}
-            </div>
-          )}
-          <code
+            </React.Suspense>
+          </ErrorBoundary>
+          <div
             style={{
-              fontFamily: '"Fira Code Variable", monospace',
-              fontVariantLigatures: "discretionary-ligatures",
+              gridArea: editorTop ? "2/1/3/2" : "1/2/3/3",
+              overflowY: "auto",
             }}
           >
-            <pre style={{ fontFamily: "unset", whiteSpace: "pre-wrap" }}>
-              {generated}
-            </pre>
-            <pre
+            {uniforms.length == 0 ? null : (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5em 2em",
+                  padding: "0.5em 0",
+                  alignItems: "center",
+                }}
+              >
+                {uniforms
+                  .filter((el) => isVectorName(el))
+                  .reduce((accum, el) => {
+                    if (accum.length == 0) {
+                      return [[el]];
+                    }
+                    const last = accum[accum.length - 1];
+                    const prefix = last[0].substring(0, last[0].length - 2);
+                    if (el.startsWith(prefix)) {
+                      last.push(el);
+                    } else {
+                      accum.push([el]);
+                    }
+                    return accum;
+                  }, [] as string[][])
+                  .map((els) => {
+                    if (els.length === 3 && els[0].startsWith("rgb-")) {
+                      return (
+                        <UniformRgbColor
+                          key={els.join("-")}
+                          names={els}
+                          values={els.map(
+                            (el) => values.get(el) || getDefaultUniform(el)
+                          )}
+                          onChange={(update) => setUniformValues(update)}
+                        />
+                      );
+                    }
+                    return (
+                      <div
+                        key={els.join("-")}
+                        style={{
+                          borderLeft: `solid 1px ${currTheme.base00}`,
+                          borderRadius: "0.5em",
+                          paddingLeft: "0.5em",
+                          flexGrow: 1,
+                        }}
+                      >
+                        {" "}
+                        {els.map((el) => (
+                          <UniformEditor
+                            key={el}
+                            name={el}
+                            grouped
+                            {...(values.get(el) || getDefaultUniform(el))}
+                            onChange={(v) => setUniformValue(el, v)}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                {uniforms
+                  .filter((el) => !isVectorName(el))
+                  .map((el) => {
+                    return (
+                      <UniformEditor
+                        key={el}
+                        name={el}
+                        {...(values.get(el) || getDefaultUniform(el))}
+                        onChange={(v) => setUniformValue(el, v)}
+                      />
+                    );
+                  })}
+              </div>
+            )}
+            <code
               style={{
-                fontFamily: "unset",
-                whiteSpace: "pre-wrap",
-                color: currTheme.red,
+                fontFamily: '"Fira Code Variable", monospace',
+                fontVariantLigatures: "discretionary-ligatures",
               }}
             >
-              {errors}
-            </pre>
-          </code>
+              <pre style={{ fontFamily: "unset", whiteSpace: "pre-wrap" }}>
+                {generated}
+              </pre>
+              <pre
+                style={{
+                  fontFamily: "unset",
+                  whiteSpace: "pre-wrap",
+                  color: currTheme.red,
+                }}
+              >
+                {errors}
+              </pre>
+            </code>
+          </div>
+          <Documentation
+            style={{
+              gridArea: editorTop ? "1/1/3/2" : "1/2/3/4",
+              background: currTheme.boldBackground,
+              zIndex: 200,
+              maxHeight: "98vh",
+              color: currTheme.boldForeground,
+              display: docs ? null : "none",
+            }}
+            onClose={() => setDocs(false)}
+          />
         </div>
       </div>
-    </div>
+    </ThemeProvider>
   );
 };

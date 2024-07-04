@@ -2,7 +2,7 @@ import monaco from "monaco-editor";
 import { tokenize } from "../read";
 import { Env } from "../env";
 import { addBuiltins } from "../builtins";
-import { Expression } from "../dsl";
+import { isDocumentedObject } from "../dsl";
 
 export class HoverProvider implements monaco.languages.HoverProvider {
   private readonly editor: monaco.editor.IStandaloneCodeEditor;
@@ -53,23 +53,3 @@ export class HoverProvider implements monaco.languages.HoverProvider {
     } catch (err) {}
   }
 }
-
-interface DocumentedValue {
-  docs: string[];
-}
-
-interface DocumentedObject {
-  value: DocumentedValue;
-}
-
-const isDocumentedValue = (obj: any): obj is DocumentedValue => {
-  return (
-    obj &&
-    Array.isArray(obj.docs) &&
-    obj.docs.every((el: any) => typeof el === "string")
-  );
-};
-
-const isDocumentedObject = (obj: any): obj is DocumentedObject => {
-  return obj && isDocumentedValue(obj.value);
-};

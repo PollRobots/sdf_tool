@@ -285,3 +285,23 @@ export const dslError = (
     end >= start ? end - start : 0
   );
 };
+
+interface DocumentedValue {
+  docs: string[];
+}
+
+interface DocumentedObject {
+  value: DocumentedValue;
+}
+
+const isDocumentedValue = (obj: any): obj is DocumentedValue => {
+  return (
+    obj &&
+    Array.isArray(obj.docs) &&
+    obj.docs.every((el: any) => typeof el === "string")
+  );
+};
+
+export const isDocumentedObject = (obj: any): obj is DocumentedObject => {
+  return obj && isDocumentedValue(obj.value);
+};

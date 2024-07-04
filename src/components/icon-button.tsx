@@ -2,10 +2,11 @@ import React from "react";
 import { ThemeContext } from "./theme-provider";
 
 interface IconButtonProps {
-  size: number;
+  size: number | string;
   title?: string;
   disabled?: boolean;
   onClick?: () => void;
+  style?: React.CSSProperties;
 }
 
 interface IconButtonState {
@@ -26,19 +27,22 @@ export const IconButton: React.FC<React.PropsWithChildren<IconButtonProps>> = (
   return (
     <div
       style={{
-        cursor: props.disabled ? undefined : "pointer",
-        background: isDown ? theme.boldBackground : theme.background,
-        opacity: props.disabled ? 0.7 : 1,
-        borderWidth: 1,
-        borderStyle: "solid",
-        borderColor: theme.base00,
-        display: "flex",
-        width: props.size,
-        height: props.size,
-        boxSizing: "border-box",
-        alignItems: "center",
-        padding: isDown ? "6px 4px 2px 4px" : 4,
-        boxShadow: isDown ? "#0004 0 2px 4px inset" : undefined,
+        ...{
+          cursor: props.disabled ? undefined : "pointer",
+          background: isDown ? theme.boldBackground : theme.background,
+          opacity: props.disabled ? 0.7 : 1,
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderColor: theme.base00,
+          display: "flex",
+          width: props.size,
+          height: props.size,
+          boxSizing: "border-box",
+          alignItems: "center",
+          padding: isDown ? "6px 4px 2px 4px" : 4,
+          boxShadow: isDown ? "#0004 0 2px 4px inset" : undefined,
+        },
+        ...(props.style || {}),
       }}
       title={props.disabled ? undefined : props.title}
       onClick={() => {
