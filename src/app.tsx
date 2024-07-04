@@ -4,16 +4,6 @@ import shader from "./shader.wgsl";
 import { kSolarizedDark } from "./monaco/solarized";
 import { ThemeProvider, kDefinedThemes } from "./components/theme-provider";
 import { updateStyleSheet } from "./components/style-sheet";
-import { read } from "./read";
-import { print } from "./print";
-import { Env } from "./env";
-import { addBuiltins } from "./builtins";
-import { evaluate } from "./evaluate";
-import { generate, indent, makeContext } from "./generate";
-import { getShapeFn } from "./shapes";
-import wgslTemplate from "./sdf/map.wgsl";
-import wgslColors from "./sdf/colors.wgsl";
-import wgslNoise from "./sdf/noise.wgsl";
 import {
   Uniform,
   UniformEditor,
@@ -22,13 +12,18 @@ import {
   isUniform,
   kDefaultUniform,
 } from "./components/uniform";
-import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import { isVectorName } from "./dsl";
 import monaco from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
-import { ProgressPlugin } from "webpack";
 import { Documentation } from "./components/documentation";
+import {
+  generateShader,
+  isGenerationError,
+  isGenerationSuccess,
+  makeShader,
+  readDefaultUniformValues,
+} from "./make-wgsl";
 
 declare global {
   interface Window {
@@ -41,19 +36,6 @@ const DslEditor = React.lazy(async () => {
   await window.getMonaco();
   return import("./components/dsl-editor");
 });
-
-const makeShader = (template: string, generated: string, valueCount: number) =>
-  template
-    .replace(
-      "//UNIFORM-VALUES//",
-      valueCount == 0
-        ? ""
-        : `values: array<vec4<f32>, ${((valueCount + 15) & ~0xf) / 4}>,`
-    )
-    .replace(
-      "//MAP-FUNCTION//",
-      generated || [wgslColors, "", wgslPlaceholder].join("\n")
-    );
 
 export const App: React.FC = () => {
   const [settings, setSettings] = React.useState(loadSettings());
@@ -91,119 +73,18 @@ export const App: React.FC = () => {
     setValues(updated);
   };
 
-  const readDefaultUniformValues = (input: string) => {
-    const start = input.indexOf("#|start-interactive-values");
-    const end = input.indexOf("end-interactive-values|#");
-    if (start < 0 || end < 0) {
-      return;
-    }
-
-    const updated = new Map(values.entries());
-    const lines = input.substring(start, end).split("\n");
-    lines.forEach((line) => {
-      const m = line.match(/^\s*([^\s]+)\s*=\s*([^\s]+)\s*(\[([^\]]+)])?/);
-      if (!m) {
-        return;
-      }
-      const name = m[1];
-      if (updated.has(name)) {
-        return;
-      }
-      const value = Number(m[2]);
-      if (isNaN(value)) {
-        return;
-      }
-
-      if (m[3]) {
-        const parts = m[4].split(":").map(Number);
-        if (parts.every((el) => !isNaN(el))) {
-          updated.set(name, {
-            value: value,
-            min: parts[0],
-            max: parts[1],
-            step: parts[2],
-            logarithmic: false,
-          });
-          return;
-        }
-      }
-
-      updated.set(name, getDefaultUniform(name, value));
-    });
-    setValues(updated);
-  };
-
   const generateWgsl = (raw: string) => {
-    const lines: string[] = [];
-    const log: string[] = [];
-    try {
-      readDefaultUniformValues(raw);
-      const parsed = read(raw);
-
-      lines.push("Parsed:");
-      lines.push(...parsed.map((el) => print(el)));
-
-      const env = new Env();
-      addBuiltins(env);
-      const res = parsed
-        .map((expr) => evaluate(expr, env))
-        .filter((expr) => expr.type !== "null");
-
-      lines.push("", "Evaluated:");
-      lines.push(...res.map((el) => print(el)));
-
-      const ctx = makeContext({
-        log: (...args) => log.push(args.map((el) => el.toString()).join(" ")),
-      });
-      const generated = res.map((expr) => generate(expr, env, ctx));
-
-      const wgsl: string[] = [];
-
-      for (const dep of ctx.dependencies.keys()) {
-        wgsl.push(getShapeFn(dep), "");
-      }
-      wgsl.push(wgslNoise, "");
-      wgsl.push(wgslColors, "");
-
-      const [wgslPrefix, wgslSuffix] = wgslTemplate.split("//MAP-CODE//");
-
-      wgsl.push(wgslPrefix);
-      wgsl.push("  var res: f32 = 1e5;");
-
-      generated.forEach((el, i) => {
-        switch (el.type) {
-          case "float":
-          case "sdf":
-            wgsl.push(`  res = ${el.code};`);
-            break;
-          case "void":
-            wgsl.push(...indent(el.code));
-            break;
-          default:
-            throw new Error(`Cannot use...
-${el.code}
-    ...in map function.`);
-        }
-      });
-
-      // wgsl.push("  res *= 0.6;");
-      wgsl.push("  return vec4<f32>(col, res);");
-      wgsl.push(wgslSuffix);
-
-      ctx.applyUniforms(wgsl);
-
-      setUniforms(ctx.uniforms);
-      setOffsets(ctx.offsets);
-      setGenerated(wgsl.join("\n"));
+    setValues(readDefaultUniformValues(raw, values));
+    const res = generateShader(raw);
+    if (isGenerationSuccess(res)) {
+      setUniforms(res.uniformNames);
+      setOffsets(res.uniformOffsets);
+      setGenerated(res.generated);
       setErrors("");
       setDocs(false);
-    } catch (err) {
-      if (log.length > 0) {
-        lines.unshift(`Generator log:`, ...log, "");
-      }
-      lines.unshift(`Error parsing: ${err}`, "");
+    } else if (isGenerationError(res)) {
       setGenerated("");
-      setErrors(lines.join("\n"));
+      setErrors(res.errors);
     }
   };
 
