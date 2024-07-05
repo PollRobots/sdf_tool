@@ -47,7 +47,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.4.5",
     "uuid": "^10.0.0",
-    "vim-monaco": "file:../vim-monaco",
+    "vim-monaco": "^1.0.1",
     "webpack": "^5.92.0",
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^5.0.4",
