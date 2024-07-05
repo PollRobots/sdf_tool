@@ -155,10 +155,9 @@ const generateImpl = (
               const coerced = hasVectors(branches)
                 ? branches.map((el) => coerce(el, "vec"))
                 : branches;
+
               return {
-                code: `${test.code} ? ${coerced
-                  .map((el) => el.code)
-                  .join(" : ")}`,
+                code: `select(${coerced[1].code}, ${coerced[0].code}, ${test.code})`,
                 type: coerced[0].type,
               };
             }

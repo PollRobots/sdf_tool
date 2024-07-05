@@ -184,7 +184,7 @@ describe("generate", () => {
     expect(ctx.dependencies).to.have.key("sdfSphere");
   });
 
-  it("if generates conditional when both branches are immediate", () => {
+  it("if generates select when both branches are immediate", () => {
     const env = new Env();
     addBuiltins(env);
     const ctx = makeContext({});
@@ -192,7 +192,7 @@ describe("generate", () => {
     const cond = read("(if (< 1 :x) (splat 3) 4)")[0];
     expect(generate(cond, env, ctx)).to.have.property(
       "code",
-      "(1 < {%x%}) ? vec3<f32>(3) : vec3<f32>(4)"
+      "select(vec3<f32>(4), vec3<f32>(3), (1 < {%x%}))"
     );
   });
 
@@ -212,6 +212,17 @@ describe("generate", () => {
 } else {
   res = sdfSphere(p, vec3<f32>(2), 2);
 }`
+    );
+  });
+  it("if generates select for placeholder branches", () => {
+    const env = new Env();
+    addBuiltins(env);
+    const ctx = makeContext({});
+
+    const cond = read("(if (< 1 :x) :true :false)")[0];
+    expect(generate(cond, env, ctx)).to.have.property(
+      "code",
+      `select({%false%}, {%true%}, (1 < {%x%}))`
     );
   });
 });
