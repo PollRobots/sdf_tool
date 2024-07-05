@@ -164,7 +164,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     editor.updateOptions({
       fontSize: (props.settings.fontSize * 96) / 72,
       fontFamily: "Fira Code Variable",
-      fontLigatures: true,
+      fontLigatures: false,
       lineNumbers: "relative",
       minimap: { enabled: false },
     });
