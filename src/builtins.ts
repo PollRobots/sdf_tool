@@ -1232,6 +1232,35 @@ const kBuiltins: Internal[] = [
     ],
   },
   {
+    name: "saturate-xyz",
+    impl: (args) => {
+      requireArity("saturate-xyz", 1, args);
+      requireVector("saturate-xyz", 0, args[0]);
+      const vec = args[0].value as Vector;
+      return makeVector(
+        Math.min(Math.max(0, vec.x), 0.950489),
+        Math.min(Math.max(0, vec.y), 1),
+        Math.min(Math.max(0, vec.z), 1.08884),
+        args[0].offset,
+        args[0].length
+      );
+    },
+    generate: (args) => {
+      requireArity("saturate-xyz", 1, args);
+      const vec = coerce(args[0], "vec");
+      return { type: "vec", code: `(${vec.code} * kReferenceD65 * 0.01)` };
+    },
+    docs: [
+      "(**saturate-xyz** *v*)",
+      "This clamps the vector *v* to within the XYZ gamut. It is equivalent to ",
+      "```" +
+        `
+(clamp 0 #<0.950489 1 1.08884>)
+` +
+        "```",
+    ],
+  },
+  {
     name: "perlin",
     impl: (args) => {
       requireArity("perlin", [1, 2], args);
@@ -1261,7 +1290,25 @@ const kBuiltins: Internal[] = [
       "*p* must be a vector, and *octave* must be a numeric value.",
       "**Note:** The values returned by `perlin` are based on a noise texture " +
         "provided to the WebGPU pipeline. They will be repeatable for given *p* " +
-        "and *octave* while that texture remains unchanged",
+        "and *octave* only while that texture remains unchanged",
+      "**Example:**",
+      "```example" +
+        `
+(color (* (+ 1 (perlin :pos 1)
+                 (perlin :pos 2)
+                 (perlin :pos 4)
+                 (perlin :pos 8)
+                 (perlin :pos 16)
+                 (perlin :pos 32)) 0.5 (saturate-xyz #<2>))
+    (union
+        (plane #<0 1 0> -0.01)
+        (sphere #<0 1 0> 1)))
+` +
+        "```",
+      "This applies 6 octaves of perlin noise to a plane and a sphere. The call " +
+        "to `(saturate-xzy #<2>)` is a way to get the value of the reference " +
+        "illuminant to ensure that the noise is scaled correctly in the XYZ color " +
+        "space.",
     ],
   },
   {

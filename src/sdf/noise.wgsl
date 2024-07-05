@@ -4,8 +4,7 @@ fn tmod(x: vec2<f32>) -> vec2<f32> {
 
 
 fn randomGradient(pt: vec3<f32>) -> vec3<f32> {
-  var s = (pt * vec3<f32>(1, 277, 379));
-  var spt = tmod(s.xy + s.z);
+  var spt = tmod(pt.xy + 101 * pt.z);
 
   var t = textureLoad(noiseTexture, vec2<u32>(spt), 0);
 
@@ -36,12 +35,14 @@ fn perlin3(p: vec3<f32>, octave: f32) -> f32 {
     dotGridGradient(select(p0, p1, vec3<bool>(false, true, true)), pt),
     dotGridGradient(select(p0, p1, vec3<bool>(true, true, true)), pt));
 
+  frac = smoothstep(vec3<f32>(0), vec3<f32>(1), frac);
+
   // mix w.r.t. z fraction
-  var gvvm = mix(gvv0, gvv1, smoothstep(0, 1, frac.z));
+  var gvvm = mix(gvv0, gvv1, frac.z);
   // xy components represent y = 0, zw components represet z = 1
   // mix w.r.t. y fraction
-  var gvmm = mix(gvvm.xy, gvvm.zw, smoothstep(0, 1, frac.y));
+  var gvmm = mix(gvvm.xy, gvvm.zw, frac.y);
 
   // mix w.r.t. x fraction
-  return mix(gvmm.x, gvmm.y, smoothstep(0, 1, frac.x)) / octave;
+  return mix(gvmm.x, gvmm.y, frac.x) / octave;
 }
