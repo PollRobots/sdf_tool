@@ -1180,7 +1180,7 @@ const kBuiltins: Internal[] = [
     },
     docs: [
       "(**smoothstep** *low* *high* *x*)",
-      "Returns the smoothe Hermite interpolation of the value *x* between `0` " +
+      "Returns the smooth Hermite interpolation of the value *x* between `0` " +
         "and `1`. This will be applied component-wise to vector values.",
       "This is equivalent to:",
       "```" +

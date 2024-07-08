@@ -12,9 +12,10 @@ import utility from "../../docs/utility.md";
 import examples from "../../docs/examples.md";
 import { Env } from "../env";
 import { addBuiltins } from "../builtins";
-import { isDocumentedObject } from "../dsl";
+import { isDocumentedObject, isSpecial } from "../dsl";
 import { IconButton } from "./icon-button";
 import { Example } from "./example";
+import { kSpecialDoc } from "../special-doc";
 
 interface DocumentationProps {
   style: CSSProperties;
@@ -46,11 +47,6 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
   const [doc, setDoc] = React.useState("howto");
   const env = React.useRef(makeEnv());
 
-  const colorize = async (fragment: string) => {
-    const html = await props.colorize(fragment);
-    return <code dangerouslySetInnerHTML={{ __html: html }} />;
-  };
-
   const markdownComponents: Partial<Components> = {
     p: (props) => <div className="para">{props.children}</div>,
     img: (props) => {
@@ -58,6 +54,18 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
         return null;
       }
       const name = props.src.slice(0, props.src.length - 4);
+      if (isSpecial(name)) {
+        const docs = kSpecialDoc.get(name);
+        if (!docs) {
+          return null;
+        }
+        return (
+          <Markdown
+            children={`### ${props.alt}\n\n${docs.join("\n\n")}`}
+            components={markdownComponents}
+          />
+        );
+      }
       const def = env.current.get(name);
       if (!isDocumentedObject(def)) {
         return null;

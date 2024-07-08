@@ -1,7 +1,8 @@
 # Utility Functions
 
-![Smoothstep](smoothstep.doc)
 ![Mix](mix.doc)
+![Smoothstep](smoothstep.doc)
+![Smoothcase](smoothcase.doc)
 ![Clamp](clamp.doc)
 ![Saturate](saturate.doc)
 ![Perlin](perlin.doc)
