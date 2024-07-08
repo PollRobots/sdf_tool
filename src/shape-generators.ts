@@ -1,7 +1,7 @@
 import { Generated, Shape } from "./dsl";
 import { Env } from "./env";
 import { GenerateContext, generate, indent } from "./generate";
-import { print } from "./print";
+import { printExpr } from "./print";
 import {
   generateConstAngleRotationMatrix,
   generateConstAxisRotationMatrix,
@@ -89,7 +89,7 @@ const generateSmooth = (
       );
       break;
     default:
-      throw new Error(`cannot smooth ${print(shape.args[1])}`);
+      throw new Error(`cannot smooth ${printExpr(shape.args[1])}`);
   }
   lines.push("}");
   return {
@@ -160,7 +160,7 @@ const generateUnionOrIntersect = (
         throw new Error(
           `cannot take ${
             shape.type === "union" ? "a union" : "an intersection"
-          } of ${print(shape.args[i])}`
+          } of ${printExpr(shape.args[i])}`
         );
     }
   });
@@ -183,7 +183,7 @@ const generateDifference = (
   if (args.length == 3) {
     if (args[0].type !== "float") {
       throw new Error(
-        `difference smoothing factor must be a number, found ${print(
+        `difference smoothing factor must be a number, found ${printExpr(
           shape.args[0]
         )}`
       );
@@ -220,9 +220,9 @@ const generateDifference = (
         break;
       default:
         throw new Error(
-          `cannot take difference of ${print(
+          `cannot take difference of ${printExpr(
             shape.args[shape.args.length - 2]
-          )} and ${print(shape.args[shape.args.length - 1])}`
+          )} and ${printExpr(shape.args[shape.args.length - 1])}`
         );
     }
   });
@@ -244,7 +244,7 @@ const generateLerp = (
   const args = shape.args.map((el) => generate(el, env, ctx));
   if (args[0].type !== "float") {
     throw new Error(
-      `lerp interpolation factor must be a number, found ${print(
+      `lerp interpolation factor must be a number, found ${printExpr(
         shape.args[0]
       )}`
     );
@@ -283,9 +283,9 @@ const generateLerp = (
         break;
       default:
         throw new Error(
-          `cannot take linear interpolation of ${print(
+          `cannot take linear interpolation of ${printExpr(
             shape.args[1]
-          )} and ${print(shape.args[2])}}`
+          )} and ${printExpr(shape.args[2])}}`
         );
     }
   });
@@ -309,7 +309,7 @@ const generateRound = (
   const radius = generate(shape.args[0], env, ctx);
   if (radius.type !== "float") {
     throw new Error(
-      `rounding radius must be a number, found ${print(shape.args[0])}`
+      `rounding radius must be a number, found ${printExpr(shape.args[0])}`
     );
   }
   const target = generate(shape.args[1], env, ctx);
@@ -327,7 +327,7 @@ const generateRound = (
         lines.push(...indent(target.code, { strip: true }));
         lines.push(`  res -= ${radius.code};`);
       default:
-        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+        throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
     }
   } else {
     lines.push(`  var radius = ${radius.code};`);
@@ -340,7 +340,7 @@ const generateRound = (
         lines.push("  res -= radius;");
         break;
       default:
-        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+        throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
     }
   }
   lines.push("}");
@@ -360,7 +360,7 @@ const generateScale = (
   const factor = generate(shape.args[0], env, ctx);
   if (factor.type !== "float") {
     throw new Error(
-      `scale factor must be a number, found ${print(shape.args[0])}`
+      `scale factor must be a number, found ${printExpr(shape.args[0])}`
     );
   }
   const target = generate(shape.args[1], env, ctx);
@@ -383,7 +383,7 @@ const generateScale = (
         lines.push(`  res *= ${factor.code};`);
         break;
       default:
-        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+        throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
     }
   } else {
     lines.push(`  var scale = ${factor.code};`);
@@ -398,7 +398,7 @@ const generateScale = (
         lines.push("    res *= scale;");
         break;
       default:
-        throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+        throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
     }
     lines.push("  }");
   }
@@ -418,7 +418,9 @@ const generateColor = (
 
   const color = generate(shape.args[0], env, ctx);
   if (color.type !== "vec") {
-    throw new Error(`color must be a vector, found ${print(shape.args[0])}`);
+    throw new Error(
+      `color must be a vector, found ${printExpr(shape.args[0])}`
+    );
   }
   const target = generate(shape.args[1], env, ctx);
   const lines = ["{"];
@@ -431,7 +433,7 @@ const generateColor = (
       lines.push(...indent(target.code, {}));
       break;
     default:
-      throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+      throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
   }
   lines.push("}");
   return {
@@ -450,7 +452,7 @@ const generateTranslate = (
   const translation = generate(shape.args[0], env, ctx);
   if (translation.type !== "vec") {
     throw new Error(
-      `translation must be a vector, found ${print(shape.args[0])}`
+      `translation must be a vector, found ${printExpr(shape.args[0])}`
     );
   }
   lines.push(`  var p = p - ${translation.code};`);
@@ -463,7 +465,7 @@ const generateTranslate = (
       lines.push(...indent(translation_target.code));
       break;
     default:
-      throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+      throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
   }
   lines.push("}");
   return {
@@ -481,13 +483,13 @@ const generateRotate = (
   const axis = generate(shape.args[0], env, ctx);
   if (axis.type !== "vec") {
     throw new Error(
-      `rotation axis must be a vector, found ${print(shape.args[0])}`
+      `rotation axis must be a vector, found ${printExpr(shape.args[0])}`
     );
   }
   const angle = generate(shape.args[1], env, ctx);
   if (angle.type !== "float") {
     throw new Error(
-      `rotation angle must be a number, found ${print(shape.args[1])}`
+      `rotation angle must be a number, found ${printExpr(shape.args[1])}`
     );
   }
   const lines = ["{"];
@@ -522,7 +524,7 @@ const generateRotate = (
       lines.push(...removeDeclarations("p", inner));
       break;
     default:
-      throw new Error(`cannot ${shape.type} ${print(shape.args[2])}`);
+      throw new Error(`cannot ${shape.type} ${printExpr(shape.args[2])}`);
   }
   lines.push("}");
   return {
@@ -541,7 +543,7 @@ const generateReflect = (
   const reflection = generate(shape.args[0], env, ctx);
   if (reflection.type !== "vec") {
     throw new Error(
-      `reflection must be a vector, found ${print(shape.args[0])}`
+      `reflection must be a vector, found ${printExpr(shape.args[0])}`
     );
   }
   lines.push(`  var p = select(p, abs(p), ${reflection.code} > vec3<f32>(0));`);
@@ -554,7 +556,7 @@ const generateReflect = (
       lines.push(...indent(target.code));
       break;
     default:
-      throw new Error(`cannot ${shape.type} ${print(shape.args[1])}`);
+      throw new Error(`cannot ${shape.type} ${printExpr(shape.args[1])}`);
   }
   lines.push("}");
   return {
@@ -572,11 +574,15 @@ const generateShell = (
   const args = shape.args.map((el) => generate(el, env, ctx));
   const offset = args[0];
   if (offset.type !== "float") {
-    throw new Error(`offset must be a number, found ${print(shape.args[0])}`);
+    throw new Error(
+      `offset must be a number, found ${printExpr(shape.args[0])}`
+    );
   }
   const select = args[1];
   if (select.type !== "float") {
-    throw new Error(`selector must be a number, found ${print(shape.args[1])}`);
+    throw new Error(
+      `selector must be a number, found ${printExpr(shape.args[1])}`
+    );
   }
   const target = args[2];
   const lines = ["{"];
@@ -592,7 +598,9 @@ const generateShell = (
       lines.push(`  col = mix(col, tmp_col, vec3<f32>(s));`);
       break;
     default:
-      throw new Error(`cannot create a shell around ${print(shape.args[2])}`);
+      throw new Error(
+        `cannot create a shell around ${printExpr(shape.args[2])}`
+      );
   }
   lines.push(`  res = mix(res - o * s, res - o, step(1.5 * o, res));`);
 

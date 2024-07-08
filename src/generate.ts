@@ -7,14 +7,16 @@ import {
   Lambda,
   Shape,
   Vector,
+  dslError,
   isIdentifier,
   isSpecial,
 } from "./dsl";
 import { Env } from "./env";
 import { evaluate } from "./evaluate";
-import { print } from "./print";
+import { printExpr } from "./print";
 import { kShapeGenerators, makeShapeName } from "./shape-generators";
 import { GenerateContextImpl } from "./generate-context";
+import { generateSpecial } from "./special-forms-gen";
 
 export const coerce = (value: Generated, type: GeneratedType): Generated => {
   if (value.type === type) {
@@ -79,10 +81,30 @@ export type GenerateContextLog = (...args: string[]) => void;
 export interface GenerateContext {
   log: GenerateContextLog;
   dependencies: Set<string>;
+  readonly builtins: Set<string>;
   readonly uniforms: string[];
   readonly offsets: number[];
+  readonly generatedLambdas: GeneratedLambda[];
   getUniformCode: (name: string, failForUnknown?: boolean) => string;
   applyUniforms: (lines: string[]) => void;
+  getName: (hint: string, requireNumber?: boolean) => string;
+  addFunction: (
+    name: string,
+    definition: string[],
+    type: GeneratedType
+  ) => void;
+  getLambda: (l: Lambda) => GeneratedLambda | undefined;
+  setLambda: (
+    l: Lambda,
+    hint: string,
+    argTypes: GeneratedType[]
+  ) => GeneratedLambda;
+}
+
+export interface GeneratedLambda {
+  name: string;
+  type: GeneratedType;
+  code: string;
 }
 
 export const makeContext = (ctx: Partial<GenerateContext>): GenerateContext =>
@@ -123,61 +145,8 @@ const generateImpl = (
     case "list":
       const list = expr.value as Expression[];
       const head = list[0];
-      if (isIdentifier(head) && isSpecial(head.value as string)) {
-        const special = head.value as string;
-        switch (special) {
-          case "if":
-            const args = list
-              .slice(1)
-              .map((el) => generate(evaluate(el, env), env, ctx));
-            const test = args[0];
-            const branches = args.slice(1);
-            if (hasVoids(branches)) {
-              const lines = [`if (${test.code}) {`];
-              branches.forEach((branch, i) => {
-                switch (branch.type) {
-                  case "void":
-                    lines.push(...indent(branch.code, { strip: true }));
-                    break;
-                  case "sdf":
-                    lines.push(`  res = ${branch.code};`);
-                    break;
-                  default:
-                    throw new Error("Incompatible types in if branches");
-                }
-                lines.push(i == 0 && branches.length > 1 ? "} else {" : "}");
-              });
-              return {
-                code: lines.join("\n"),
-                type: "void",
-              };
-            } else {
-              const coerced = hasVectors(branches)
-                ? branches.map((el) => coerce(el, "vec"))
-                : branches;
-
-              return {
-                code: `select(${coerced[1].code}, ${coerced[0].code}, ${test.code})`,
-                type: coerced[0].type,
-              };
-            }
-          case "shape":
-            const shape: Shape = {
-              type: list[1].value as string,
-              args: list.slice(2),
-            };
-            return generate(
-              {
-                type: "shape",
-                value: shape,
-                offset: expr.offset,
-                length: expr.length,
-              },
-              env,
-              ctx
-            );
-        }
-        throw new Error(`Special form ${head.value} is not implemented`);
+      if (isIdentifier(head) && isSpecial(head.value)) {
+        return generateSpecial(expr, env, ctx);
       } else {
         const args = list
           .slice(1)
@@ -187,13 +156,65 @@ const generateImpl = (
           case "internal":
             const internal = proc.value as Internal;
             if (!internal.generate) {
-              throw new Error(
-                `Internal procedure ${internal.name} is not implemented.`
+              throw new DslGeneratorError(
+                `Internal procedure ${internal.name} is not implemented.`,
+                head.offset,
+                head.length
               );
             }
             return internal.generate(args);
           case "lambda":
             const lambda = proc.value as Lambda;
+            const existing =
+              ctx.getLambda(lambda) ||
+              ctx.setLambda(
+                lambda,
+                isIdentifier(head) ? (head.value as string) : "anon",
+                args.map((el) => el.type)
+              );
+            args.forEach((arg, i) => {
+              if (arg.type === "void") {
+                throw new DslGeneratorError(
+                  `Cannot pass ${printExpr(
+                    list[i + 1]
+                  )} as an argument to ${printExpr(head)}`,
+                  head.offset,
+                  head.length
+                );
+              }
+            });
+            // const closureSymbols = getLambdaClosureSymbols(lambda, ctx.builtins);
+            const largs: string[] = args.map((el) => el.code);
+            if (existing) {
+              switch (existing.type) {
+                case "float":
+                case "vec":
+                case "sdf":
+                  return {
+                    type: existing.type,
+                    code: `${existing.name}(p, col, ${largs.join(", ")})`,
+                  };
+                case "void":
+                  return {
+                    type: "void",
+                    code: [
+                      "{",
+                      `  var tmp_res = ${existing.name}(p, col, ${largs.join(
+                        ", "
+                      )});`,
+                      "  res = tmp_res.w;",
+                      "  col = tmp_res.xyz;",
+                      "}",
+                    ].join("\n"),
+                  };
+                default:
+                  throw new DslGeneratorError(
+                    `Lambda ${printExpr(head)} has an unexpected type`,
+                    head.offset,
+                    head.length
+                  );
+              }
+            }
             const lambda_env = new Env(env);
             lambda.symbols.forEach((sym, i) =>
               lambda_env.set(sym, {
@@ -205,7 +226,11 @@ const generateImpl = (
             );
             return generate(lambda.body, lambda_env, ctx);
           default:
-            throw new Error(`Not implemented!, cannot generate ${print(proc)}`);
+            throw new DslGeneratorError(
+              `Not implemented!, cannot generate ${printExpr(proc)}`,
+              head.offset,
+              head.length
+            );
         }
       }
 
@@ -263,11 +288,17 @@ const generateImpl = (
         return { code: "1", type: "float" };
       }
       throw new Error(
-        `Generation not implemented for ${expr.type} ${print(expr)}`
+        `Generation not implemented for ${expr.type} ${printExpr(expr)}`
+      );
+    case "error":
+      throw new DslGeneratorError(
+        expr.value as string,
+        expr.offset,
+        expr.length
       );
     default:
       throw new Error(
-        `Generation not implemented for ${expr.type} ${print(expr)}`
+        `Generation not implemented for ${expr.type} ${printExpr(expr)}`
       );
   }
 };
@@ -281,10 +312,10 @@ export const generate = (
     ctx = makeContext({});
   }
 
-  ctx.log("Generate:", print(expr));
+  ctx.log("Generate:", printExpr(expr));
   try {
     const value = generateImpl(expr, env, ctx);
-    ctx.log(print(expr), "->", value.code);
+    ctx.log(printExpr(expr), "->", value.code);
     return value;
   } catch (err) {
     if (err instanceof DslGeneratorError) {
@@ -296,4 +327,63 @@ export const generate = (
       expr.length
     );
   }
+};
+
+const getLambdaClosureSymbols = (
+  l: Lambda,
+  builtin: Readonly<Set<string>>
+): string[] => {
+  const pending = [l.body];
+  const accessed = new Set<string>();
+  const shadowed = new Set(l.symbols);
+
+  while (pending.length > 0) {
+    const curr = pending.pop()!;
+
+    switch (curr.type) {
+      case "list":
+        const list = curr.value as Expression[];
+        if (isIdentifier(list[0])) {
+          const proc = list[0].value as string;
+          if (proc === "shape") {
+            if (list.length > 2) {
+              pending.push(...list.slice(2));
+            }
+            break;
+          } else if (l.closure.has(proc)) {
+            const defined = l.closure.get(proc);
+            if (defined.type === "lambda") {
+              const child = getLambdaClosureSymbols(
+                defined.value as Lambda,
+                builtin
+              );
+              for (const sym of child) {
+                if (!shadowed.has(sym)) {
+                  accessed.add(sym);
+                }
+              }
+            }
+          }
+        } else {
+          pending.push(...list);
+        }
+        break;
+      case "placeholder":
+        const retained = curr.value as Expression;
+        if (isIdentifier(retained)) {
+          break;
+        }
+        pending.push(retained);
+        break;
+      case "identifier":
+        const ident = curr.value as string;
+        if (isSpecial(ident) || shadowed.has(ident) || builtin.has(ident)) {
+          break;
+        }
+        accessed.add(ident);
+        break;
+    }
+  }
+
+  return Array.from(accessed).sort();
 };

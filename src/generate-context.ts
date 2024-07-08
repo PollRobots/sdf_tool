@@ -1,17 +1,36 @@
-import { isVectorName } from "./dsl";
-import { GenerateContext, GenerateContextLog, UniformInfo } from "./generate";
+import {
+  DslGeneratorError,
+  Generated,
+  GeneratedType,
+  Lambda,
+  isVectorName,
+  kEmptyList,
+} from "./dsl";
+import { Env } from "./env";
+import {
+  GenerateContext,
+  GenerateContextLog,
+  GeneratedLambda,
+  UniformInfo,
+  generate,
+  indent,
+} from "./generate";
 
 export class GenerateContextImpl implements GenerateContext {
   log: GenerateContextLog;
   dependencies: Set<string>;
+  readonly builtins: Set<string>;
 
   private haveOffsets = false;
   private readonly uniformsInfo: UniformInfo[];
+  private readonly lambdas: Map<Lambda, GeneratedLambda> = new Map();
+  private readonly names: Set<string> = new Set();
 
   constructor(
     log: GenerateContextLog,
     dependencies: Set<string>,
-    uniforms: string[]
+    uniforms: string[],
+    builtins?: Iterable<string>
   ) {
     this.log = log;
     this.dependencies = dependencies;
@@ -19,6 +38,7 @@ export class GenerateContextImpl implements GenerateContext {
       name: el,
       isVector: isVectorName(el),
     }));
+    this.builtins = new Set(builtins);
   }
 
   get uniforms(): string[] {
@@ -132,4 +152,113 @@ export class GenerateContextImpl implements GenerateContext {
         });
     }
   }
+
+  getName(hint: string, requireNumber?: boolean): string {
+    if (!this.names.has(hint) && !requireNumber) {
+      return hint;
+    }
+
+    for (let i = 0; i <= this.names.size; i++) {
+      const test = `${hint}_${i + this.names.size}`;
+      if (!this.names.has(test)) {
+        return test;
+      }
+    }
+    throw new Error(`Cannot name ${hint}`);
+  }
+
+  addFunction(name: string, code: string[], type: GeneratedType) {
+    this.names.add(name);
+    this.lambdas.set(
+      {
+        symbols: [],
+        body: kEmptyList,
+        closure: undefined,
+      },
+      { name: name, code: code.join("\n"), type: type }
+    );
+  }
+
+  getLambda(l: Lambda): GeneratedLambda | undefined {
+    return this.lambdas.get(l);
+  }
+
+  private setLambdaName(hint: string): string {
+    const name = `lambda_${hint}`;
+    return this.getName(name);
+  }
+
+  setLambda(l: Lambda, hint: string, args: GeneratedType[]): GeneratedLambda {
+    const name = this.setLambdaName(hint);
+
+    const lines = [`fn ${name}(`, "  p: vec3<f32>,", "  col: vec3<f32>,"];
+    lines.push(
+      ...args
+        .map((arg) => {
+          const t = mapTypeToWgsl(arg);
+          if (!t) {
+            throw new DslGeneratorError(
+              `Unexpected argument type ${arg}`,
+              l.body.offset,
+              1
+            );
+          }
+          return t;
+        })
+        .map((t, i) => `  ${l.symbols[i]}: ${t},`)
+    );
+
+    const lambdaEnv = new Env(l.closure);
+    l.symbols.forEach((sym, i) => {
+      lambdaEnv.set(sym, {
+        type: "generated",
+        value: {
+          type: args[i],
+          code: sym,
+        } as Generated,
+        offset: l.body.offset,
+        length: 1,
+      });
+    });
+
+    const body = generate(l.body, lambdaEnv, this);
+    const returnType = mapTypeToWgsl(body.type) || "vec4<f32>";
+
+    lines.push(`) -> ${returnType} {`);
+    if (body.type === "void") {
+      lines.push("  var res: f32 = 1e5;");
+      lines.push(...indent(body.code));
+      lines.push("  return vec4<f32>(col, res);");
+    } else {
+      lines.push(`  return ${body.code};`);
+    }
+    lines.push("}");
+
+    const generated = {
+      name: name,
+      type: body.type,
+      code: lines.join("\n"),
+    };
+    this.names.add(name);
+    this.lambdas.set(l, generated);
+    return generated;
+  }
+
+  get generatedLambdas(): GeneratedLambda[] {
+    return Array.from(this.lambdas.keys())
+      .sort()
+      .map((name) => this.lambdas.get(name));
+  }
 }
+
+const mapTypeToWgsl = (type: GeneratedType): string | undefined => {
+  switch (type) {
+    case "float":
+      return "f32";
+    case "sdf":
+    case "vec":
+      return "vec3<f32>";
+    default:
+      return;
+  }
+};

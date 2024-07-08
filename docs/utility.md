@@ -5,6 +5,8 @@
 ![Clamp](clamp.doc)
 ![Saturate](saturate.doc)
 ![Perlin](perlin.doc)
+![Cartesian → Spherical](cartesian-spherical.doc)
+![Spherical → Cartesian](spherical-cartesian.doc)
 
 ## Vector functions
 

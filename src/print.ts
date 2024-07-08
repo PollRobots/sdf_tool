@@ -8,7 +8,7 @@ import {
   Macro,
 } from "./dsl";
 
-export const print = (
+export const printExpr = (
   expr: Expression,
   undoReaderMacros: boolean = true
 ): string => {
@@ -27,13 +27,13 @@ export const print = (
           // check to pretty-print reader macros
           switch (list[0].value as string) {
             case "quote":
-              return `'${print(list[1], true)}`;
+              return `'${printExpr(list[1], true)}`;
             case "quasi-quote":
-              return `${"`"}${print(list[1], true)}`;
+              return `${"`"}${printExpr(list[1], true)}`;
             case "unquote":
-              return `,${print(list[1], true)}`;
+              return `,${printExpr(list[1], true)}`;
             case "unquote-splicing":
-              return `,@${print(list[1], true)}`;
+              return `,@${printExpr(list[1], true)}`;
             case "placeholder":
               if (isIdentifier(list[1])) {
                 return `:${list[1].value}`;
@@ -41,7 +41,9 @@ export const print = (
               break;
           }
         }
-        return `(${list.map((el) => print(el, undoReaderMacros)).join(" ")})`;
+        return `(${list
+          .map((el) => printExpr(el, undoReaderMacros))
+          .join(" ")})`;
       }
     case "identifier":
       if (typeof expr.value !== "string") {
@@ -61,7 +63,7 @@ export const print = (
     case "shape":
       const shape = expr.value as Shape;
       return `#shape<${shape.type}: ${shape.args
-        .map((el) => print(el, undoReaderMacros))
+        .map((el) => printExpr(el, undoReaderMacros))
         .join(" ")}>`;
     case "internal":
       return `#internal<${(expr.value as Internal).name}>`;
@@ -75,7 +77,7 @@ export const print = (
       if (undoReaderMacros && retained.type === "identifier") {
         return `:${retained.value as string}`;
       } else {
-        return `(placeholder ${print(retained)})`;
+        return `(placeholder ${printExpr(retained)})`;
       }
     case "error":
       return `#error<${expr.value}>`;

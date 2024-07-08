@@ -1,12 +1,18 @@
 import { Expression, isIdentifier, makeError } from "./dsl";
-import { print } from "./print";
+import { printExpr } from "./print";
 
 export class Env {
-  parent?: Env;
-  values: Map<string, Expression> = new Map();
+  private parent?: Env;
+  private values: Map<string, Expression> = new Map();
+  private readonly generating_?: boolean;
 
-  constructor(parent: Env | undefined = undefined) {
+  constructor(parent?: Env | undefined, generating?: boolean) {
     this.parent = parent;
+    this.generating_ = generating;
+  }
+
+  get generating(): boolean {
+    return this.parent ? this.parent.generating : !!this.generating_;
   }
 
   has(name: string, local: boolean = false): boolean {
@@ -22,7 +28,7 @@ export class Env {
   getExpr(expr: Expression): Expression {
     if (!isIdentifier(expr)) {
       return makeError(
-        `Cannot perform environment lookup for ${print(
+        `Cannot perform environment lookup for ${printExpr(
           expr
         )}, it is not an identifier`,
         expr.offset,

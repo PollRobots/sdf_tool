@@ -1,35 +1,14 @@
 import { Env } from "./env";
-import {
-  Expression,
-  isTruthy,
-  kEmptyList,
-  Lambda,
-  Macro,
-  Internal,
-  Shape,
-  isPlaceholder,
-  makePlaceholder,
-  makeIdList,
-  isIdentifier,
-  isList,
-  makeList,
-  makeError,
-  dslError,
-  makeIdentifier,
-  isIdList,
-  isPlaceholderVar,
-  isSpecial,
-  DslEvalError,
-} from "./dsl";
-import { print } from "./print";
+import * as dsl from "./dsl";
+import { evaluateSpecial } from "./special-forms-eval";
 
-const getUnresolved = (expr: Expression): Map<string, Expression> => {
-  const syms = new Map<string, Expression>();
+const getUnresolved = (expr: dsl.Expression): Map<string, dsl.Expression> => {
+  const syms = new Map<string, dsl.Expression>();
 
-  const inner = (expr: Expression) => {
+  const inner = (expr: dsl.Expression) => {
     switch (expr.type) {
       case "list":
-        const list = expr.value as Expression[];
+        const list = expr.value as dsl.Expression[];
         list.forEach((el) => inner(el));
         break;
       case "identifier":
@@ -43,311 +22,38 @@ const getUnresolved = (expr: Expression): Map<string, Expression> => {
   return syms;
 };
 
-export const evaluate = (expr: Expression, env: Env): Expression => {
+export const evaluate = (expr: dsl.Expression, env: Env): dsl.Expression => {
   /// console.log("evaluate:", print(expr));
   switch (expr.type) {
     case "list":
-      const list = expr.value as Expression[];
+      const list = expr.value as dsl.Expression[];
       if (list.length < 1) {
-        return makeError(
+        return dsl.makeError(
           "Should never have an empty list at eval time",
           expr.offset,
           expr.length
         );
       }
       const head = list[0];
-      if (head.type === "identifier" && isSpecial(head.value as string)) {
-        const proc = head.value as string;
-        switch (proc) {
-          // special forms
-          case "if":
-            // must have two or three args
-            if (list.length < 3 || list.length > 4) {
-              return makeError(
-                `if should have two or three arguments`,
-                expr.offset,
-                expr.length
-              );
-            }
-            const test = evaluate(list[1], env);
-            if (isPlaceholder(test)) {
-              return makePlaceholder(makeList([head, test, ...list.splice(2)]));
-            } else if (isTruthy(test)) {
-              return evaluate(list[2], env);
-            } else if (list.length === 4) {
-              return evaluate(list[3], env);
-            } else {
-              return kEmptyList;
-            }
-
-          case "define":
-          case "set!":
-            if (list.length != 3) {
-              return makeError(
-                `define must have two arguments, not ${list.length - 1}`,
-                expr.offset,
-                expr.length
-              );
-            }
-            if (!isIdentifier(list[1])) {
-              return makeError(
-                `first argument for define must be an identifier`,
-                expr.offset,
-                expr.length
-              );
-            }
-            env.set(
-              list[1].value as string,
-              evaluate(list[2], env),
-              proc === "set!"
-            );
-            return kEmptyList;
-
-          case "lambda":
-            if (list.length != 3) {
-              return makeError(
-                `lambda must have two arguments, not ${list.length - 1}`,
-                expr.offset,
-                expr.length
-              );
-            }
-            if (!isList(list[1])) {
-              return makeError(
-                `First argument to lambda must be a list`,
-                expr.offset,
-                expr.length
-              );
-            }
-            const symbols = list[1].value as Expression[];
-            if (!symbols.every(isIdentifier)) {
-              return makeError(
-                `First argument to lambda must be a list of symbols`,
-                expr.offset,
-                expr.length
-              );
-            }
-
-            if (list.length === 3) {
-              return {
-                type: "lambda",
-                value: {
-                  symbols: symbols.map((el) => el.value as string),
-                  body: list[2],
-                  closure: env,
-                },
-                offset: expr.offset,
-                length: expr.length,
-              };
-            } else {
-              return {
-                type: "lambda",
-                value: {
-                  symbols: symbols.map((el) => el.value as string),
-                  body: makeIdList("begin", list.slice(2)),
-                  closure: env,
-                },
-                offset: expr.offset,
-                length: expr.length,
-              };
-            }
-
-          case "let":
-            if (list.length != 3) {
-              return makeError(
-                `let must have 2 arguments, not ${list.length - 1}`,
-                expr.offset,
-                expr.length
-              );
-            }
-            if (!isList(list[1])) {
-              return makeError(
-                `First argument to let must be a list`,
-                list[1].offset,
-                list[1].length
-              );
-            }
-            const let_symbols: Expression[] = [];
-            const let_exprs: Expression[] = [];
-            for (const el of list[1].value as Expression[]) {
-              const el_list = el.value as Expression[];
-              if (!isList(el) || el_list.length !== 2) {
-                return makeError(
-                  `let init list elements must be a list of 2`,
-                  list[1].offset,
-                  list[1].length
-                );
-              }
-              let_symbols.push(el_list[0]);
-              let_exprs.push(el_list[1]);
-            }
-            // build the lambda expression
-            const let_lambda = makeIdList("lambda", [
-              makeList(let_symbols),
-              ...list.slice(2),
-            ]);
-            return evaluate(makeList([let_lambda, ...let_exprs]), env);
-
-          case "begin":
-            let result = kEmptyList;
-            for (const expr of list.slice(1)) {
-              result = evaluate(expr, env);
-            }
-            return result;
-          case "quote":
-            if (list.length != 2) {
-              return makeError(
-                `quote must have 1 argument, not ${list.length - 1}`,
-                expr.offset,
-                expr.length
-              );
-            }
-            return list[1];
-          case "quasi-quote":
-            if (list.length != 2) {
-              return makeError(
-                `quote must have 1 argument, not ${list.length - 1}`,
-                expr.offset,
-                expr.length
-              );
-            }
-            const unquote = (
-              list: Expression[],
-              splicing: boolean
-            ): Expression | Expression[] => {
-              const op = splicing ? "unquote-splicing" : "unquote";
-              if (list[0].value !== op || list.length !== 2) {
-                return makeError(`Expecting ${op}`, expr.offset, expr.length);
-              } else if (list.length !== 2) {
-                return makeError(
-                  `${op} must have 1 argument, not ${list.length - 1}`,
-                  expr.offset,
-                  expr.length
-                );
-              }
-              const res = evaluate(list[1], env);
-              if (!splicing) {
-                return res;
-              }
-              if (res.type !== "list" && res.type !== "null") {
-                return makeError(
-                  `unquote-splicing can only splice a list`,
-                  expr.offset,
-                  expr.length
-                );
-              }
-              return res.value as Expression[];
-            };
-
-            const qq_list = (l: Expression[]): Expression[] =>
-              l
-                .map((el) => {
-                  if (el.type === "list") {
-                    const list = el.value as Expression[];
-                    if (list[0].value === "unquote") {
-                      return unquote(list, false);
-                    } else if (list[0].value === "unquote-splicing") {
-                      return unquote(list, true);
-                    } else {
-                      el = makeList(qq_list(list));
-                    }
-                  }
-                  return el;
-                })
-                .filter((el) => !Array.isArray(el) || el.length > 0)
-                .flat();
-
-            if (list[1].type === "list") {
-              return makeList(qq_list(list[1].value as Expression[]));
-            } else {
-              return list[1];
-            }
-          case "shape":
-            if (list.length < 2 || list[1].type !== "identifier") {
-              return makeError(
-                `shape must have an identifier as the first argument`,
-                expr.offset,
-                expr.length
-              );
-            }
-            const args = list.slice(2).map((expr) => evaluate(expr, env));
-            if (args.some(isPlaceholder)) {
-              return makePlaceholder(
-                makeIdList("shape", [
-                  list[1],
-                  ...args.map((arg) =>
-                    isPlaceholder(arg) && !isPlaceholderVar(arg)
-                      ? (arg.value as Expression)
-                      : arg
-                  ),
-                ])
-              );
-            } else {
-              const shape: Shape = {
-                type: list[1].value as string,
-                args: args,
-              };
-              return {
-                type: "shape",
-                value: shape,
-                offset: expr.offset,
-                length: expr.length,
-              };
-            }
-          case "placeholder":
-            if (list.length !== 2) {
-              return makeError(
-                `placeholder must have a single argument`,
-                expr.offset,
-                expr.length
-              );
-            }
-            const placeholder_arg = list[1];
-            switch (placeholder_arg.type) {
-              case "identifier":
-                return makePlaceholder(placeholder_arg);
-              case "list":
-                const parts = placeholder_arg.value as Expression[];
-                if (
-                  parts.length == 2 &&
-                  parts[0].value === "vec" &&
-                  isIdentifier(parts[1])
-                ) {
-                  const name = parts[1].value as string;
-                  return makePlaceholder(
-                    makeIdList("vec", [
-                      makePlaceholder(
-                        makeIdentifier(`${name}.x`, placeholder_arg.offset)
-                      ),
-                      makePlaceholder(
-                        makeIdentifier(`${name}.y`, placeholder_arg.offset)
-                      ),
-                      makePlaceholder(
-                        makeIdentifier(`${name}.z`, placeholder_arg.offset)
-                      ),
-                    ])
-                  );
-                }
-              default:
-                return makeError(
-                  `${print(placeholder_arg)} is not a valid placeholder arg`,
-                  placeholder_arg.offset,
-                  placeholder_arg.length
-                );
-            }
-          default:
-            return makeError(
-              `Unexpected special form: ${proc}`,
-              head.offset,
-              head.length
-            );
-        }
+      if (head.type === "identifier" && dsl.isSpecial(head.value as string)) {
+        return evaluateSpecial(expr, env);
       } else {
         const fn = evaluate(head, env);
         if (fn.type === "lambda") {
           const args = list.slice(1).map((el) => evaluate(el, env));
-          const lambda = fn.value as Lambda;
+          const lambda = fn.value as dsl.Lambda;
+          if (lambda.closure.generating) {
+            const depth = maxDepth(lambda.body);
+            if (depth >= 2) {
+              if (dsl.isIdentifier(head)) {
+                return dsl.makeList(head, ...args);
+              } else {
+                return dsl.makeList(fn, ...args);
+              }
+            }
+          }
           if (args.length != lambda.symbols.length) {
-            return makeError(
+            return dsl.makeError(
               `lambda expected ${lambda.symbols.length} args, got ${args.length}`,
               expr.offset,
               expr.length
@@ -356,17 +62,17 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
           const lambda_env = new Env(lambda.closure);
           lambda.symbols.forEach((el, i) => lambda_env.set(el, args[i]));
           const lambda_res = evaluate(lambda.body, lambda_env);
-          if (isPlaceholder(lambda_res) && lambda.symbols.length != 0) {
-            const retained = lambda_res.value as Expression;
+          if (dsl.isPlaceholder(lambda_res) && lambda.symbols.length != 0) {
+            const retained = lambda_res.value as dsl.Expression;
             const unresolved_syms = getUnresolved(retained);
-            if (isIdList(retained, "let")) {
-              const retained_list = retained.value as Expression[];
+            if (dsl.isIdList(retained, "let")) {
+              const retained_list = retained.value as dsl.Expression[];
               // let is only the retained expression when a lambda was retained.
               // any symbols defined in the let symbol list cannot be in the unresolved_syms
               // otherwise recursive evaluation will mess things up
-              const let_symbols = (retained_list[1].value as Expression[]).map(
-                (el) => (el.value as Expression[])[0].value as string
-              );
+              const let_symbols = (
+                retained_list[1].value as dsl.Expression[]
+              ).map((el) => (el.value as dsl.Expression[])[0].value as string);
               let_symbols.forEach((sym) => unresolved_syms.delete(sym));
             }
             const recapture = lambda.symbols.filter((el) =>
@@ -376,57 +82,58 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
               return lambda_res;
             }
 
-            return makePlaceholder(
-              makeIdList("let", [
-                makeList(
-                  recapture.map((el) => {
-                    const re_exp = unresolved_syms.get(el) || kEmptyList;
-                    return makeList([
-                      makeIdentifier(el, re_exp.offset),
-                      lambda_env.get(el),
-                    ]);
+            return dsl.makePlaceholder(
+              dsl.makeIdList(
+                "let",
+                dsl.makeList(
+                  ...recapture.map((el) => {
+                    const re_exp = unresolved_syms.get(el) || dsl.kEmptyList;
+                    return dsl.makeList(
+                      dsl.makeIdentifier(el, re_exp.offset),
+                      lambda_env.get(el)
+                    );
                   })
                 ),
-                lambda_res.value as Expression,
-              ])
+                lambda_res.value as dsl.Expression
+              )
             );
           } else {
             return lambda_res;
           }
         } else if (fn.type === "macro") {
           const args = list.slice(1);
-          const macro = fn.value as Macro;
+          const macro = fn.value as dsl.Macro;
           const last_symbol =
             macro.symbols.length > 0
               ? macro.symbols[macro.symbols.length - 1]
               : "";
           if (last_symbol.startsWith("...")) {
             if (args.length < macro.symbols.length - 1) {
-              return makeError(
+              return dsl.makeError(
                 `${macro.name} macro expected at least ${
                   macro.symbols.length - 1
                 } args, got ${args.length}`,
-                expr.offset,
-                expr.length
+                head.offset,
+                head.length
               );
             }
             const tail = args.splice(macro.symbols.length - 1);
             if (tail.length > 0) {
-              args.push(makeList(tail));
+              args.push(dsl.makeList(...tail));
             } else {
-              args.push(kEmptyList);
+              args.push(dsl.kEmptyList);
             }
           } else if (args.length < macro.symbols.length) {
-            return makeError(
+            return dsl.makeError(
               `Too few arguments(${args.length}) for ${macro.name} macro, expected ${macro.symbols.length}`,
-              expr.offset,
-              expr.length
+              head.offset,
+              head.length
             );
           } else if (args.length > macro.symbols.length) {
-            return makeError(
+            return dsl.makeError(
               `Too many arguments(${args.length}) for ${macro.name} macro, expected ${macro.symbols.length}`,
-              expr.offset,
-              expr.length
+              head.offset,
+              head.length
             );
           }
           const macro_env = new Env(macro.closure);
@@ -436,15 +143,17 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
           return evaluate(evaluate(macro.body, macro_env), env);
         } else if (fn.type === "internal") {
           try {
-            const internal = fn.value as Internal;
+            const internal = fn.value as dsl.Internal;
             const args = list.slice(1).map((el) => evaluate(el, env));
-            if (args.some((el) => isPlaceholder(el))) {
-              return makePlaceholder(
-                makeIdList(
+            if (
+              args.some((el) => dsl.isPlaceholder(el) || dsl.isGenerated(el))
+            ) {
+              return dsl.makePlaceholder(
+                dsl.makeIdList(
                   internal.name,
-                  args.map((arg) =>
-                    isPlaceholder(arg) && !isPlaceholderVar(arg)
-                      ? (arg.value as Expression)
+                  ...args.map((arg) =>
+                    dsl.isPlaceholder(arg) && !dsl.isPlaceholderVar(arg)
+                      ? (arg.value as dsl.Expression)
                       : arg
                   )
                 )
@@ -452,20 +161,37 @@ export const evaluate = (expr: Expression, env: Env): Expression => {
             }
             return internal.impl(args);
           } catch (err) {
-            if (err instanceof DslEvalError) {
-              return makeError(`${err}`, err.offset, err.length);
+            if (err instanceof dsl.DslEvalError) {
+              return dsl.makeError(`${err}`, err.offset, err.length);
             }
-            return makeError(`${err}`, expr.offset, expr.length);
+            return dsl.makeError(`${err}`, expr.offset, expr.length);
           }
         } else if (fn.type === "error") {
           return fn;
         } else {
-          return dslError`Cannot evaluate ${head}`;
+          return dsl.dslError`Cannot evaluate ${head}`;
         }
       }
     case "identifier":
       return env.getExpr(expr);
     default:
       return expr;
+  }
+};
+
+const maxDepth = (expr: dsl.Expression): number => {
+  switch (expr.type) {
+    case "list":
+      return (
+        1 +
+        (expr.value as dsl.Expression[]).reduce(
+          (a, e) => Math.max(a, maxDepth(e)),
+          0
+        )
+      );
+    case "placeholder":
+      return maxDepth(expr.value as dsl.Expression);
+    default:
+      return 0;
   }
 };

@@ -14,7 +14,7 @@ import {
   DslEvalError,
   isExpression,
 } from "./dsl";
-import { print } from "./print";
+import { printExpr } from "./print";
 import { Env } from "./env";
 import { read } from "./read";
 import { hasVectors, coerce } from "./generate";
@@ -31,7 +31,7 @@ const requireValueArgs = (name: string, args: Expression[]): Value[] => {
   return args.map((el) => {
     if (!isValue(el)) {
       throw new DslEvalError(
-        `${name} requires arguments to be numbers or vectors, found ${print(
+        `${name} requires arguments to be numbers or vectors, found ${printExpr(
           el
         )}`,
         el.offset,
@@ -41,6 +41,8 @@ const requireValueArgs = (name: string, args: Expression[]): Value[] => {
     return el as Value;
   });
 };
+
+const requireValueArg = (name: string, index: number, arg: Expression) => {};
 
 const requireArity = (
   name: string,
@@ -115,7 +117,7 @@ const requireVector = (name: string, pos: number, arg: Expression): void => {
 const requireNumber = (name: string, pos: number, arg: Expression): void => {
   if (arg.type !== "number") {
     throw new DslEvalError(
-      `${name} requires ${pos} arg to be a number, found ${print(arg).slice(
+      `${name} requires ${pos} arg to be a number, found ${printExpr(arg).slice(
         0,
         32
       )}`,
@@ -125,7 +127,7 @@ const requireNumber = (name: string, pos: number, arg: Expression): void => {
   }
 };
 
-const getValueAsVector = (value: Value): Vector => {
+export const getValueAsVector = (value: Value): Vector => {
   if (value.type === "vector") {
     return value.value as Vector;
   } else {
@@ -310,7 +312,7 @@ const trySplitVec = (code: string): [string, string, string] | undefined => {
 const kBuiltins: Internal[] = [
   {
     name: "list",
-    impl: (args) => (args.length === 0 ? kEmptyList : makeList(args)),
+    impl: (args) => (args.length === 0 ? kEmptyList : makeList(...args)),
   },
   {
     name: "head",
@@ -340,7 +342,7 @@ const kBuiltins: Internal[] = [
         if (list.length < 2) {
           return kEmptyList;
         }
-        return makeList(list.slice(1));
+        return makeList(...list.slice(1));
       } else {
         throw new DslEvalError(
           `tail only works on lists`,
@@ -791,6 +793,103 @@ const kBuiltins: Internal[] = [
         };
       }
     },
+  },
+
+  {
+    name: "cartesian-spherical",
+    impl: (args) => {
+      requireArity("cartesian-spherical", [1, 2], args);
+      requireVector("cartesian-spherical", 0, args[0]);
+      const pos = args[0].value as Vector;
+      if (args.length == 2) {
+        requireVector("cartesian-spherical", 1, args[1]);
+        const center = args[1].value as Vector;
+        pos.x -= center.x;
+        pos.y -= center.y;
+        pos.z -= center.z;
+      }
+
+      const length = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+      const theta = Math.acos(pos.y / length);
+      const phi = Math.atan2(pos.z, pos.x);
+
+      const argPos = getArgsPosition(args);
+
+      return makeVector(length, theta, phi, argPos.offset, argPos.length);
+    },
+    generate: (args) => {
+      requireArity("cartesian-spherical", [1, 2], args);
+      args = args.map((a) => coerce(a, "vec"));
+      return {
+        type: "vec",
+        code:
+          args.length == 1
+            ? `cartesianToSpherical(${args[0].code})`
+            : `cartesianToSpherical(${args[0].code} - ${args[1].code})`,
+      };
+    },
+    docs: [
+      "(**cartesian-spherical** *v* [*c*])",
+      "Converts a cartesian vector *v* to spherical/polar coordinates. If the " +
+        "vector *c* is provided, then the conversion is done relative to *c*. " +
+        "*i.e.* `(cartesian-spherical a b)` is equivalent to " +
+        "`(cartesian-spherical (- a b))`",
+      "The result is a vector of *radius* (*r*), *inclination* (*θ*), and " +
+        " *azimuth* (*φ*) as the x, y, and z elements respectively. " +
+        "*inclination* and *azimuth* are in radians.",
+    ],
+  },
+  {
+    name: "spherical-cartesian",
+    impl: (args) => {
+      requireArity("spherical-cartesian", [1, 2], args);
+      requireVector("spherical-cartesian", 0, args[0]);
+      const sph = args[0].value as Vector;
+      // r = sph.x;
+      // θ = sph.y;
+      // φ = sph.z;
+
+      const sin_theta = Math.sin(sph.y);
+      const pos: Vector = {
+        x: sph.x * sin_theta * Math.cos(sph.z),
+        y: sph.x * Math.cos(sph.y),
+        z: sph.x * sin_theta * Math.sin(sph.z),
+      };
+
+      if (args.length == 2) {
+        requireVector("cartesian-spherical", 1, args[1]);
+        const center = args[1].value as Vector;
+        pos.x += center.x;
+        pos.y += center.y;
+        pos.z += center.z;
+      }
+
+      const argPos = getArgsPosition(args);
+
+      return makeVector(pos.x, pos.y, pos.z, argPos.offset, argPos.length);
+    },
+    generate: (args) => {
+      requireArity("spherical-cartesian", [1, 2], args);
+      args = args.map((a) => coerce(a, "vec"));
+      return {
+        type: "vec",
+        code:
+          args.length == 1
+            ? `sphericalToCartesian(${args[0].code})`
+            : `(sphericalToCartesian(${args[0].code}) + ${args[1].code})`,
+      };
+    },
+    docs: [
+      "(**spherical-cartesian** *sph* [*off*])",
+      "Converts a vector *sph*  representing a spherical/polar coordinate to " +
+        "a cartesian coordinate. If the vector *off* is provided, then the " +
+        "result is offset by *off*. *i.e.* `(spherical-cartesian a b)` is " +
+        "equivalent to " +
+        "`(+ (sperical-spherical a) b)`",
+      "The spherical vector is interpreted with the *x*, *y* and *z* " +
+        "coordinates as *radius* (*r*), *inclination* (*θ*), and *azimuth* " +
+        "(*φ*) respectively. *inclination* and *azimuth* are in radians.",
+    ],
   },
 
   {
@@ -1248,7 +1347,10 @@ const kBuiltins: Internal[] = [
     generate: (args) => {
       requireArity("saturate-xyz", 1, args);
       const vec = coerce(args[0], "vec");
-      return { type: "vec", code: `(${vec.code} * kReferenceD65 * 0.01)` };
+      return {
+        type: "vec",
+        code: `clamp(vec3<f32>(0), kReferenceD65 * 0.01, ${vec.code})`,
+      };
     },
     docs: [
       "(**saturate-xyz** *v*)",

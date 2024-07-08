@@ -1,5 +1,5 @@
 import { Env } from "./env";
-import { print } from "./print";
+import { printExpr } from "./print";
 
 export class DslEvalError extends Error {
   readonly offset: number;
@@ -112,7 +112,7 @@ export interface Internal {
   docs?: string[];
 }
 
-export const kEmptyList: Expression = {
+export const kEmptyList: ExpressionList = {
   type: "null",
   value: [],
   offset: 0,
@@ -145,10 +145,18 @@ export const isTruthy = (expr: Expression): boolean => {
 
 export const isSpecial = (name: string): boolean =>
   !!name.match(
-    /^(if|define|set\!|lambda|let|begin|quote|quasi-quote|shape|placeholder)$/
+    /^(if|define|set\!|lambda|let|begin|quote|quasi-quote|shape|placeholder|smoothcase)$/
   );
 
-export const isNumber = (expr: Expression): boolean => expr.type === "number";
+interface ExpressionNumber {
+  type: "number";
+  value: number;
+  offset: number;
+  length: number;
+}
+
+export const isNumber = (expr: Expression): expr is ExpressionNumber =>
+  expr.type === "number";
 
 export const makeNumber = (
   value: number,
@@ -186,10 +194,34 @@ export const isTransform = (expr: Expression): boolean => {
   return false;
 };
 
+export const isGenerated = (expr: Expression): boolean =>
+  expr.type === "generated";
+
 export const isVectorName = (name: string) => !!name.match(/\.[xyz]$/);
 
-export const isPlaceholder = (expr: Expression): boolean =>
-  expr.type === "placeholder";
+interface ExpressionPlaceholder {
+  type: "placeholder";
+  value: Expression;
+  offset: number;
+  length: number;
+}
+
+export const isPlaceholder = (
+  expr: Expression
+): expr is ExpressionPlaceholder => expr.type === "placeholder";
+
+export const hasPlaceholder = (expr: Expression): boolean => {
+  switch (expr.type) {
+    case "placeholder":
+      return true;
+    case "list":
+      return (expr.value as Expression[]).some(hasPlaceholder);
+    case "shape":
+      return (expr.value as Shape).args.some(hasPlaceholder);
+    default:
+      return false;
+  }
+};
 
 export const isPlaceholderVar = (expr: Expression): boolean =>
   expr.type === "placeholder" && isIdentifier(expr.value as Expression);
@@ -200,37 +232,58 @@ export const makePlaceholder = (expr: Expression): Expression => ({
   value: expr,
 });
 
-export const isIdentifier = (expr: Expression): boolean =>
+interface ExpressionIdentifier {
+  type: "identifier";
+  value: string;
+  offset: number;
+  length: number;
+}
+
+export const isIdentifier = (expr: Expression): expr is ExpressionIdentifier =>
   expr.type === "identifier";
 
-export const makeIdentifier = (symbol: string, offset: number): Expression => ({
+export const makeIdentifier = (
+  symbol: string,
+  offset: number
+): ExpressionIdentifier => ({
   type: "identifier",
   value: symbol,
   offset: offset,
   length: symbol.length,
 });
 
-export const isList = (expr: Expression): boolean =>
+interface ExpressionList {
+  type: "list" | "null";
+  value: Expression[];
+  offset: number;
+  length: number;
+}
+
+export const isList = (expr: Expression): expr is ExpressionList =>
   expr.type === "null" || expr.type === "list";
 
-export const makeList = (exprs: Expression[]): Expression =>
+export const makeList = (...exprs: Expression[]): ExpressionList =>
   exprs.length === 0
     ? kEmptyList
     : {
         type: "list",
         value: exprs,
         offset: exprs[0].offset,
-        length: exprs.reduce(
-          (best, el) => Math.max(best, el.offset + el.length),
-          0
-        ),
+        length:
+          exprs.reduce(
+            (best, el) => Math.max(best, el.offset + el.length),
+            exprs[0].offset
+          ) - exprs[0].offset,
       };
 
-export const makeIdList = (symbol: string, exprs: Expression[]): Expression =>
-  makeList([
+export const makeIdList = (
+  symbol: string,
+  ...exprs: Expression[]
+): Expression =>
+  makeList(
     makeIdentifier(symbol, exprs.length > 0 ? exprs[0].offset : 0),
-    ...exprs,
-  ]);
+    ...exprs
+  );
 
 export const isIdList = (expr: Expression, id: string): boolean =>
   id === getIdList(expr);
@@ -246,6 +299,8 @@ export const getIdList = (expr: Expression): string | false => {
   }
   return false;
 };
+
+export const isError = (expr: Expression): boolean => expr.type === "error";
 
 export const makeError = (
   msg: string,
@@ -270,7 +325,7 @@ export const dslError = (
     result.push(strings[i]);
     const curr = exprs[i];
     if (isExpression(curr)) {
-      result.push(print(curr));
+      result.push(printExpr(curr));
       start = Math.min(start, curr.offset);
       end = Math.max(end, curr.offset + length);
     } else {

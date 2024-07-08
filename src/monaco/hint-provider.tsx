@@ -94,7 +94,7 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
       const el = x || y || z;
       return {
         kind: window.monaco.languages.InlayHintKind.Type,
-        position: model.getPositionAt(el.offset + el.length),
+        position: model.getPositionAt(el.offset + el.length + 1),
         label: `= #<${x_val}, ${y_val}, ${z_val}>`,
         paddingLeft: true,
       };
@@ -104,7 +104,7 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
       .filter((el) => !isVectorName(el.value as string))
       .map((el) => ({
         kind: window.monaco.languages.InlayHintKind.Type,
-        position: model.getPositionAt(el.offset + el.length),
+        position: model.getPositionAt(el.offset + el.length + 1),
         label: `= ${getPlaceholderValue(el)}`,
         paddingLeft: true,
       }));

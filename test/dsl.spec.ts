@@ -2,7 +2,7 @@ import { expect } from "chai";
 import "mocha";
 
 import { Expression } from "../src/dsl";
-import { print } from "../src/print";
+import { printExpr } from "../src/print";
 import { evaluate } from "../src/evaluate";
 import { Env } from "../src/env";
 import { addBuiltins } from "../src/builtins";
@@ -110,15 +110,15 @@ describe("parse", () => {
 
 describe("print", () => {
   it("should print a list", () => {
-    expect(print(parse(tokenize("(+ 1 2)"))[0])).to.equal("(+ 1 2)");
-    expect(print(parse(tokenize("(+ \t1;comment\n 2)"))[0])).to.equal(
+    expect(printExpr(parse(tokenize("(+ 1 2)"))[0])).to.equal("(+ 1 2)");
+    expect(printExpr(parse(tokenize("(+ \t1;comment\n 2)"))[0])).to.equal(
       "(+ 1 2)"
     );
   });
   it("should print a nested list", () => {
-    expect(print(parse(tokenize("(sqrt (+ (* x x) (* y y)))"))[0])).to.equal(
-      "(sqrt (+ (* x x) (* y y)))"
-    );
+    expect(
+      printExpr(parse(tokenize("(sqrt (+ (* x x) (* y y)))"))[0])
+    ).to.equal("(sqrt (+ (* x x) (* y y)))");
   });
 });
 
@@ -129,7 +129,7 @@ describe("evaluate", () => {
     addBuiltins(env);
 
     const res = evaluate(parsed[0], env);
-    expect(print(res)).to.equal("6");
+    expect(printExpr(res)).to.equal("6");
   });
 
   it("should evaluate simple multiplication", () => {
@@ -138,7 +138,7 @@ describe("evaluate", () => {
     addBuiltins(env);
 
     const res = evaluate(parsed[0], env);
-    expect(print(res)).to.equal("#<4 8 12>");
+    expect(printExpr(res)).to.equal("#<4 8 12>");
   });
 });
 
@@ -154,30 +154,30 @@ describe("special forms", () => {
   };
 
   it("'if' evaluates first branch if truthy", () => {
-    expect(print(basicEval("(if 1 2 3)"))).to.equal("2");
-    expect(print(basicEval("(if t 2)"))).to.equal("2");
+    expect(printExpr(basicEval("(if 1 2 3)"))).to.equal("2");
+    expect(printExpr(basicEval("(if t 2)"))).to.equal("2");
   });
 
   it("'if' evaluates second branch if falsy", () => {
-    expect(print(basicEval("(if () 2 3)"))).to.equal("3");
-    expect(print(basicEval("(if 0 2 3)"))).to.equal("3");
+    expect(printExpr(basicEval("(if () 2 3)"))).to.equal("3");
+    expect(printExpr(basicEval("(if 0 2 3)"))).to.equal("3");
   });
 
   it("'if' returns () if two arguments and falsy", () => {
-    expect(print(basicEval("(if () 2)"))).to.equal("()");
-    expect(print(basicEval("(if 0 2)"))).to.equal("()");
+    expect(printExpr(basicEval("(if () 2)"))).to.equal("()");
+    expect(printExpr(basicEval("(if 0 2)"))).to.equal("()");
   });
 
   it("'define' adds to env", () => {
     const env = new Env();
     basicEval("(define a 7)", env);
 
-    expect(print(env.get("a"))).to.equal("7");
+    expect(printExpr(env.get("a"))).to.equal("7");
   });
 
   it("'lambda' creates a function that can be evaluated", () => {
     const res = basicEval("((lambda (x) (+ x 1)) 7)");
-    expect(print(res)).to.equal("8");
+    expect(printExpr(res)).to.equal("8");
   });
 
   it("'let' creates a local scope", () => {
@@ -191,7 +191,7 @@ describe("special forms", () => {
             (+ a b))`,
       env
     );
-    expect(print(res)).to.equal("3");
+    expect(printExpr(res)).to.equal("3");
     expect(env.has("a")).to.be.false;
     expect(env.has("b")).to.be.false;
   });
@@ -208,77 +208,79 @@ describe("special forms", () => {
       env
     );
 
-    expect(print(res)).to.equal("6");
-    expect(print(env.get("a"))).to.equal("2");
-    expect(print(env.get("b"))).to.equal("3");
+    expect(printExpr(res)).to.equal("6");
+    expect(printExpr(env.get("a"))).to.equal("2");
+    expect(printExpr(env.get("b"))).to.equal("3");
   });
 
   it("'quote' returns its own argument", () => {
     const res = basicEval("(quote (1 2 3))");
-    expect(print(res)).to.equal("(1 2 3)");
+    expect(printExpr(res)).to.equal("(1 2 3)");
   });
 
   it("\"'\" is a reader-macro for 'quote'", () => {
-    expect(print(read("'(1 2 3)")[0], false)).to.equal("(quote (1 2 3))");
+    expect(printExpr(read("'(1 2 3)")[0], false)).to.equal("(quote (1 2 3))");
     const res = basicEval("'(1 2 3)");
-    expect(print(res)).to.equal("(1 2 3)");
+    expect(printExpr(res)).to.equal("(1 2 3)");
   });
 
   it("'quasi-quote' returns its own argument", () => {
     const res = basicEval("(quasi-quote (1 2 3))");
-    expect(print(res)).to.equal("(1 2 3)");
+    expect(printExpr(res)).to.equal("(1 2 3)");
   });
 
   it("\"`\" is a reader-macro for 'quasi-quote'", () => {
-    expect(print(read("`(1 2 3)")[0], false)).to.equal("(quasi-quote (1 2 3))");
+    expect(printExpr(read("`(1 2 3)")[0], false)).to.equal(
+      "(quasi-quote (1 2 3))"
+    );
     const res = basicEval("`(1 2 3)");
-    expect(print(res)).to.equal("(1 2 3)");
+    expect(printExpr(res)).to.equal("(1 2 3)");
   });
 
   it("'unquote' evaluates within a quasi-quote", () => {
     const res = basicEval("(quasi-quote (1 (unquote (+ 2 3)) 4))");
-    expect(print(res)).to.equal("(1 5 4)");
+    expect(printExpr(res)).to.equal("(1 5 4)");
   });
 
   it("\",\" is a reader-macro for 'unquote'", () => {
-    expect(print(read("`(1 ,(+ 2 3) 4)")[0], false)).to.equal(
+    expect(printExpr(read("`(1 ,(+ 2 3) 4)")[0], false)).to.equal(
       "(quasi-quote (1 (unquote (+ 2 3)) 4))"
     );
     const res = basicEval("`(1 ,(+ 2 3) 4)");
-    expect(print(res)).to.equal("(1 5 4)");
+    expect(printExpr(res)).to.equal("(1 5 4)");
   });
 
   it("'unquote-splicing' evaluates within a quasi-quote", () => {
     const res = basicEval("(quasi-quote (1 (unquote-splicing (list 2 3)) 4))");
-    expect(print(res)).to.equal("(1 2 3 4)");
+    expect(printExpr(res)).to.equal("(1 2 3 4)");
   });
 
   it("evaluates builtin lambdas", () => {
-    expect(print(basicEval("(splat 2)"))).to.equal("#<2 2 2>");
-    expect(print(basicEval("(min-vec #<1 2 3>)"))).to.equal("1");
-    expect(print(basicEval("(max-vec #<1 2 3>)"))).to.equal("3");
+    expect(printExpr(basicEval("(splat 2)"))).to.equal("#<2 2 2>");
+    expect(printExpr(basicEval("(min-vec #<1 2 3>)"))).to.equal("1");
+    expect(printExpr(basicEval("(max-vec #<1 2 3>)"))).to.equal("3");
   });
 
   it("evaluates builtin macros", () => {
-    expect(print(basicEval("(and 1 2)"))).to.equal("2");
-    expect(print(basicEval("(and 1 0)"))).to.equal("0");
-    expect(print(basicEval("(and 0 2)"))).to.equal("0");
-    expect(print(basicEval("(and 0 0)"))).to.equal("0");
-    expect(print(basicEval("(and 1 ())"))).to.equal("()");
-    expect(print(basicEval("(and () 2)"))).to.equal("()");
-    expect(print(basicEval("(and () 0)"))).to.equal("()");
-    expect(print(basicEval("(and 0 ())"))).to.equal("0");
-    expect(print(basicEval("(and () ())"))).to.equal("()");
+    expect(printExpr(basicEval("(and 1 2)"))).to.equal("2");
+    expect(printExpr(basicEval("(and 1 0)"))).to.equal("0");
+    expect(printExpr(basicEval("(and 0 2)"))).to.equal("0");
+    expect(printExpr(basicEval("(and 0 0)"))).to.equal("0");
+    expect(printExpr(basicEval("(and 1 ())"))).to.equal("()");
+    expect(printExpr(basicEval("(and () 2)"))).to.equal("()");
+    expect(printExpr(basicEval("(and () 0)"))).to.equal("()");
+    expect(printExpr(basicEval("(and 0 ())"))).to.equal("0");
+    expect(printExpr(basicEval("(and () ())"))).to.equal("()");
 
-    expect(print(basicEval("(or 1 2)"))).to.equal("1");
-    expect(print(basicEval("(or 1 0)"))).to.equal("1");
-    expect(print(basicEval("(or 0 2)"))).to.equal("2");
-    expect(print(basicEval("(or 0 0)"))).to.equal("0");
-    expect(print(basicEval("(or 1 ())"))).to.equal("1");
-    expect(print(basicEval("(or () 2)"))).to.equal("2");
-    expect(print(basicEval("(or () 0)"))).to.equal("0");
-    expect(print(basicEval("(or 0 ())"))).to.equal("()");
-    expect(print(basicEval("(or () ())"))).to.equal("()");
+    expect(printExpr(basicEval("(or 1 2)"))).to.equal("1");
+    expect(printExpr(basicEval("(or 1 0)"))).to.equal("1");
+    expect(printExpr(basicEval("(or 0 2)"))).to.equal("2");
+    expect(printExpr(basicEval("(or 0 0)"))).to.equal("0");
+    expect(printExpr(basicEval("(or 1 ())"))).to.equal("1");
+    expect(printExpr(basicEval("(or () 2)"))).to.equal("2");
+    expect(printExpr(basicEval("(or () 0)"))).to.equal("0");
+    expect(printExpr(basicEval("(or 0 ())"))).to.equal("()");
+    expect(printExpr(basicEval("(or () ())"))).to.equal("()");
   });
 
   it("doesn't evaluate macro args early", () => {
@@ -297,9 +299,9 @@ describe("special forms", () => {
                 right)))`,
       env
     );
-    expect(print(res)).to.equal("0");
-    expect(print(env.get("left"))).to.equal("1");
-    expect(print(env.get("right"))).to.equal("0");
+    expect(printExpr(res)).to.equal("0");
+    expect(printExpr(env.get("left"))).to.equal("1");
+    expect(printExpr(env.get("right"))).to.equal("0");
 
     const resOr = basicEval(
       `(begin
@@ -314,26 +316,28 @@ describe("special forms", () => {
                 right)))`,
       env
     );
-    expect(print(resOr)).to.equal("1");
-    expect(print(env.get("left"))).to.equal("1");
-    expect(print(env.get("right"))).to.equal("0");
+    expect(printExpr(resOr)).to.equal("1");
+    expect(printExpr(env.get("left"))).to.equal("1");
+    expect(printExpr(env.get("right"))).to.equal("0");
   });
 
   it("should handle variable length macro args", () => {
     expect(
-      print(basicEval("(union (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
+      printExpr(basicEval("(union (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
     ).to.equal(
       "#shape<union: #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>"
     );
 
     expect(
-      print(basicEval("(union 0.1 (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))"))
+      printExpr(
+        basicEval("(union 0.1 (sphere #<1 1 1> 1) (sphere #<2 1 1> 1))")
+      )
     ).to.equal(
       "#shape<union: 0.1 #shape<sphere: #<1 1 1> 1> #shape<sphere: #<2 1 1> 1>>"
     );
 
     expect(
-      print(
+      printExpr(
         basicEval(
           "(let ((k 0.1)) (union k (sphere #<1 1 1> 1) (sphere #<2 1 1> 1)))"
         )
@@ -345,11 +349,11 @@ describe("special forms", () => {
 
   describe("placeholders", () => {
     it("prevent complete evaluation", () => {
-      expect(print(basicEval("(+ 1 :x 2)"))).to.equal(
+      expect(printExpr(basicEval("(+ 1 :x 2)"))).to.equal(
         "(placeholder (+ 1 :x 2))"
       );
 
-      expect(print(basicEval("(+ (* :x :x) (* 3 3))"))).to.equal(
+      expect(printExpr(basicEval("(+ (* :x :x) (* 3 3))"))).to.equal(
         "(placeholder (+ (* :x :x) 9))"
         // (lambda (_x) (+ (* _x _x) 9))
       );
@@ -357,7 +361,7 @@ describe("special forms", () => {
 
     it("escape from lambdas", () => {
       expect(
-        print(
+        printExpr(
           basicEval(`(begin
             (define incr (lambda (x) (+ x 1)))
             (incr :y))`)
@@ -367,24 +371,24 @@ describe("special forms", () => {
 
     describe("in if", () => {
       it("prevent evaluation in test expr", () => {
-        expect(print(basicEval("(if :x 1 2)"))).to.equal(
+        expect(printExpr(basicEval("(if :x 1 2)"))).to.equal(
           "(placeholder (if :x 1 2))"
         );
       });
       it("ignored in unchosen branch", () => {
-        expect(print(basicEval("(if t 1 :x)"))).to.equal("1");
-        expect(print(basicEval("(if () :x 2)"))).to.equal("2");
+        expect(printExpr(basicEval("(if t 1 :x)"))).to.equal("1");
+        expect(printExpr(basicEval("(if () :x 2)"))).to.equal("2");
       });
       it("result in chosen branch", () => {
-        expect(print(basicEval("(if t :x 2)"))).to.equal(":x");
-        expect(print(basicEval("(if () 1 :y)"))).to.equal(":y");
+        expect(printExpr(basicEval("(if t :x 2)"))).to.equal(":x");
+        expect(printExpr(basicEval("(if () 1 :y)"))).to.equal(":y");
       });
     });
 
     describe("in define or set!", () => {
       it("propagate to evaluation", () => {
         expect(
-          print(
+          printExpr(
             basicEval(`(begin
                 (define a :x)
                 (+ a 2)
@@ -392,7 +396,7 @@ describe("special forms", () => {
           )
         ).to.equal("(placeholder (+ :x 2))");
         expect(
-          print(
+          printExpr(
             basicEval(`(begin
                 (define p 2)
                 (define q (+ p 1))
@@ -407,20 +411,20 @@ describe("special forms", () => {
 
     describe("in lambda", () => {
       it("propagate to result from body", () => {
-        expect(print(basicEval(`((lambda (x) (+ x :inc)) 7)`))).to.equal(
+        expect(printExpr(basicEval(`((lambda (x) (+ x :inc)) 7)`))).to.equal(
           "(placeholder (+ 7 :inc))"
         );
       });
       it("propagate to result from args", () => {
-        expect(print(basicEval(`((lambda (x) (+ x 1)) :y)`))).to.equal(
+        expect(printExpr(basicEval(`((lambda (x) (+ x 1)) :y)`))).to.equal(
           "(placeholder (+ :y 1))"
         );
-        expect(print(basicEval(`((lambda (x) (if x x 0)) :y)`))).to.equal(
+        expect(printExpr(basicEval(`((lambda (x) (if x x 0)) :y)`))).to.equal(
           "(placeholder (let ((x :y)) (if :y x 0)))"
         );
       });
       it("cause an error when used in symbol list", () => {
-        expect(print(basicEval(`((lambda (:x) (+ :x :inc)) 7)`)))
+        expect(printExpr(basicEval(`((lambda (:x) (+ :x :inc)) 7)`)))
           .to.match(/^#error\</)
           .and.match(/list of symbols/);
       });
@@ -428,10 +432,12 @@ describe("special forms", () => {
 
     describe("in quasi-quote", () => {
       it("are untouched in the quoted portion", () => {
-        expect(print(basicEval("`(+ 1 :x ,(- 4 1))"))).to.equal("(+ 1 :x 3)");
+        expect(printExpr(basicEval("`(+ 1 :x ,(- 4 1))"))).to.equal(
+          "(+ 1 :x 3)"
+        );
       });
       it("prevent evaluation in the unquoted portion", () => {
-        expect(print(basicEval("`(+ 1 2 ,(- :x 1))"))).to.equal(
+        expect(printExpr(basicEval("`(+ 1 2 ,(- :x 1))"))).to.equal(
           "(+ 1 2 (placeholder (- :x 1)))"
         );
       });
@@ -439,8 +445,8 @@ describe("special forms", () => {
 
     describe("in macro", () => {
       it("capture the state of the expanded macro when the placeholder needed evaluation", () => {
-        expect(print(basicEval("(and 1 2 0 :x 3)"))).to.equal("0");
-        expect(print(basicEval("(and 1 2 :x 0)"))).to.equal(
+        expect(printExpr(basicEval("(and 1 2 0 :x 3)"))).to.equal("0");
+        expect(printExpr(basicEval("(and 1 2 :x 0)"))).to.equal(
           "(placeholder (let ((aa :x)) (if :x (and 0) aa)))"
           // (lambda (_x) ((lambda (aa) (if _x (and 0) aa)) _x))
         );

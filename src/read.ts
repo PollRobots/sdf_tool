@@ -268,7 +268,7 @@ export const parse = (tokens: Token[]): Expression[] => {
       currReaderMacro = undefined;
     }
     if (currReaderMacro) {
-      expr = makeIdList(currReaderMacro, [expr]);
+      expr = makeIdList(currReaderMacro, expr);
       currReaderMacro = undefined;
     }
 
@@ -308,7 +308,8 @@ export const parse = (tokens: Token[]): Expression[] => {
           const top = lists.pop();
           currReaderMacro = readerMacros.pop();
 
-          const list: Expression = top.length == 0 ? kEmptyList : makeList(top);
+          const list: Expression =
+            top.length == 0 ? kEmptyList : makeList(...top);
           addExpression(list);
         } else if (curr.value === "'") {
           currReaderMacro = "quote";

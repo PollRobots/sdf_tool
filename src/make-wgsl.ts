@@ -1,6 +1,6 @@
 import { Uniform, getDefaultUniform } from "./components/uniform";
 import { read } from "./read";
-import { print } from "./print";
+import { printExpr } from "./print";
 import { addBuiltins } from "./builtins";
 import { Env } from "./env";
 import { evaluate } from "./evaluate";
@@ -11,6 +11,7 @@ import wgslColors from "./sdf/colors.wgsl";
 import wgslNoise from "./sdf/noise.wgsl";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import wgslTemplate from "./sdf/map.wgsl";
+import wgslUtil from "./sdf/util.wgsl";
 
 interface GeneratedShader {
   error: boolean;
@@ -47,16 +48,17 @@ export const generateShader = (raw: string): GeneratedShader => {
     const parsed = read(raw);
 
     lines.push("Parsed:");
-    lines.push(...parsed.map((el) => print(el)));
+    lines.push(...parsed.map((el) => printExpr(el)));
 
-    const env = new Env();
-    addBuiltins(env);
+    const rootEnv = new Env(undefined, false);
+    addBuiltins(rootEnv);
+    const env = new Env(rootEnv, true);
     const res = parsed
       .map((expr) => evaluate(expr, env))
       .filter((expr) => expr.type !== "null");
 
     lines.push("", "Evaluated:");
-    lines.push(...res.map((el) => print(el)));
+    lines.push(...res.map((el) => printExpr(el)));
 
     const ctx = makeContext({
       log: (...args) => log.push(args.map((el) => el.toString()).join(" ")),
@@ -68,6 +70,7 @@ export const generateShader = (raw: string): GeneratedShader => {
     for (const dep of ctx.dependencies.keys()) {
       wgsl.push(getShapeFn(dep), "");
     }
+    wgsl.push(wgslUtil, "");
     wgsl.push(wgslNoise, "");
     wgsl.push(wgslColors, "");
 
@@ -95,6 +98,11 @@ ${el.code}
     // wgsl.push("  res *= 0.6;");
     wgsl.push("  return vec4<f32>(col, res);");
     wgsl.push(wgslSuffix);
+
+    for (const lambda of ctx.generatedLambdas) {
+      wgsl.push("");
+      wgsl.push(lambda.code);
+    }
 
     ctx.applyUniforms(wgsl);
 

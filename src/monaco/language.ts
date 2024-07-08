@@ -12,6 +12,7 @@ const kSpecial = [
   "or",
   "begin",
   "shape",
+  "smoothcase",
 ];
 
 const kConf: monaco.languages.LanguageConfiguration = {
