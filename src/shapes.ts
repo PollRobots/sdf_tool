@@ -12,6 +12,7 @@ import infiniteCylinder from "./sdf/infinite-cylinder.wgsl";
 import ellipsoid from "./sdf/ellipsoid.wgsl";
 import plane from "./sdf/plane.wgsl";
 import asymmetricEllipsoid from "./sdf/asymmetric-ellipsoid.wgsl";
+import disk from "./sdf/disk.wgsl";
 
 const kShapeFunctions = new Map<string, string>([
   ["sdfAsymmetricEllipsoid", asymmetricEllipsoid],
@@ -28,6 +29,7 @@ const kShapeFunctions = new Map<string, string>([
   ["sdfSphere", sphere],
   ["sdfTorus", torus],
   ["sdfUnion", union],
+  ["sdfDisk", disk],
 ]);
 
 export const getShapeFn = (name: string): string => {

@@ -10,3 +10,4 @@
 ![Infinite Cone](infinite-cone.doc)
 ![Infinite Cylinder](infinite-cylinder.doc)
 ![Plane](plane.doc)
+![Disk](disk.doc)

@@ -1403,7 +1403,7 @@ const kBuiltins: Internal[] = [
                  (perlin :pos 16)
                  (perlin :pos 32)) 0.5 (saturate-xyz #<2>))
     (union
-        (plane #<0 1 0> -0.01)
+        (plane #<0 1 0> 0.01)
         (sphere #<0 1 0> 1)))
 ` +
         "```",
@@ -2018,10 +2018,10 @@ const kShapes: MacroDef[] = [
         `
 (union
     (intersect
-        (plane #<0 1 0> -4)
+        (plane #<0 1 0> 4)
         (union
-            (plane #<1 0 1> 3)
-            (plane #<-1 0 1> 3)))
+            (plane #<1 0 1> -3)
+            (plane #<-1 0 1> -3)))
     (sphere #<0 1 0> 1))
 ` +
         "```",
@@ -2033,6 +2033,25 @@ const kShapes: MacroDef[] = [
         "then the step size the raycaster uses becomes very small and this can cause " +
         "visible glitches where the ray doesn't terminate in a reasonable number of " +
         "iterations.",
+    ],
+  },
+  {
+    name: "disk",
+    symbols: ["n", "c", "r"],
+    body: "`(shape disk ,n ,c ,r)",
+    docs: [
+      "(**disk** *normal* *center* *radius*)",
+      "Creates a disk, which is a circular area of a plane with the supplied " +
+        "*normal*, centered on *center* with *radius*.",
+      "*normal* and *center* must be vectors, *radius* must be a number.",
+      "**Example:**",
+      "```example" +
+        `
+(disk #<0 1 0> #<0 0.5 0> 1)
+` +
+        "```",
+      "This creates a disk with radius 1, parallel with the ground plane, " +
+        "centered at `(0, 1, 0)`",
     ],
   },
   {

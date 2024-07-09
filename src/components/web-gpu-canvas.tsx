@@ -441,7 +441,7 @@ ${"^".padStart(el.linePos)}`;
 
     if (this.fc >= 10) {
       this.fps = (this.fc * 1000) / (timestamp - this.fs);
-      this.fc = 0;
+      this.fc = 1;
       this.fs = timestamp;
     } else {
       this.fc++;

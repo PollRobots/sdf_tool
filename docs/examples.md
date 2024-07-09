@@ -63,3 +63,469 @@ end-interactive-values|#
   (color (rgb-xyz #<0 0 1>)
       (sphere #<:off 1 0> 1)))
 ```
+
+## Building a more complex model
+
+### Starting small
+
+Taking the simple sphere from above,
+
+```example
+(define pi (radians 180))
+(define eye-color (sph) (saturate-xyz (/ (yyy sph) pi)))
+(translate-y 2
+  (color (eye-color (cartesian-spherical :pos))
+    (sphere #<0> 1)))
+```
+
+This adds some color, the `eye-color` lambda is called with the spherical
+coordinates of the position. The spherical coordinates are the radius,
+inclination θ, and azimuth φ.
+
+The inclination is the angle from the y-axis, from
+0 -> π. Where 0 will be the top of the sphere, and π will be the bottom.
+
+The `eye-color` lambda divides the inclination (in the y component of a spherical coordinate vector) by π and uses that as the color value on all three
+channels, giving black at the top, and white at the bottom.
+
+### Making a pupil
+
+```example
+#|start-interactive-values
+  pupil = 0.15 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define eye-color (sph)
+  (saturate-xyz
+    (smoothcase (/ (yyy sph) pi)
+      ((:pupil) (rgb-xyz #<0.05>))
+      ((:pupil) (rgb-xyz #<1>))
+    )))
+(translate-y 2
+  (rotate-x (/ pi -2)
+  (color (eye-color (cartesian-spherical :pos))
+    (sphere #<0> 1))))
+```
+
+This rotates the sphere around the x-axis by -π/2 to face the camera, and uses
+the `smoothcase` special form to interpolate a color from the normalized inclination.
+`smoothcase` will use `smoothstep` to blend between case values when necessary.
+
+### Adding an iris
+
+```example
+#|start-interactive-values
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  iris = 0.25 [0:0.5:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris) (rgb-xyz :#<rgb-iris>))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+(translate-y 2
+  (rotate-x (/ pi -2)
+  (color (eye-color (cartesian-spherical :pos))
+    (sphere #<0> 1))))
+```
+
+This adds an iris band, and blends the color from white at the edge of the iris
+to red at the back of the eye.
+
+### Texturing the iris
+
+```example
+#|start-interactive-values
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  iris = 0.25 [0:0.5:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+(translate-y 2
+  (rotate-x (/ pi -2)
+  (color (eye-color (cartesian-spherical :pos))
+    (sphere #<0> 1))))
+```
+
+This uses 3 octaves of perlin noise to add some variety to the iris color.
+
+The `mix` function is used to blend between the base iris color and a brighter
+version of the same color. The mix factor is chosen using the `smoothstep`
+function.
+
+The smoothstep function operates on the result of calling `noise` with the
+spherical coordinates of the current position scaled to produce a result that is
+reactive to changes in the pupil size.
+
+- The x-component (which is the radius in the spherical coordinate system) is
+  scaled by a small amount based on the :pupil interactive value. This allows the
+  noise pattern to evolve a little as the pupil size changes, without being too
+  extreme.
+- The y-component (which is the inclination or θ) is scaled inversely
+  proportional to the pupil size. This allows the radial features of the noise to
+  stay somewhat constant from the edge of the pupil.
+- The z-component (which is the azimuth or φ) is scaled by a fixed large number,
+  this causes the noise to have a radial appearance
+
+### Adding an eye-lid
+
+```example
+#|start-interactive-values
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  eyelid-angle = 30 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+(translate-y 2
+  (union
+    (rotate-x (/ pi -2)
+      (color (eye-color (cartesian-spherical :pos))
+        (sphere #<0> 1)))
+    (color (rgb-xyz :#<rgb-skin>)
+      (intersect 0.01
+        (sphere #<0> 1.02)
+        (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+          (plane #<0 -1 0> 0)))))))
+```
+
+The eyelid is created by intersecting a sphere that is a little larger than the
+eyeball with a plane. The plane is translated to create an origin of rotation
+behind and lower than the center of the eye. The eyelid can be interactively
+rotated to blink the eye.
+
+The intersection has a small smoothing factor applied to created a rounded edge.
+
+### Two eyes
+
+```example
+#|start-interactive-values
+  eye-pos.x = 1.3 [1:2:0.01]
+  eye-pos.y = 2 [0:5:0.01]
+  eye-pos.z = 0 [0:2:0.01]
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  eyelid-angle = 30 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+
+(reflect #<1 0 0>
+  (translate-x (max 1.1 :eye-pos.x)
+    (translate #<0 :eye-pos.y :eye-pos.z>
+	  (union
+	    (rotate-x (/ pi -2)
+	      (color (eye-color (cartesian-spherical :pos))
+	        (sphere #<0> 1)))
+	    (color (rgb-xyz :#<rgb-skin>)
+	      (intersect 0.01
+	        (sphere #<0> 1.02)
+	        (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+	          (plane #<0 -1 0> 0)))))))))
+```
+
+This uses the interactive vector `:#<eye-pos>` to position the eye. It handles the x component separately to ensure that it is never less than `1.1`, this is to ensure that the entire object is always on the positive side of x.
+
+The `reflect` modifier then reflects the entire eye in the x-axis, creating two
+eyes.
+
+### Position within a face
+
+```example
+#|start-interactive-values
+  eye-pos.x = 0.24 [0:2:0.01]
+  eye-pos.y = -0.05 [-1:1:0.01]
+  eye-pos.z = 0.69 [0:2:0.01]
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  eye-size = 0.15 [0:1:0.01]
+  eyelid-angle = 23 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+
+(translate-y 1
+(union
+  ; eyes
+	(reflect #<1 0 0>
+	  (translate-x (max (* 1.1 :eye-size) :eye-pos.x)
+	    (translate #<0 :eye-pos.y :eye-pos.z>
+          (scale :eye-size
+		  (union
+		    (rotate-x (/ pi -2)
+		      (color (eye-color (cartesian-spherical :pos))
+		        (sphere #<0> 1)))
+		    (color (rgb-xyz :#<rgb-skin>)
+		      (intersect 0.01
+		        (sphere #<0> 1.02)
+		        (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+		          (plane #<0 -1 0> 0))))))))))
+  ; head
+  (color (rgb-xyz :#<rgb-skin>)
+    (difference 0.1
+      (asymmetric-ellipsoid #<0> #<0.8 1 0.7> #<0.8 0.9 0.9>)
+      ; eye-sockets
+      (union
+        (sphere (* 1.2 :#<eye-pos>) (* :eye-size 0.5))
+        (sphere (* 1.2 :#<eye-pos> #<-1 1 1>) (* :eye-size 0.5)))))))
+```
+
+This adds scale and positioning to the eyes, and an asymmetric ellipsoid for the
+basic head shape.
+
+A `difference` with a smoothing factor is used to _carve out_ two eye sockets.
+The `reflect` modifier is not used for the eye sockets because it will interact
+with the smoothing function on the difference combinator to create a
+discontinuity.
+
+The eye socket scale and position is derived from the eye scale and position,
+modified to adjust the influence on the general head shape.
+
+### Add a nose
+
+```example
+#|start-interactive-values
+  eye-pos.x = 0.24 [0:2:0.01]
+  eye-pos.y = -0.05 [-1:1:0.01]
+  eye-pos.z = 0.69 [0:2:0.01]
+  nose-pos.y = -0.15 [-1:1:0.01]
+  nose-pos.z = 0.85 [0:1:0.01]
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  eye-size = 0.15 [0:1:0.01]
+  eyelid-angle = 23 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  nose-angle = 17 [0:50:0.1]
+  nose-scale = 0.09 [0:0.2:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+
+(translate-y 1
+(union
+  ; eyes
+	(reflect #<1 0 0>
+	  (translate-x (max (* 1.1 :eye-size) :eye-pos.x)
+	    (translate #<0 :eye-pos.y :eye-pos.z>
+        (scale :eye-size
+          (union
+            (rotate-x (/ pi -2)
+              (color (eye-color (cartesian-spherical :pos))
+                (sphere #<0> 1)))
+            (color (rgb-xyz :#<rgb-skin>)
+              (intersect 0.01
+                (sphere #<0> 1.02)
+                (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+                  (plane #<0 -1 0> 0))))))))))
+  ; head
+  (color (rgb-xyz :#<rgb-skin>)
+    (difference 0.1
+      (union 0.05
+        (asymmetric-ellipsoid #<0> #<0.8 1 0.7> #<0.8 0.9 0.9>)
+        ; nose
+        (translate :#<nose-pos> (scale :nose-scale
+          (rotate-x (radians :nose-angle)
+            (union 0.1
+              (sphere #<0.6 -1.5 -0.3> 0.7)
+              (sphere #<-0.6 -1.5 -0.3> 0.7)
+              (sphere #<0 -1.5 0> 0.75)
+              (ellipsoid #<0> #<1 2 1>))))))
+      ; eye-sockets
+      (union
+        (sphere (* 1.2 :#<eye-pos>) (* :eye-size 0.5))
+        (sphere (* 1.2 :#<eye-pos> #<-1 1 1>) (* :eye-size 0.5)))))))
+```
+
+This adds a nose, which is a `union` of three spheres to define the shape of the
+end of the nose, and an ellipsoid for the rest of the nose. This is smoothly
+combined with the rest of the head.
+
+### Add cheeks
+
+```example
+#|start-interactive-values
+  Captured at 7/8/2024, 11:00:14 PM
+  cheek-pos.x = 0.25 [0:1:0.01]
+  cheek-pos.y = -0.35 [-1:1:0.01]
+  cheek-pos.z = 0.48 [0:1:0.01]
+  eye-pos.x = 0.24 [0:2:0.01]
+  eye-pos.y = -0.05 [-1:1:0.01]
+  eye-pos.z = 0.69 [0:2:0.01]
+  nose-pos.y = -0.15 [-1:1:0.01]
+  nose-pos.z = 0.85 [0:1:0.01]
+  rgb-iris.x = 0.576 [0:1:0.01]
+  rgb-iris.y = 0.38 [0:1:0.01]
+  rgb-iris.z = 0.102 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  blush = 1 [0:1:0.01]
+  cheek-size = 0.16 [0:0.2:0.001]
+  eye-size = 0.15 [0:1:0.01]
+  eyelid-angle = 23 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  nose-angle = 17 [0:50:0.1]
+  nose-scale = 0.09 [0:0.2:0.001]
+  pupil = 0.125 [0:0.5:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+    (saturate-xyz
+        (smoothcase (/ (yyy sph) pi)
+            (((- :pupil 0.01)) #<0.05>)
+            ((:pupil :iris)
+              (mix (rgb-xyz :#<rgb-iris>)
+                   (* 2 (rgb-xyz :#<rgb-iris>))
+                   (smoothstep -0.1 0.6
+                              (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+            (((+ :iris 0.01)) (rgb-xyz #<1>))
+            ((1) (rgb-xyz #<1 0 0>))
+        )))
+
+(translate-y 1
+(union
+  ; eyes
+	(reflect #<1 0 0>
+	  (translate-x (max (* 1.1 :eye-size) :eye-pos.x)
+	    (translate #<0 :eye-pos.y :eye-pos.z>
+        (scale :eye-size
+		      (union
+            (rotate-x (/ pi -2)
+              (color (eye-color (cartesian-spherical :pos))
+                (sphere #<0> 1)))
+            (color (rgb-xyz :#<rgb-skin>)
+              (intersect 0.01
+                (sphere #<0> 1.02)
+                (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+                  (plane #<0 -1 0> 0))))))))))
+  ; head
+  (color (rgb-xyz :#<rgb-skin>)
+    (difference 0.1
+      (union 0.05
+        (asymmetric-ellipsoid #<0> #<0.8 1 0.7> #<0.8 0.9 0.9>)
+        ; nose
+        (translate :#<nose-pos> (scale :nose-scale
+          (rotate-x (radians :nose-angle)
+            (union 0.1
+              (sphere #<0.6 -1.5 -0.3> 0.7)
+              (sphere #<-0.6 -1.5 -0.3> 0.7)
+              (sphere #<0 -1.5 0> 0.75)
+              (ellipsoid #<0> #<1 2 1>)))))
+        ; cheeks
+        (color (mix (rgb-xyz :#<rgb-skin>)
+                    (rgb-xyz #<1 0 0>)
+                    :blush)
+          (reflect #<-1 0 0>
+            (sphere :#<cheek-pos> :cheek-size))))
+      ; eye-sockets
+      (union
+        (sphere (* 1.2 :#<eye-pos>) (* :eye-size 0.5))
+        (sphere (* 1.2 :#<eye-pos> #<-1 1 1>) (* :eye-size 0.5)))))))
+```
+
+This creates cheeks by adding two spheres just below the surface of the skin,
+the cheek color is modulated with the :blush interactive value between the skin
+color and red. This combined with the smoothing will add a red tint to the
+cheeks.
