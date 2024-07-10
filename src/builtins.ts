@@ -162,6 +162,7 @@ const fnOfOne = (name: string, impl: (x: number) => number): Internal => ({
     code: `${name}(${args.map((el) => el.code).join(", ")})`,
     type: args[0].type,
   }),
+  insertText: `${name} \${1:value}`,
 });
 
 const getArgsPosition = (
@@ -252,6 +253,7 @@ const makeComparison = (
         type: args[0].type,
       };
     },
+    insertText: `${name} \${1:left} \${2:right}`,
   }));
 };
 
@@ -278,6 +280,7 @@ const makeSwizzle = (name: string): Internal => {
       `(**${name}** *v*)`,
       `_swizzles_ the vector *v* by rearranging its components in the order *${name}*.`,
     ],
+    insertText: `${name} \${1:vector}`,
   };
 };
 
@@ -1560,6 +1563,7 @@ interface MacroDef {
   symbols: string[];
   body: string;
   docs?: string[];
+  insertText?: string;
 }
 
 const kMacros: MacroDef[] = [
@@ -1636,6 +1640,7 @@ const kShapes: MacroDef[] = [
       "If *k* is `0`, then no smoothing is applied, and the union is the " +
         "simple minimum of the distance functions of the children.",
     ],
+    insertText: "union ${1:0} (${2:shape})",
   },
   {
     name: "intersect",
@@ -1649,6 +1654,7 @@ const kShapes: MacroDef[] = [
       "If *k* is `0`, then no smoothing is applied, and the intersection is the " +
         "simple maximum of the distance functions of the children.",
     ],
+    insertText: "intersect ${1:0} (${2:shape})",
   },
   {
     name: "difference",
@@ -1663,6 +1669,7 @@ const kShapes: MacroDef[] = [
         "simple maximum of the distance function of *a* and the inverse of the " +
         "distance function of *b*",
     ],
+    insertText: "difference ${1:0} (${2:shape}) (${3:subtracted-shape})",
   },
   {
     name: "lerp",
@@ -1676,6 +1683,7 @@ const kShapes: MacroDef[] = [
       "`0` will simply be the shape *a*, `1` will be the shape *b*.",
       "*t* must be a numeric value.",
     ],
+    insertText: "lerp ${1:t} (${2:shape-at-zero}) (${3:shape-at-one})",
   },
   {
     name: "scale",
@@ -1686,6 +1694,7 @@ const kShapes: MacroDef[] = [
       "Scales the child *shape* by a constant scaling factor *s*. ",
       "*s* must be a numeric value.",
     ],
+    insertText: "scale ${1:scale} (${2:shape})",
   },
   {
     name: "translate",
@@ -1695,6 +1704,7 @@ const kShapes: MacroDef[] = [
       "(**translate** *v* *shape*)",
       "Translates the child *shape* by the vector *v*.",
     ],
+    insertText: "translate ${1:vector} (${2:shape})",
   },
   {
     name: "translate-x",
@@ -1705,6 +1715,7 @@ const kShapes: MacroDef[] = [
       "Translates the child *shape* by the vector (*x*, 0, 0).",
       "*x* must be a numeric value",
     ],
+    insertText: "translate-x ${1:x} (${2:shape})",
   },
   {
     name: "translate-y",
@@ -1715,6 +1726,7 @@ const kShapes: MacroDef[] = [
       "Translates the child *shape* by the vector (0, *y*, 0).",
       "*y* must be a numeric value",
     ],
+    insertText: "translate-y ${1:y} (${2:shape})",
   },
   {
     name: "translate-z",
@@ -1725,6 +1737,7 @@ const kShapes: MacroDef[] = [
       "Translates the child *shape* by the vector (0, 0, *y*).",
       "*z* must be a numeric value",
     ],
+    insertText: "translate-z ${1:z} (${2:shape})",
   },
   {
     name: "rotate",
@@ -1736,6 +1749,7 @@ const kShapes: MacroDef[] = [
       "*axis* must be avector, *angle* must be a numeric value",
       "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
     ],
+    insertText: "rotate ${1:axis} ${2:angle} (${3:shape})",
   },
   {
     name: "rotate-x",
@@ -1747,6 +1761,7 @@ const kShapes: MacroDef[] = [
       "*angle* must be a numeric value",
       "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
     ],
+    insertText: "rotate-x ${1:angle} (${2:shape})",
   },
   {
     name: "rotate-y",
@@ -1758,6 +1773,7 @@ const kShapes: MacroDef[] = [
       "*angle* must be a numeric value",
       "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
     ],
+    insertText: "rotate-y ${1:angle} (${2:shape})",
   },
   {
     name: "rotate-z",
@@ -1769,6 +1785,7 @@ const kShapes: MacroDef[] = [
       "*angle* must be a numeric value",
       "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
     ],
+    insertText: "rotate-z ${1:angle} (${2:shape})",
   },
   {
     name: "rotate-xyz",
@@ -1781,6 +1798,7 @@ const kShapes: MacroDef[] = [
       "*Note:* To convert an angle *theta* from degrees to radians use `(radians theta)`",
       "`(rotate-xyz #<a b c> child)` is equivalent to calling `(rotate-x a (rotate-y b (rotate-z c child)))`",
     ],
+    insertText: "rotate-xyz ${1:vector} (${2:shape})",
   },
   {
     name: "smooth",
@@ -1793,6 +1811,7 @@ const kShapes: MacroDef[] = [
       "*k* must be a numeric value.",
       "If *k* is `0`, then no smoothing is applied.",
     ],
+    insertText: "smooth ${1:k} (${2:shape})",
   },
   {
     name: "abrupt",
@@ -1804,6 +1823,7 @@ const kShapes: MacroDef[] = [
         "to evaluate *shape* to 0. This means no smoothing will be applied.",
       "This is equivalent to `(smooth 0 shape)`",
     ],
+    insertText: "abrupt (${1:shape})",
   },
   {
     name: "rounded",
@@ -1815,6 +1835,7 @@ const kShapes: MacroDef[] = [
       "*r* must be a numeric value.",
       "If *r* is `0`, then no rounding is applied.",
     ],
+    insertText: "rounded ${1:r} (${2:shape})",
   },
   {
     name: "ellipsoid",
@@ -1833,6 +1854,7 @@ const kShapes: MacroDef[] = [
       "Creates an ellipsoid centered at `(0.5, 0.25, 0)` with a radius of " +
         "`0.5` in the x and z axes, and `0.25` in the y-axis.",
     ],
+    insertText: "ellipsoid ${1:c} ${2:r}",
   },
   {
     name: "sphere",
@@ -1850,6 +1872,7 @@ const kShapes: MacroDef[] = [
         "```",
       "Creates a sphere centered at `(0.5, 0.25, 0)` with a radius of `0.25`",
     ],
+    insertText: "sphere ${1:c} ${2:r}",
   },
   {
     name: "box",
@@ -1865,6 +1888,7 @@ const kShapes: MacroDef[] = [
       "```example\n(box #<0 0.5 0> #<0.5>)\n```",
       "Will create a unit cube centered at `(0, 0.5, 0)`",
     ],
+    insertText: "box ${1:c} ${2:s}",
   },
   {
     name: "rounded-box",
@@ -1881,6 +1905,7 @@ const kShapes: MacroDef[] = [
       "```example\n(rounded-box #<0 0.5 0> #<0.5> 0.1)\n```",
       "Will create a rounded unit cube centered at `(0, 0.5, 0)`, with edges rounded to a radius of `0.1`",
     ],
+    insertText: "box ${1:c} ${2:s} ${3:r}",
   },
   {
     name: "torus",
@@ -1901,6 +1926,7 @@ const kShapes: MacroDef[] = [
       "Will create a torus centered at `(0, 0.5, 0)`, with major and minor " +
         "radii of `1` and `0.5` respectively",
     ],
+    insertText: "torus ${1:c} ${2:major} ${3:minor}",
   },
   {
     name: "cone",
@@ -1920,6 +1946,7 @@ const kShapes: MacroDef[] = [
       "Will create a cone with its tip at `(0, 1, 0)` an angle of `30°`, and " +
         "a height of `2`.",
     ],
+    insertText: "cone ${1:c} ${2:angle} ${3:height}",
   },
   {
     name: "infinite-cone",
@@ -1940,6 +1967,7 @@ const kShapes: MacroDef[] = [
       "This creates an infinite cone with its apex at the origin and then " +
         "rotates and translates it into view.",
     ],
+    insertText: "infinite-cone ${1:c} ${2:angle}",
   },
   {
     name: "infinite-cylinder",
@@ -1958,6 +1986,7 @@ const kShapes: MacroDef[] = [
       "Creates an infinite cylinder of radius `0.5`, with an axis that passes " +
         "through the point `(0, 1, 0)` and is angled 30° to the x-axis.",
     ],
+    insertText: "infinite-cylinder ${1:c} ${2:dir} ${3:radius}",
   },
   {
     name: "hide",
@@ -1977,7 +2006,16 @@ const kShapes: MacroDef[] = [
         "```",
       "This prevents one of the spheres in the union from rendering, simply " +
         "deleting the word `hide` will include the sphere back in the sketch.",
+      "This is equivalent to:",
+      "```" +
+        `
+(union
+    (hide (sphere #<-1 1 0> 1))
+    (sphere #<1 1 0> 1))
+` +
+        "```",
     ],
+    insertText: "hide",
   },
   {
     name: "reflect",
@@ -2004,6 +2042,7 @@ const kShapes: MacroDef[] = [
 ` +
         "```",
     ],
+    insertText: "reflect ${1:v} (${2:shape})",
   },
   {
     name: "plane",
@@ -2034,6 +2073,7 @@ const kShapes: MacroDef[] = [
         "visible glitches where the ray doesn't terminate in a reasonable number of " +
         "iterations.",
     ],
+    insertText: "plane ${1:normal} ${2:offset}",
   },
   {
     name: "disk",
@@ -2053,6 +2093,7 @@ const kShapes: MacroDef[] = [
       "This creates a disk with radius 1, parallel with the ground plane, " +
         "centered at `(0, 1, 0)`",
     ],
+    insertText: "disk ${1:normal} ${2:center} ${3:offset}",
   },
   {
     name: "color",
@@ -2071,6 +2112,7 @@ const kShapes: MacroDef[] = [
         "```",
       "Creates a blue sphere of radius `1` centered at `(0, 1, 0)`.",
     ],
+    insertText: "color ${1:c} (${2:shape})",
   },
   {
     name: "asymmetric-ellipsoid",
@@ -2089,6 +2131,7 @@ const kShapes: MacroDef[] = [
 ` +
         "```",
     ],
+    insertText: "asymmetric-ellipsoid ${1:c} ${2:r1} ${3:r2}",
   },
 ];
 
@@ -2124,6 +2167,7 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
           docs: b.docs,
+          insertText: b.insertText,
         },
         offset: 0,
         length: 0,
@@ -2143,6 +2187,7 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
           docs: b.docs,
+          insertText: b.insertText,
         },
         offset: 0,
         length: 0,
@@ -2162,6 +2207,7 @@ export const addBuiltins = (env: Env) => {
           body: readOne(b.name, b.body),
           closure: env,
           docs: b.docs,
+          insertText: b.insertText,
         },
         offset: 0,
         length: 0,

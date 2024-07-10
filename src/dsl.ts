@@ -103,6 +103,7 @@ export interface Lambda {
   body: Expression;
   closure: Env;
   docs?: string[];
+  insertText?: string;
 }
 
 export interface Internal {
@@ -110,6 +111,7 @@ export interface Internal {
   impl: (args: Expression[]) => Expression;
   generate?: (args: Generated[]) => Generated;
   docs?: string[];
+  insertText?: string;
 }
 
 export const kEmptyList: ExpressionList = {
@@ -130,6 +132,7 @@ export interface Macro {
   body: Expression;
   closure: Env;
   docs?: string[];
+  insertText?: string;
 }
 
 export type GeneratedType = "float" | "vec" | "sdf" | "void";
@@ -341,19 +344,21 @@ export const dslError = (
   );
 };
 
-interface DocumentedValue {
+export interface DocumentedValue {
   docs: string[];
+  insertText?: string;
 }
 
-interface DocumentedObject {
+export interface DocumentedObject {
   value: DocumentedValue;
 }
 
-const isDocumentedValue = (obj: any): obj is DocumentedValue => {
+export const isDocumentedValue = (obj: any): obj is DocumentedValue => {
   return (
     obj &&
     Array.isArray(obj.docs) &&
-    obj.docs.every((el: any) => typeof el === "string")
+    obj.docs.every((el: any) => typeof el === "string") &&
+    (obj.insertText === undefined || typeof obj.insertText === "string")
   );
 };
 

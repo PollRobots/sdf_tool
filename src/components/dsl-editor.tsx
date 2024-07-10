@@ -20,7 +20,7 @@ import { DslParseError, read } from "../read";
 import { evaluate } from "../evaluate";
 import { Env } from "../env";
 import { addBuiltins } from "../builtins";
-import { DslGeneratorError, Expression } from "../dsl";
+import { DslGeneratorError, Expression, isError } from "../dsl";
 import { generate, makeContext } from "../generate";
 import { Uniform } from "./uniform";
 import { HintProvider } from "../monaco/hint-provider";
@@ -29,6 +29,8 @@ import { CodeLensProvider } from "../monaco/code-lens-provider";
 import { PersistedSettings, SettingsEditor } from "./persisted-settings";
 import { IStatusBar, IRegister, VimMode } from "vim-monaco";
 import { StatusBar } from "./status-bar";
+import { EvalDevToolModulePlugin } from "webpack";
+import { CompletionProvider } from "../monaco/completion-provider";
 
 interface DslEditorProps {
   editorRef: React.MutableRefObject<monaco.editor.IStandaloneCodeEditor>;
@@ -199,6 +201,10 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     window.monaco.languages.registerCodeLensProvider(
       kLanguageId,
       codeLenseProvider.current
+    );
+    window.monaco.languages.registerCompletionItemProvider(
+      kLanguageId,
+      new CompletionProvider()
     );
     monacoInstance.current = editor;
     props.editorRef.current = editor;
@@ -375,12 +381,34 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       return;
     }
 
+    const optimisticRead = (input: string): Expression[] => {
+      try {
+        return read(input);
+      } catch (err) {
+        if (err instanceof DslParseError) {
+          const m = err.message.match(/^(\d+) unterminated lists/);
+          if (m) {
+            return read(input + ")".padEnd(Number(m[1]), ")"));
+          }
+        }
+        throw err;
+      }
+    };
+
     try {
+      const parsed = optimisticRead(raw);
       const env = new Env();
       addBuiltins(env);
-      const parsed = read(raw);
-      const evaled = parsed.map((el) => evaluate(el, env));
-      hintProvider.current.updateParsed(evaled);
+      try {
+        const evaled = parsed.map((el) => evaluate(el, env));
+        if (evaled.every(isError)) {
+          hintProvider.current.updateParsed(parsed);
+        } else {
+          hintProvider.current.updateParsed(evaled);
+        }
+      } catch (err) {
+        hintProvider.current.updateParsed(parsed);
+      }
     } catch (err) {}
   };
 
@@ -400,7 +428,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       hintTimeoutHandle.current = null;
     }
     timeoutHandle.current = setTimeout(() => parseCheck(), 1000);
-    hintTimeoutHandle.current = setTimeout(() => updateHints(), 250);
+    hintTimeoutHandle.current = setTimeout(() => updateHints(), 100);
     return () => {
       if (timeoutHandle.current) {
         clearTimeout(timeoutHandle.current);

@@ -20,10 +20,10 @@ export class DslParseError extends Error {
   }
 }
 
+export const kDslIdentifierRe = /^[a-zA-Z0-9_+\-*\/<>=!?.]+$/;
+
 export const tokenize = (input: string): Token[] => {
   const tokens: Token[] = [];
-
-  const identifier_re = /^[a-zA-Z0-9_+\-*\/<>=!?.]+$/;
 
   let offset = 0;
   let start = 0;
@@ -83,7 +83,7 @@ export const tokenize = (input: string): Token[] => {
             mode = "number";
             start = offset;
             accum = ch;
-          } else if (ch.match(identifier_re)) {
+          } else if (ch.match(kDslIdentifierRe)) {
             mode = "identifier";
             start = offset;
             accum = ch;
@@ -159,7 +159,7 @@ export const tokenize = (input: string): Token[] => {
           break;
         case "identifier":
           if (ch.match(/[\s();]/)) {
-            if (!accum.match(identifier_re)) {
+            if (!accum.match(kDslIdentifierRe)) {
               throw new DslParseError(
                 `Invalid identifier '${accum}'`,
                 start,

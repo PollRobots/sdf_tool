@@ -35,14 +35,6 @@ export class HoverProvider implements monaco.languages.HoverProvider {
       };
     };
 
-    const cleanDoc = (docs: string[]): monaco.IMarkdownString[] =>
-      docs.map((el) => {
-        if (el.startsWith("```example")) {
-          return { value: "```" + el.substring(10) };
-        }
-        return { value: el };
-      });
-
     try {
       for (const token of tokenize(src)) {
         if (token.type === "identifier") {
@@ -75,3 +67,11 @@ export class HoverProvider implements monaco.languages.HoverProvider {
     } catch (err) {}
   }
 }
+
+export const cleanDoc = (docs: string[]): monaco.IMarkdownString[] =>
+  docs.map((el) => {
+    if (el.startsWith("```example")) {
+      return { value: "```" + el.substring(10) };
+    }
+    return { value: el };
+  });

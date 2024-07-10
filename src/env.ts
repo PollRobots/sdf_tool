@@ -15,6 +15,14 @@ export class Env {
     return this.parent ? this.parent.generating : !!this.generating_;
   }
 
+  get keys(): Set<string> {
+    const set = new Set(this.parent ? this.parent.keys : []);
+    for (const key of this.values.keys()) {
+      set.add(key);
+    }
+    return set;
+  }
+
   has(name: string, local: boolean = false): boolean {
     if (this.values.has(name)) {
       return true;

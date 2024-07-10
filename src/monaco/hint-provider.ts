@@ -31,7 +31,17 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
       const curr = pending.pop();
       switch (curr.type) {
         case "list":
-          pending.push(...(curr.value as Expression[]));
+          const list = curr.value as Expression[];
+          // check for un-evaluated placeholders
+          if (
+            list.length === 2 &&
+            list[0].value === "placeholder" &&
+            isIdentifier(list[1])
+          ) {
+            placeholders.push(list[1]);
+          } else {
+            pending.push(...list);
+          }
           break;
         case "placeholder":
           const retained = curr.value as Expression;
@@ -94,8 +104,8 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
       const el = x || y || z;
       return {
         kind: window.monaco.languages.InlayHintKind.Type,
-        position: model.getPositionAt(el.offset + el.length + 1),
-        label: `= #<${x_val}, ${y_val}, ${z_val}>`,
+        position: model.getPositionAt(el.offset + el.length),
+        label: `= ${x_val}, ${y_val}, ${z_val}`,
         paddingLeft: true,
       };
     });
@@ -104,7 +114,7 @@ export class HintProvider implements monaco.languages.InlayHintsProvider {
       .filter((el) => !isVectorName(el.value as string))
       .map((el) => ({
         kind: window.monaco.languages.InlayHintKind.Type,
-        position: model.getPositionAt(el.offset + el.length + 1),
+        position: model.getPositionAt(el.offset + el.length),
         label: `= ${getPlaceholderValue(el)}`,
         paddingLeft: true,
       }));
