@@ -12,7 +12,7 @@ import {
   isUniform,
   kDefaultUniform,
 } from "./components/uniform";
-import { isVectorName } from "./dsl";
+import { isVectorName, Vector } from "./dsl";
 import monacoTypes from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
@@ -51,6 +51,7 @@ export const App: React.FC = () => {
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
   const [docs, setDocs] = React.useState(false);
+  const [view, setView] = React.useState<Vector>({ x: 15, y: 0, z: 0 });
 
   const currTheme = kDefinedThemes.get(settings.themeName) || kSolarizedDark;
   const forcedColors = window.matchMedia("(forced-colors: active)").matches;
@@ -77,7 +78,25 @@ export const App: React.FC = () => {
   };
 
   const generateWgsl = (raw: string) => {
-    setValues(readDefaultUniformValues(raw, values));
+    const defaultValues = readDefaultUniformValues(raw, values);
+    // filter out view parameters
+    if (
+      defaultValues.has("view.x") ||
+      defaultValues.has("view.y") ||
+      defaultValues.has("view.z")
+    ) {
+      const updatedView = { ...view };
+      for (const axis of ["x", "y", "z"]) {
+        const axisKey = `view.${axis}`;
+        const axisValue = defaultValues.get(axisKey);
+        if (axisValue) {
+          defaultValues.delete(axisKey);
+          (updatedView as any)[axis] = axisValue.value;
+        }
+      }
+      setView(updatedView);
+    }
+    setValues(defaultValues);
     const res = generateShader(raw);
     if (isGenerationSuccess(res)) {
       setUniforms(res.uniformNames);
@@ -152,6 +171,7 @@ export const App: React.FC = () => {
             }}
             width={width}
             height={height}
+            view={view}
             shader={makeShader(
               shader,
               generated,
@@ -166,6 +186,7 @@ export const App: React.FC = () => {
               .map((el) => el.value)}
             uniformOffsets={offsets}
             onShaderError={(shaderError) => setErrors(shaderError)}
+            onViewChange={(u) => setView(u)}
           />
           <div
             style={{

@@ -1,6 +1,7 @@
 import React from "react";
 import seedrandom from "seedrandom";
 import { saveFilePickerComplete } from "../util";
+import { DslEvalError, Vector } from "../dsl";
 
 interface WebGPUCanvasProps {
   shader: string;
@@ -10,8 +11,10 @@ interface WebGPUCanvasProps {
   uniformOffsets: number[];
   width: number;
   height: number;
+  view: Vector;
   style?: React.CSSProperties;
   onShaderError: (error: string) => void;
+  onViewChange: (update: Vector) => void;
 }
 
 export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
@@ -20,9 +23,6 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const gpu = React.useRef<WebGpuWidget>(null);
   const [running, setRunning] = React.useState(false);
   const [fps, setFps] = React.useState(0);
-  const [xAngle, setXAngle] = React.useState(15);
-  const [yAngle, setYAngle] = React.useState(0);
-  const [zoom, setZoom] = React.useState(0);
   const [spinning, setSpinning] = React.useState(false);
   const [initialPt, setInitialPt] = React.useState({
     x: 0,
@@ -33,6 +33,15 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const [leftButton, setLeftButton] = React.useState(false);
   const [tick, setTick] = React.useState(0);
   const spinId = React.useId();
+
+  const { x: xAngle, y: yAngle, z: zoom } = props.view;
+  const changeView = (value: Partial<Vector>) =>
+    props.onViewChange({
+      x: xAngle,
+      y: yAngle,
+      z: zoom,
+      ...value,
+    });
 
   const timerFn = (t: number) => {
     setTick(t + 1);
@@ -131,10 +140,10 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     while (ya > 180) {
       ya -= 360;
     }
-    setYAngle(ya);
 
-    let xa = Math.min(Math.max(5, Math.round(initialPt.xa - dxa)), 85);
-    setXAngle(xa);
+    const xa = Math.min(Math.max(5, Math.round(initialPt.xa - dxa)), 85);
+
+    changeView({ x: xa, y: ya });
   };
   const mouseUp = (evt: React.MouseEvent) => {
     if (evt.button != 0) {
@@ -185,7 +194,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           min={1}
           max={89}
           value={xAngle}
-          onChange={(e) => setXAngle(e.target.valueAsNumber || 0)}
+          onChange={(e) => changeView({ x: e.target.valueAsNumber || 0 })}
           style={{
             height: props.style
               ? props.style.height || props.height
@@ -199,7 +208,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           max={1}
           step={0.01}
           value={zoom}
-          onChange={(e) => setZoom(e.target.valueAsNumber || 0)}
+          onChange={(e) => changeView({ z: e.target.valueAsNumber || 0 })}
           style={{
             height: props.style
               ? props.style.height || props.height
@@ -212,7 +221,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         min={-180}
         max={180}
         value={yAngle}
-        onChange={(e) => setYAngle(e.target.valueAsNumber || 0)}
+        onChange={(e) => changeView({ y: e.target.valueAsNumber || 0 })}
         style={{
           width: "100%",
         }}
