@@ -10,6 +10,7 @@ import shapes from "../../docs/shapes.md";
 import transforms from "../../docs/transforms.md";
 import utility from "../../docs/utility.md";
 import examples from "../../docs/examples.md";
+import issues from "../../docs/issues.md";
 import { Env } from "../env";
 import { addBuiltins } from "../builtins";
 import { isDocumentedObject, isSpecial } from "../dsl";
@@ -35,6 +36,7 @@ const kTopics = new Map([
   ["color", { title: "Color", body: color }],
   ["utility", { title: "Utilities", body: utility }],
   ["examples", { title: "Examples", body: examples }],
+  ["issues", { title: "Issues", body: issues }],
 ]);
 
 const makeEnv = () => {

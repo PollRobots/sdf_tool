@@ -8,8 +8,8 @@ The screen has three main areas of interaction,
 
 ## The rendered view
 
-This is controlled with 3 sliders, a couple of buttons and a checkbox. You can
-also interact with it using a mouse.
+This is controlled with 3 sliders and a few buttons. You can also interact with
+it using a mouse.
 
 - Sliders
   - The horizontal slider adjusts the camera's rotation around the vertical-axis
@@ -17,15 +17,15 @@ also interact with it using a mouse.
   - The left hand vertical slider adjusts the camera's angle relative to the
     horizontal plane
   - The right hand vertical slider adjusts the camera's distance from the target
-    point &msash; which is $ (0, 1, 0) $
+    point &mdash; which is `(0, 1, 0)`
 - Buttons
-  - The start and stop buttons turn the animation loop on and off. Changes to
+  - The play/pause button turns the interna; animation loop on and off. Changes to
     angles or interactive values will always cause a new frame to be rendered, so
     it isn't necessary to be running all the time, but it does allow you to gauge
     the complexity of your function if the FPS starts to drop.
-  - The capture button saves a picture of the current image on the rendered view.
-- Checkbox &mdash; Checking the spinning checkbox causes the camera to
-  continuously rotate around the vertical axis.
+  - The _spin_ button causes the camera to continuously rotate around the
+    vertical axis.
+  - The _capture_ button saves a picture of the current image on the rendered view.
 
 ## Code editor
 
@@ -33,16 +33,17 @@ This is a fairly standard code editor. It knows about the [DSL](dsl) used to
 describe the SDF. It supports a VIM mode if you like that kind of thing.
 
 Updates to the code editor are automatically applied if you stop typing for long
-enough. This may cause the generated image to fritz out if you are in the middle
-of something, but also makes the process interactive without needing to
-explicitly _Run_ something.
+enough &mdash; approximately a second. This may cause the generated image to
+fritz out if you are in the middle of something, but also makes the process
+interactive without needing to explicitly _Run_ something.
 
 The [FAQ](faq) has a simple example that you can cut and paste into the editor
 to see the whole process in action.
 
 ## Interactive value panel
 
-If the code you have written contains interactive values, then the sliders to control those values will appear in this panel.
+If the code you have written contains interactive values, then the sliders to
+control those values will appear in this panel.
 
 Interactive values have two forms
 
@@ -51,9 +52,11 @@ Interactive values have two forms
   implicit colon-keywords, `:t.x`, `:t.y`, and `:t.z` which will be grouped
   together in the interaction panel. This is equivalent to `(vec :t.x :t.y :t.z)`.
   You can reference individual elements of a vector interactive value directly,
-  i.e. you can write `:t.y` you don't need to write `(vec-y :#<t>)`
+  i.e. you can write `:t.y` you don't need to write `(vec-y :#<t>)` &mdash;
+  although they should generate the same shader code.
   - If the name of a colon-vector-keyword begins with `rgb-` then it is assumed
-    to be a color value, and is interacted with using a color picker.
+    to be a color value, and is interacted with using your browser's default
+    color picker.
 
 Except for colors, interactive values are controlled through a slider and a text
 box. These are used in the obvious way to change the value. This will cause a
@@ -61,7 +64,7 @@ realtime change in the rendered view. The interactive values are communicated to
 the generated shader as uniform values, so changing them doesn't require
 recompiling the shader.
 
-Each slider has a properties pane accessed by clicking the `...` button to the
+Each slider has a properties pane accessed by clicking the `…` button to the
 right of the slider, this allows you to specify the anticipated range of values,
 either directly through the three input fields for minimum, maximum, and step
 value, or by choosing one of the predefined property sets. These changes don't

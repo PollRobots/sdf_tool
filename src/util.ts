@@ -7,8 +7,8 @@ export async function saveFilePicker(text: string, filename?: string) {
 }
 
 export function getMimeType(path: string): string {
-  if (path.endsWith(".scm")) {
-    return "text/x-scheme";
+  if (path.endsWith(".sdf")) {
+    return "text/plain";
   }
   return mime.getType(path) || "application/octet-stream";
 }
