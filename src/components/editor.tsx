@@ -46,6 +46,8 @@ export const Editor: React.FC<EditorProps> = (props) => {
       language: props.defaultLanguage,
       theme: props.theme,
       value: props.defaultValue,
+      tabSize: 2,
+      useTabStops: false,
     });
     editorRef.current = editor;
     window.addEventListener("resize", resizeEditor);

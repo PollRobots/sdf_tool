@@ -1,5 +1,7 @@
 export { Copy } from "./copy";
 export { Cut } from "./cut";
+export { Edit } from "./edit";
+export { Image } from "./image";
 export { Open } from "./open";
 export { Paste } from "./paste";
 export { Redo } from "./redo";
@@ -7,4 +9,3 @@ export { Save } from "./save";
 export { Switch } from "./switch";
 export { Text } from "./text";
 export { Undo } from "./undo";
-export { Image } from "./image";

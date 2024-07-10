@@ -18,6 +18,7 @@ import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
 import { Documentation } from "./components/documentation";
 import {
+  extractViewParameters,
   generateShader,
   isGenerationError,
   isGenerationSuccess,
@@ -80,21 +81,9 @@ export const App: React.FC = () => {
   const generateWgsl = (raw: string) => {
     const defaultValues = readDefaultUniformValues(raw, values);
     // filter out view parameters
-    if (
-      defaultValues.has("view.x") ||
-      defaultValues.has("view.y") ||
-      defaultValues.has("view.z")
-    ) {
-      const updatedView = { ...view };
-      for (const axis of ["x", "y", "z"]) {
-        const axisKey = `view.${axis}`;
-        const axisValue = defaultValues.get(axisKey);
-        if (axisValue) {
-          defaultValues.delete(axisKey);
-          (updatedView as any)[axis] = axisValue.value;
-        }
-      }
-      setView(updatedView);
+    const viewChange = extractViewParameters(defaultValues);
+    if (viewChange) {
+      setView({ ...view, ...viewChange });
     }
     setValues(defaultValues);
     const res = generateShader(raw);
@@ -242,6 +231,7 @@ export const App: React.FC = () => {
             style={{
               gridArea: editorTop ? "2/1/3/2" : "1/2/3/3",
               overflowY: "auto",
+              display: docs ? "none" : undefined,
             }}
           >
             {uniforms.length == 0 ? null : (

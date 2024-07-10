@@ -21,6 +21,9 @@ end-interactive-values|#
 (sphere #<0 :r 0> :r)
 ```
 
+To interactively change the radius of the sphere, use the **edit** button on the
+example to copy the code into the editor.
+
 ---
 
 A sphere with a color specified.
@@ -244,6 +247,7 @@ The intersection has a small smoothing factor applied to created a rounded edge.
 
 ```example
 #|start-interactive-values
+  view.z = 0
   eye-pos.x = 1.3 [1:2:0.01]
   eye-pos.y = 2 [0:5:0.01]
   eye-pos.z = 0 [0:2:0.01]
@@ -296,6 +300,8 @@ eyes.
 
 ```example
 #|start-interactive-values
+  view.x = 0
+  view.z = 0.6
   eye-pos.x = 0.24 [0:2:0.01]
   eye-pos.y = -0.05 [-1:1:0.01]
   eye-pos.z = 0.69 [0:2:0.01]
@@ -367,6 +373,8 @@ modified to adjust the influence on the general head shape.
 
 ```example
 #|start-interactive-values
+  view.x = 0
+  view.z = 0.6
   eye-pos.x = 0.24 [0:2:0.01]
   eye-pos.y = -0.05 [-1:1:0.01]
   eye-pos.z = 0.69 [0:2:0.01]
@@ -444,7 +452,8 @@ combined with the rest of the head.
 
 ```example
 #|start-interactive-values
-  Captured at 7/8/2024, 11:00:14 PM
+  view.x = 0
+  view.z = 0.6
   cheek-pos.x = 0.25 [0:1:0.01]
   cheek-pos.y = -0.35 [-1:1:0.01]
   cheek-pos.z = 0.48 [0:1:0.01]

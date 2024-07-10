@@ -12,6 +12,7 @@ import wgslNoise from "./sdf/noise.wgsl";
 import wgslPlaceholder from "./sdf/placeholder.wgsl";
 import wgslTemplate from "./sdf/map.wgsl";
 import wgslUtil from "./sdf/util.wgsl";
+import { Vector } from "./dsl";
 
 interface GeneratedShader {
   error: boolean;
@@ -125,12 +126,21 @@ ${el.code}
   }
 };
 
+export const findUniformValues = (code: string): [number, number] => {
+  const start = code.match(/\s*#\|\s*start-interactive-values\b\s*/);
+  const end = code.match(/\s*\bend-interactive-values\s*\|#\s*/);
+
+  if (!start || !end) {
+    return [-1, -1];
+  }
+  return [start.index, end.index + end[0].length];
+};
+
 export const readDefaultUniformValues = (
   input: string,
   values: Map<string, Uniform>
 ) => {
-  const start = input.indexOf("#|start-interactive-values");
-  const end = input.indexOf("end-interactive-values|#");
+  const [start, end] = findUniformValues(input);
   if (start < 0 || end < 0) {
     return values;
   }
@@ -168,6 +178,28 @@ export const readDefaultUniformValues = (
     updated.set(name, getDefaultUniform(name, value));
   });
   return updated;
+};
+
+export const extractViewParameters = (
+  defaultValues: Map<string, Uniform>
+): Partial<Vector> | undefined => {
+  // filter out view parameters
+  if (
+    defaultValues.has("view.x") ||
+    defaultValues.has("view.y") ||
+    defaultValues.has("view.z")
+  ) {
+    const view: Partial<Vector> = {};
+    for (const axis of ["x", "y", "z"]) {
+      const axisKey = `view.${axis}`;
+      const axisValue = defaultValues.get(axisKey);
+      if (axisValue) {
+        defaultValues.delete(axisKey);
+        (view as any)[axis] = axisValue.value;
+      }
+    }
+    return view;
+  }
 };
 
 export const makeShader = (
