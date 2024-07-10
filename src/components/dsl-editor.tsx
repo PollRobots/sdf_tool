@@ -454,17 +454,15 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
           >
             <div
               style={{
-                display: "grid",
+                display: "flex",
                 background: theme.boldBackground,
                 padding: "0.25em",
-                gridTemplateColumns: "auto 1fr auto",
+                flexWrap: "wrap",
               }}
             >
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "1fr 3fr 3fr 1fr 3fr 3fr 3fr 1fr 3fr 3fr 1fr 3fr 3fr",
+                  display: "flex",
                   columnGap: "0.25em",
                   alignSelf: "center",
                 }}

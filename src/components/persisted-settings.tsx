@@ -1,4 +1,5 @@
 import React from "react";
+import { IconButton } from "./icon-button";
 
 const kFontSizes: number[] = [
   6, 7, 8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96,
@@ -60,7 +61,6 @@ interface PersistedSettingsProps extends PersistedSettings {
 }
 
 export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
-  const vimModeId = React.useId();
   const update = (value: Partial<PersistedSettings>) => {
     const updated: PersistedSettings = {
       themeName: props.themeName,
@@ -77,22 +77,30 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
   return (
     <div
       style={{
-        justifySelf: "end",
+        marginLeft: "auto",
         display: "flex",
         gap: "0.5em",
         height: "fit-content",
         alignItems: "center",
       }}
     >
-      <label htmlFor={vimModeId}>Vim mode:</label>
-      <input
-        id={vimModeId}
-        type="checkbox"
-        checked={props.vimMode}
-        onChange={() => update({ vimMode: !props.vimMode })}
-      />
-      Theme:
+      <IconButton
+        style={{
+          fontWeight: "bold",
+          padding: 0,
+          justifyContent: "center",
+          fontStyle: "italic",
+          fontFamily: "roman",
+          color: props.vimMode ? undefined : "#19953f",
+        }}
+        size={props.fontSize * 2}
+        title={props.vimMode ? "Disable VIM mode" : "Enable VIM mode"}
+        onClick={() => update({ vimMode: !props.vimMode })}
+      >
+        {props.vimMode ? "Ꝟ" : "V"}
+      </IconButton>
       <select
+        title="Set the Theme"
         value={props.themeName}
         onChange={(e) => update({ themeName: e.target.value })}
       >
@@ -102,7 +110,6 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
           </option>
         ))}
       </select>
-      Font size:
       <select
         style={{ width: "fit-content" }}
         value={props.fontSize}
@@ -110,7 +117,7 @@ export const SettingsEditor: React.FC<PersistedSettingsProps> = (props) => {
       >
         {kFontSizes.map((el) => (
           <option key={el} value={el}>
-            {el}
+            {el} pt
           </option>
         ))}
       </select>

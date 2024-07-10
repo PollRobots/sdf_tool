@@ -1,7 +1,11 @@
 import React from "react";
 import seedrandom from "seedrandom";
 import { saveFilePickerComplete } from "../util";
-import { DslEvalError, Vector } from "../dsl";
+import { Vector } from "../dsl";
+import { ThemeContext } from "./theme-provider";
+import { Pause, Play, Spin } from "./icons/icons";
+import { IconButton } from "./icon-button";
+import { Image } from "./icons/image";
 
 interface WebGPUCanvasProps {
   shader: string;
@@ -17,31 +21,38 @@ interface WebGPUCanvasProps {
   onViewChange: (update: Vector) => void;
 }
 
+interface MouseDragPoint {
+  x: number;
+  y: number;
+  xa: number;
+  ya: number;
+}
+
+const kDefaultMouseDragPoint: MouseDragPoint = { x: 0, y: 0, xa: 0, ya: 0 };
+
 export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const timerHandle = React.useRef<ReturnType<typeof setTimeout>>(null);
+  const view = React.useRef<Vector>(props.view);
   const gpu = React.useRef<WebGpuWidget>(null);
   const [running, setRunning] = React.useState(false);
   const [fps, setFps] = React.useState(0);
   const [spinning, setSpinning] = React.useState(false);
-  const [initialPt, setInitialPt] = React.useState({
-    x: 0,
-    y: 0,
-    xa: 0,
-    ya: 0,
-  });
+  const [initialPt, setInitialPt] = React.useState(kDefaultMouseDragPoint);
   const [leftButton, setLeftButton] = React.useState(false);
   const [tick, setTick] = React.useState(0);
   const spinId = React.useId();
+  const theme = React.useContext(ThemeContext);
 
-  const { x: xAngle, y: yAngle, z: zoom } = props.view;
   const changeView = (value: Partial<Vector>) =>
     props.onViewChange({
-      x: xAngle,
-      y: yAngle,
-      z: zoom,
+      ...view.current,
       ...value,
     });
+
+  React.useEffect(() => {
+    view.current = props.view;
+  }, [props.view]);
 
   const timerFn = (t: number) => {
     setTick(t + 1);
@@ -115,15 +126,24 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
 
   React.useEffect(() => {
     if (gpu.current) {
-      gpu.current.cameraSettings(xAngle, yAngle, zoom);
+      gpu.current.cameraSettings(
+        view.current.x,
+        view.current.y,
+        view.current.z
+      );
     }
-  }, [gpu, yAngle, xAngle, zoom]);
+  }, [gpu, view.current]);
 
   const mouseDown = (evt: React.MouseEvent) => {
     if (evt.button != 0) {
       return;
     }
-    setInitialPt({ x: evt.clientX, y: evt.clientY, xa: xAngle, ya: yAngle });
+    setInitialPt({
+      x: evt.clientX,
+      y: evt.clientY,
+      xa: view.current.x,
+      ya: view.current.y,
+    });
     setLeftButton(true);
   };
   const mouseMove = (evt: React.MouseEvent) => {
@@ -141,7 +161,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       ya -= 360;
     }
 
-    const xa = Math.min(Math.max(5, Math.round(initialPt.xa - dxa)), 85);
+    const xa = Math.min(Math.max(0, Math.round(initialPt.xa - dxa)), 85);
 
     changeView({ x: xa, y: ya });
   };
@@ -151,6 +171,27 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
     }
     setLeftButton(false);
   };
+  const wheel = (evt: WheelEvent) => {
+    if (evt.deltaY != 0) {
+      changeView({
+        z: Math.min(Math.max(-1, view.current.z - evt.deltaY / 100), 1),
+      });
+    }
+    evt.preventDefault();
+    evt.stopPropagation();
+  };
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+
+    const listener = (evt: WheelEvent) => wheel(evt);
+
+    canvas.addEventListener("wheel", listener, { passive: false });
+    return () => canvas.removeEventListener("wheel", listener);
+  }, [canvasRef.current]);
 
   const capture = () => {
     const gpuCanvas = canvasRef.current;
@@ -158,11 +199,23 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       return;
     }
     gpuCanvas.toBlob(
-      (blob) => saveFilePickerComplete([blob], "capture.jpg").then(),
+      (blob) =>
+        saveFilePickerComplete([blob], "capture.jpg")
+          .then()
+          .catch(() => {}),
       "image/jpeg",
       0.95
     );
   };
+
+  const canvasStyle = { ...props.style };
+  const outerStyle: React.CSSProperties = canvasStyle
+    ? { border: canvasStyle.border, gridArea: canvasStyle.gridArea }
+    : {};
+  if (canvasStyle) {
+    canvasStyle.border = undefined;
+    canvasStyle.gridArea = undefined;
+  }
 
   return (
     <div
@@ -177,23 +230,90 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         gridArea: props.style ? props.style.gridArea : undefined,
       }}
     >
-      <canvas
-        ref={canvasRef}
-        width={props.width}
-        height={props.height}
-        style={props.style}
-        onMouseDown={(e) => mouseDown(e)}
-        onMouseUp={(e) => mouseUp(e)}
-        onMouseMove={(e) => mouseMove(e)}
-        onMouseOut={(e) => setLeftButton(false)}
-      />
-      <div>
+      <div
+        style={{
+          ...outerStyle,
+          display: "grid",
+          gridTemplateRows: "auto 2em",
+          margin: 0,
+          padding: 0,
+          gap: 0,
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          style={canvasStyle}
+          width={props.width}
+          height={props.height}
+          onMouseDown={(e) => mouseDown(e)}
+          onMouseUp={(e) => mouseUp(e)}
+          onMouseMove={(e) => mouseMove(e)}
+          onMouseOut={(e) => setLeftButton(false)}
+        />
+        <div
+          style={{
+            background: theme.boldBackground,
+            display: "grid",
+            gridTemplateColumns: "auto auto 1fr auto auto",
+            fontSize: "150%",
+            alignItems: "center",
+            gap: "0.125em",
+            padding: "0 0.125em",
+          }}
+        >
+          <IconButton
+            size="1em"
+            title={running ? "Pause" : "Play"}
+            onClick={() => {
+              if (gpu.current) {
+                if (running) {
+                  gpu.current.stop();
+                } else {
+                  gpu.current.start();
+                }
+              }
+            }}
+          >
+            {running ? <Pause /> : <Play />}
+          </IconButton>
+          <div style={{ fontSize: "50%" }}>{fps} fps</div>
+          <div />
+          <IconButton
+            size="1em"
+            title={spinning ? "Stop spinning" : "Start spinning"}
+            onClick={() => {
+              if (gpu.current) {
+                gpu.current.setSpinning(!spinning);
+              } else {
+                setSpinning(!spinning);
+              }
+            }}
+            style={{
+              color: spinning ? theme.red : undefined,
+            }}
+          >
+            <Spin
+              style={{
+                transform: `rotate3d(1, 0, 0, ${60 - 0.5 * props.view.x}deg)`,
+              }}
+            />
+          </IconButton>
+          <IconButton
+            size="1em"
+            title="Capture Image"
+            onClick={() => capture()}
+          >
+            <Image />
+          </IconButton>
+        </div>
+      </div>
+      <div style={{ display: "flex" }}>
         <input
           type="range"
           className="vertical"
           min={1}
           max={89}
-          value={xAngle}
+          value={view.current.x}
           onChange={(e) => changeView({ x: e.target.valueAsNumber || 0 })}
           style={{
             height: props.style
@@ -207,7 +327,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           min={-1}
           max={1}
           step={0.01}
-          value={zoom}
+          value={view.current.z}
           onChange={(e) => changeView({ z: e.target.valueAsNumber || 0 })}
           style={{
             height: props.style
@@ -220,60 +340,12 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
         type="range"
         min={-180}
         max={180}
-        value={yAngle}
+        value={view.current.y}
         onChange={(e) => changeView({ y: e.target.valueAsNumber || 0 })}
         style={{
           width: "100%",
         }}
       />
-
-      <div
-        style={{
-          gridArea: "3/1/4/3",
-          display: "flex",
-          gap: "0.5em",
-          width: "fit-content",
-          alignItems: "center",
-        }}
-      >
-        <button
-          disabled={running}
-          onClick={() => {
-            if (gpu.current) {
-              gpu.current.start();
-            }
-          }}
-        >
-          start
-        </button>
-        <button
-          disabled={!running}
-          onClick={() => {
-            if (gpu.current) {
-              gpu.current.stop();
-            }
-          }}
-        >
-          stop
-        </button>
-        <div>
-          <label htmlFor={spinId}>Spinning: </label>
-          <input
-            id={spinId}
-            type="checkbox"
-            checked={spinning}
-            onChange={() => {
-              if (gpu.current) {
-                gpu.current.setSpinning(!spinning);
-              } else {
-                setSpinning(!spinning);
-              }
-            }}
-          />
-        </div>
-        <button onClick={() => capture()}>capture</button>
-        <span>{fps} FPS</span>
-      </div>
     </div>
   );
 };
