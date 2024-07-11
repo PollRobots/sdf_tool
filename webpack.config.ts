@@ -5,6 +5,7 @@ import CopyWebpackPlugin from "copy-webpack-plugin";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import HtmlWebpackPlugin from "html-webpack-plugin";
 import TerserWebpackPlugin from "terser-webpack-plugin";
+import { author, name, version } from "./package.json";
 
 type CLIValues = boolean | string;
 type EnvValues = Record<string, CLIValues | Env>;
@@ -16,6 +17,11 @@ type Argv = Record<string, CLIValues>;
 const config = (env: Env, argv: Argv): webpack.Configuration => {
   const isProduction = argv.mode === "production";
   const dist = path.resolve(__dirname, "./dist");
+  const date = new Date();
+  const year = date.getUTCFullYear();
+  const copyright = `Copyright 2024${
+    year != 2024 ? "-" + year : ""
+  }, ${author}. ${name} ${version} (${date.toUTCString()})`;
 
   return {
     entry: "./src/index.tsx",
@@ -60,6 +66,7 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
       new CleanWebpackPlugin({}),
       new HtmlWebpackPlugin({
         title: "SDF tool",
+        meta: { author: author, copyright: copyright },
         filename: "sdf-tool.html",
         template: "index.template.html",
         minify: isProduction
@@ -101,7 +108,15 @@ const config = (env: Env, argv: Argv): webpack.Configuration => {
 
     optimization: {
       minimize: isProduction,
-      minimizer: [new TerserWebpackPlugin()],
+      minimizer: [
+        new TerserWebpackPlugin({
+          terserOptions: {
+            format: {
+              preamble: `/* ${copyright} */`,
+            },
+          },
+        }),
+      ],
       splitChunks: {
         chunks: "all",
       },

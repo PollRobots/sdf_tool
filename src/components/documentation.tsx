@@ -17,6 +17,7 @@ import { isDocumentedObject, isSpecial } from "../dsl";
 import { IconButton } from "./icon-button";
 import { Example } from "./example";
 import { kSpecialDoc } from "../special-doc";
+import { version } from "../../package.json";
 
 interface DocumentationProps {
   style: CSSProperties;
@@ -89,6 +90,8 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
             colorize={props.colorize}
           />
         );
+      } else if (p.children === "<%version%>") {
+        return <code>{version}</code>;
       } else {
         return (
           <Colorized code={p.children.toString()} colorize={props.colorize} />

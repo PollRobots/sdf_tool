@@ -10,7 +10,8 @@
     "jsx": "react",
     "allowSyntheticDefaultImports": true,
     "lib": ["dom", "ES2022"],
-    "types": ["@webgpu/types", "@types/wicg-file-system-access"]
+    "types": ["@webgpu/types", "@types/wicg-file-system-access"],
+    "resolveJsonModule": true
   },
   "exclude": ["*.wgsl"]
 }

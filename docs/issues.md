@@ -24,4 +24,5 @@ Safari
 Issues can be reported on the tool's [GitHub
 Issues](https://github.com/PollRobots/sdf_tool/issues) tracker.
 
-If practical and relevant, please include the DSL code that caused the issue.
+Please include the version (`<%version%>`), and if practical and relevant, the
+DSL code that caused the issue.

@@ -1,6 +1,6 @@
 {
-  "name": "sdf_tool",
-  "version": "1.0.0",
+  "name": "sdf-tool",
+  "version": "0.9.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "test": "mocha"
   },
   "keywords": [],
-  "author": "",
+  "author": "Paul C Roberts",
   "license": "MIT",
   "devDependencies": {
     "@fontsource-variable/fira-code": "^5.0.18",
