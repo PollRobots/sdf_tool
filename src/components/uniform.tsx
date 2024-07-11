@@ -177,16 +177,24 @@ export const getDefaultUniform = (name: string, value: number = 0): Uniform => {
     name === "theta" ||
     name === "alpha" ||
     name === "beta" ||
-    name === "phi"
+    name === "phi" ||
+    name.includes("angle")
   ) {
     return makeUniform(kPresetsMap.get("theta"), value);
-  } else if (name.startsWith("rgb-")) {
+  } else if (name.startsWith("rgb-") || name.startsWith("xyz-")) {
     return makeUniform(kPresetsMap.get("one"), value);
-  }
-  for (const settings of kPresetsMap.values()) {
-    if (value >= settings.min && value <= settings.max) {
-      return makeUniform(settings, value);
-    }
+  } else if (name.startsWith("lab-")) {
+    return makeUniform(kPresetsMap.get("hundred"), value);
+  } else if (name.startsWith("lch-")) {
+    return makeUniform(
+      kPresetsMap.get(name.endsWith(".z") ? "theta" : "hundred"),
+      value
+    );
+  } else if (name.match(/\.[xyz]$/)) {
+    return makeUniform(
+      kPresetsMap.get(name.endsWith(".y") ? "five" : "pm_five"),
+      value
+    );
   }
   return kDefaultUniform;
 };
