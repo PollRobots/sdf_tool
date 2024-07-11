@@ -67,6 +67,26 @@ end-interactive-values|#
       (sphere #<:off 1 0> 1)))
 ```
 
+### Using Time
+
+```example
+#|start-interactive-values
+  view.z = 0.7
+end-interactive-values|#
+
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4) (perlin x 8)))
+
+(color (saturate-xyz (lch-xyz (vec 50 75 (* 180 (noise (+ :pos :time))))))
+  (sphere #<0 1 0> 1))
+```
+
+This uses the current time to change the position used when generating
+perlin noise. The result is then used to set the hue in the LCH colorspace,
+which is then converted to XYZ and used as the color of a sphere.
+
+If you use the **edit** button to insert the example into the editor, you will
+see the colors changing hue over the sphere in the classic perlin noise pattern.
+
 ## Building a more complex model
 
 ### Starting small
