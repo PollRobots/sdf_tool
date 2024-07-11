@@ -178,7 +178,7 @@ const postProcessImpl = (lines: string[], indent: string): string => {
         const ch = line.charAt(i);
         if (ch === "(") {
           starts.push(i);
-        } else if (ch === ")") {
+        } else if (ch === ")" && starts.length > 0) {
           let start = starts.pop()!;
           // check previous character until either '(' or ' ' is found
           for (let j = start - 1; j >= 0; j--) {
