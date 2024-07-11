@@ -85,7 +85,9 @@ packages
 Where there are tests, they are written using [mocha](https://npmjs.com/mocha)
 and [chai](https://npmjs.com/chai)
 
-The code editing font is "Fira Code" from [fontsource](https://npmjs.com/@fontsource-variable/fira-code)
+The code editing font is Nikita Prokopov's "[Fira
+Code](https://github.com/tonsky/FiraCode)" as packaged by
+[fontsource](https://npmjs.com/@fontsource-variable/fira-code)
 
 # Acknowledgments
 
