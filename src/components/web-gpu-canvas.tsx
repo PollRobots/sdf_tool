@@ -173,8 +173,9 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   };
   const wheel = (evt: WheelEvent) => {
     if (evt.deltaY != 0) {
-      if (Reflect.has(evt, "wheelDelta")) {
-        const delta = evt.deltaY / Math.abs(Number((evt as any).wheelDelta));
+      const wheelDelta = Number((evt as any).wheelDelta);
+      if (!isNaN(wheelDelta)) {
+        const delta = evt.deltaY / Math.max(1, Math.abs(wheelDelta));
         changeView({
           z: Math.min(Math.max(-1, view.current.z - delta / 50), 1),
         });
