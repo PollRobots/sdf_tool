@@ -1,3 +1,4 @@
+import { diffieHellman } from "crypto";
 import {
   DslGeneratorError,
   Generated,
@@ -25,6 +26,7 @@ export class GenerateContextImpl implements GenerateContext {
   private readonly uniformsInfo: UniformInfo[];
   private readonly lambdas: Map<Lambda, GeneratedLambda> = new Map();
   private readonly names: Set<string> = new Set();
+  private readonly digests = new Map<string, string>();
 
   constructor(
     log: GenerateContextLog,
@@ -153,7 +155,14 @@ export class GenerateContextImpl implements GenerateContext {
     }
   }
 
-  getName(hint: string, requireNumber?: boolean): string {
+  getName(hint: string, requireNumber?: boolean, identifier?: string): string {
+    if (identifier) {
+      const elf = digest(identifier);
+      if (elf && this.digests.has(elf)) {
+        return this.digests.get(elf);
+      }
+    }
+
     if (!this.names.has(hint) && !requireNumber) {
       return hint;
     }
@@ -167,7 +176,19 @@ export class GenerateContextImpl implements GenerateContext {
     throw new Error(`Cannot name ${hint}`);
   }
 
-  addFunction(name: string, code: string[], type: GeneratedType) {
+  addFunction(
+    name: string,
+    code: string[],
+    type: GeneratedType,
+    identifier?: string
+  ) {
+    if (identifier) {
+      const elf = digest(identifier);
+      if (this.digests.has(elf)) {
+        return;
+      }
+      this.digests.set(elf, name);
+    }
     this.names.add(name);
     this.lambdas.set(
       {
@@ -261,4 +282,16 @@ const mapTypeToWgsl = (type: GeneratedType): string | undefined => {
     default:
       return;
   }
+};
+
+const digest = (input: string): string => {
+  const elfhash = new TextEncoder().encode(input).reduce((accum, ch) => {
+    accum = (accum << 4) + ch;
+    const x = accum & 0xf0000000;
+    if (x != 0) {
+      accum = accum ^ (x >> 24);
+    }
+    return accum & ~x;
+  }, 0);
+  return elfhash.toString(16).padStart(8, "0");
 };

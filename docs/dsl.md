@@ -74,12 +74,12 @@ There are two predefined colon-keyword values `:pos` and `:col`. These cannot be
 Shapes are functions that return a numeric value that is understood to be an evaluation of a signed distance field at the current `:pos`.
 
 Internally this is represented as a separate type. To write your own distance
-functions you can promote a numeric value to an SDF using `(sdf d)`.
+functions you can promote a numeric value to an SDF using `(num-sdf d)`.
 
 So the SDF for a sphere centered at `(0.6, 1, 0.2)` and radius `0.8`
 
 ```example
-(sdf
+(num-sdf
   (- (length (- :pos
                 #<0.6 1 0.2>))
      0.8))

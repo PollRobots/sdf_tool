@@ -87,11 +87,16 @@ export interface GenerateContext {
   readonly generatedLambdas: GeneratedLambda[];
   getUniformCode: (name: string, failForUnknown?: boolean) => string;
   applyUniforms: (lines: string[]) => void;
-  getName: (hint: string, requireNumber?: boolean) => string;
+  getName: (
+    hint: string,
+    requireNumber?: boolean,
+    identifier?: string
+  ) => string;
   addFunction: (
     name: string,
     definition: string[],
-    type: GeneratedType
+    type: GeneratedType,
+    identifier?: string
   ) => void;
   getLambda: (l: Lambda) => GeneratedLambda | undefined;
   setLambda: (
@@ -132,7 +137,7 @@ export const indent = (code: string, options: IndentOptions = {}): string[] => {
       return lines.slice(1, lines.length - 1);
     }
   } else {
-    return code.split("\n").map((el) => (options.pad || "  ") + el);
+    return lines.map((el) => (options.pad || "  ") + el);
   }
 };
 

@@ -269,7 +269,7 @@ function evaluateShape(expr: dsl.Expression, env: Env): dsl.Expression {
     );
   }
   const args = list.slice(2).map((expr) => evaluate(expr, env));
-  if (args.some(dsl.isPlaceholder)) {
+  if (args.some(dsl.isPlaceholder) || list[1].value === "sdf-num") {
     return dsl.makePlaceholder(
       dsl.makeIdList(
         "shape",

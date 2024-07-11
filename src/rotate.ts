@@ -76,9 +76,9 @@ export const generateConstAxisRotationMatrix = (
     z: axis_vec.z / length,
   };
 
-  const c = `  var c = cos(${angle});`;
-  const s = `  var s = sin(${angle});`;
-  const ic = `  var ic = 1 - c;`;
+  const c = `  let c = cos(${angle});`;
+  const s = `  let s = sin(${angle});`;
+  const ic = `  let ic = 1 - c;`;
 
   const m = (a: string, b: number): string => {
     b = f(b);
@@ -108,7 +108,7 @@ export const generateConstAxisRotationMatrix = (
   // prettier-ignore
   return [
     c, s, ic,
-    "  var rot = mat3x3<f32>(",
+    "  let rot = mat3x3<f32>(",
     `    vec3<f32>(${add('+', m('ic', u.x * u.x),         'c')}, ${add('+', m('ic', u.x * u.y), m('s', u.z))}, ${add('-', m('ic', u.x * u.z), m('s', u.y))}),`,
     `    vec3<f32>(${add('-', m('ic', u.y * u.x), m('s', u.z))}, ${add('+', m('ic', u.y * u.y),         'c')}, ${add('+', m('ic', u.y * u.z), m('s', u.x))}),`,
     `    vec3<f32>(${add('+', m('ic', u.z * u.x), m('s', u.y))}, ${add('-', m('ic', u.z * u.y), m('s', u.x))}, ${add('+', m('ic', u.z * u.z),         'c')}));`,
@@ -123,9 +123,9 @@ export const generateConstAngleRotationMatrix = (
   const ic = 1 - c;
 
   return [
-    `  var u = normalize(${axis});`,
-    `  var su = u * ${Math.sin(angle)}`,
-    "  var rot = mat3x3<f32>(",
+    `  let u = normalize(${axis});`,
+    `  let su = u * ${Math.sin(angle)}`,
+    "  let rot = mat3x3<f32>(",
     `    ${ic} * u.x * u + vec3<f32>(${c}, su.z, -su.y),`,
     `    ${ic} * u.y * u + vec3<f32>(-su.z, ${c}, su.x),`,
     `    ${ic} * u.z * u + vec3<f32>(su.y, -su.x, ${c});`,

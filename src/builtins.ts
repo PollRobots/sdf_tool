@@ -13,6 +13,7 @@ import {
   makeList,
   DslEvalError,
   isExpression,
+  makePlaceholder,
 } from "./dsl";
 import { printExpr } from "./print";
 import { Env } from "./env";
@@ -41,8 +42,6 @@ const requireValueArgs = (name: string, args: Expression[]): Value[] => {
     return el as Value;
   });
 };
-
-const requireValueArg = (name: string, index: number, arg: Expression) => {};
 
 const requireArity = (
   name: string,
@@ -187,17 +186,32 @@ const getArgsPosition = (
 };
 
 const kComparisonNames = new Map([
-  [".lt", "<"],
-  [".le", "<="],
-  [".gt", ">"],
-  [".ge", ">="],
-  ["eq", "=="],
-  ["neq", "!="],
+  ["lt?", "<"],
+  ["le?", "<="],
+  ["gt?", ">"],
+  ["ge?", ">="],
+  ["eq?", "=="],
+  ["neq?", "!="],
+]);
+
+const kComparisonDocFrag = new Map([
+  [">", "greater than"],
+  ["gt?", "greater than"],
+  [">=", "greater than or equal to"],
+  ["ge?", "greater than or equal to"],
+  ["<", "less than"],
+  ["lt?", "less than"],
+  ["<=", "less than or equal to"],
+  ["le?", "less than or equal to"],
+  ["==", "equal to"],
+  ["eq?", "equal to"],
+  ["!=", "not equal to"],
+  ["neq?", "not equal to"],
 ]);
 
 const makeComparison = (
   name: string | string[],
-  impl: (a: number, b: number) => number
+  impl: (a: number, b: number) => 0 | 1
 ): Internal[] => {
   const names = typeof name === "string" ? [name] : name;
   return names.map((name) => ({
@@ -205,35 +219,33 @@ const makeComparison = (
     impl: (args) => {
       requireMinArity(name, 2, args);
       const values = requireValueArgs(name, args);
-      if (values.some(isVector)) {
+      if (values.some((el) => isVector(el.value))) {
         const vecs = values.map(getValueAsVector);
         let last = vecs[0];
         const res: Vector = { x: 1, y: 1, z: 1 };
-        for (const curr of vecs) {
-          res.x &= impl(last.x, curr.x);
-          res.y &= impl(last.y, curr.y);
-          res.z &= impl(last.z, curr.z);
+        for (const curr of vecs.slice(1)) {
+          res.x *= impl(last.x, curr.x);
+          res.y *= impl(last.y, curr.y);
+          res.z *= impl(last.z, curr.z);
           if ((res.x | res.y | res.z) == 0) {
             break;
           }
-          last = curr;
+          last = res;
         }
-        return {
-          type: "vector",
-          value: res,
-          ...getArgsPosition(args),
-        };
+        const pos = getArgsPosition(args);
+        return makeVector(res.x, res.y, res.z, pos.offset, pos.length);
       } else {
+        const pos = getArgsPosition(args);
         let last = values[0].value as number;
         for (const curr of values.slice(1)) {
           const n = curr.value as number;
           if (impl(last, n) == 0) {
-            return kEmptyList;
+            return makeNumber(0, pos.offset, pos.length);
           } else {
             last = n;
           }
         }
-        return kTrue;
+        return makeNumber(1, pos.offset, pos.length);
       }
     },
     generate: (args) => {
@@ -253,6 +265,17 @@ const makeComparison = (
         type: args[0].type,
       };
     },
+    docs: [
+      `(**${name}** *a* *b* ...)`,
+      `Compares whether *a* is ${kComparisonDocFrag.get(name)} *b*, if there ` +
+        "are more than two arguments this comparison is continued, with each " +
+        "argument being compared with the argument to the left.",
+      "All arguments must be either numbers or vectors. If any argument is a " +
+        "vector, then all arguments are promoted to vectors by splatting.",
+      "Comparisons on vectors are performed component-wise.",
+      "The result for each component, or for a numeric value is `1` for true, " +
+        "and `0` for false",
+    ],
     insertText: `${name} \${1:left} \${2:right}`,
   }));
 };
@@ -444,18 +467,30 @@ const kBuiltins: Internal[] = [
     },
   },
   {
-    name: "sdf",
+    name: "num-sdf",
     impl: (args) => {
-      requireArity("sdf", 1, args);
-      requireNumber("sdf", 0, args[0]);
+      requireArity("num-sdf", 1, args);
+      requireNumber("num-sdf", 0, args[0]);
       return args[0];
     },
-    generate: (args) => {
-      return {
-        code: args[0].code,
-        type: "sdf",
-      };
-    },
+    generate: (args) => coerce(args[0], "sdf"),
+    docs: [
+      "(**num-sdf** *value*)",
+      "Considers the numeric *value* to be the evaluation of a signed " +
+        "distance field at the current point.",
+      "This function doesn't make any change to *value*, it is used " +
+        "to tell the code generation engine how to interpret this number. ",
+      "This can be used to define your own shapes.",
+      "**Example:**",
+      "```example" +
+        `
+(num-sdf (- (length (- :pos #<0.6 1 0.2>)) 0.8))
+` +
+        "```",
+      "This computes the SDF for a sphere contered at `(0.6, 1, 0.2)`, with a " +
+        "radius of `0.8`",
+    ],
+    insertText: "num-sdf ${1:value}",
   },
   {
     name: "+",
@@ -651,6 +686,7 @@ const kBuiltins: Internal[] = [
       "Computes the dot product of *a* and *b*.",
       `Both *a* and *b* must be vectors`,
     ],
+    insertText: "dot ${1:a} ${2:b}",
   },
 
   {
@@ -674,6 +710,7 @@ const kBuiltins: Internal[] = [
       type: "vec",
     }),
     docs: ["(**normalize** *v*)", "Normalizes the vector *v*"],
+    insertText: "normalize ${1:v}",
   },
 
   {
@@ -694,6 +731,7 @@ const kBuiltins: Internal[] = [
       type: "float",
     }),
     docs: ["(**length** *v*)", "Returns the length or magnitude of *v*"],
+    insertText: "length ${1:v}",
   },
 
   {
@@ -723,6 +761,7 @@ const kBuiltins: Internal[] = [
       "Computes the cross product of *a* and *b*.",
       `Both *a* and *b* must be vectors`,
     ],
+    insertText: "cross ${1:a} ${2:b}",
   },
 
   fnOfOne("abs", Math.abs),
@@ -796,6 +835,15 @@ const kBuiltins: Internal[] = [
         };
       }
     },
+    docs: [
+      "(**atan** *y* [*x*])",
+      "Computes the arctangent (in radians) of *y* or of *y*/*x* if two " +
+        "arguments are provided. If either or both argument is a vector, " +
+        "then both are promoted to vectors and the arctangent is computed " +
+        "component-wise",
+      "*y* and *x* (if provided) must be either vectors or numbers.",
+    ],
+    insertText: "atan ${1:y} ${2:x}",
   },
 
   {
@@ -841,6 +889,7 @@ const kBuiltins: Internal[] = [
         " *azimuth* (*φ*) as the x, y, and z elements respectively. " +
         "*inclination* and *azimuth* are in radians.",
     ],
+    insertText: "cartesian-spherical ${1:v} ${2:c}",
   },
   {
     name: "spherical-cartesian",
@@ -893,6 +942,7 @@ const kBuiltins: Internal[] = [
         "coordinates as *radius* (*r*), *inclination* (*θ*), and *azimuth* " +
         "(*φ*) respectively. *inclination* and *azimuth* are in radians.",
     ],
+    insertText: "spherical-cartesian ${1:sph} ${2:off}",
   },
 
   {
@@ -942,6 +992,14 @@ const kBuiltins: Internal[] = [
         };
       }
     },
+    docs: [
+      "(**min** *a* *b* ...)",
+      "Computes the minimum of *a* and *b* (and of any subsequent arguments)",
+      "If any argument is a vector, then all are promoted to vectors, and " +
+        "the minimum is computed component-wise.",
+      "All arguments must be either numeric or vectors.",
+    ],
+    insertText: "min ${1:a} ${2:a}",
   },
 
   {
@@ -991,6 +1049,14 @@ const kBuiltins: Internal[] = [
         };
       }
     },
+    docs: [
+      "(**max** *a* *b* ...)",
+      "Computes the maximum of *a* and *b* (and of any subsequent arguments)",
+      "If any argument is a vector, then all are promoted to vectors, and " +
+        "the maximum is computed component-wise.",
+      "All arguments must be either numeric or vectors.",
+    ],
+    insertText: "max ${1:a} ${2:a}",
   },
 
   {
@@ -1010,6 +1076,7 @@ const kBuiltins: Internal[] = [
       return { code: `${vec}.x`, type: "float" };
     },
     docs: ["(**get-x** *v*)", "Gets the x component of the vector *v*."],
+    insertText: "get-x ${1:v}",
   },
 
   {
@@ -1029,6 +1096,7 @@ const kBuiltins: Internal[] = [
       return { code: `${vec}.y`, type: "float" };
     },
     docs: ["(**get-y** *v*)", "Gets the y component of the vector *v*."],
+    insertText: "get-y ${1:v}",
   },
 
   {
@@ -1048,6 +1116,7 @@ const kBuiltins: Internal[] = [
       return { code: `${vec}.z`, type: "float" };
     },
     docs: ["(**get-z** *v*)", "Gets the z component of the vector *v*."],
+    insertText: "get-z ${1:v}",
   },
 
   {
@@ -1089,6 +1158,15 @@ const kBuiltins: Internal[] = [
         type: "vec",
       };
     },
+    docs: [
+      "(**vec** *x* *y* *z*)",
+      "(**vec** *v*)",
+      "Creates a vector with components *x*, *y*, and *z*. If only a single " +
+        "argument is provided, then all components are set to the same value.",
+      "`(vec a b c)` is equirevalent to the reader macro `#<a b c>`, and by " +
+        "extension, `(vec p)` is equivalent to `#<p>`.",
+    ],
+    insertText: "vec ${1:x} ${2:y} ${3:z}",
   },
 
   {
@@ -1129,14 +1207,15 @@ const kBuiltins: Internal[] = [
       "(**pow** *x* *n*)",
       "Returns `xⁿ`, this is applied component-wise to vectors",
     ],
+    insertText: "pow ${1:x} ${2:n}",
   },
 
-  ...makeComparison(["<", "lt"], (a, b) => (a < b ? 1 : 0)),
-  ...makeComparison(["<=", "le"], (a, b) => (a <= b ? 1 : 0)),
-  ...makeComparison([">", "gt"], (a, b) => (a > b ? 1 : 0)),
-  ...makeComparison([">=", "ge"], (a, b) => (a <= b ? 1 : 0)),
-  ...makeComparison("eq", (a, b) => (a == b ? 1 : 0)),
-  ...makeComparison("neq", (a, b) => (a != b ? 1 : 0)),
+  ...makeComparison(["<", "lt?"], (a, b) => (a < b ? 1 : 0)),
+  ...makeComparison(["<=", "le?"], (a, b) => (a <= b ? 1 : 0)),
+  ...makeComparison([">", "gt?"], (a, b) => (a > b ? 1 : 0)),
+  ...makeComparison([">=", "ge?"], (a, b) => (a >= b ? 1 : 0)),
+  ...makeComparison("eq?", (a, b) => (a == b ? 1 : 0)),
+  ...makeComparison("neq?", (a, b) => (a != b ? 1 : 0)),
 
   ...makeAllSwizzles(),
 
@@ -1195,6 +1274,7 @@ const kBuiltins: Internal[] = [
         "```",
       "or `3t² - 2t³` where `t ← saturate((x - low) / (high - low))`",
     ],
+    insertText: "smoothstep ${1:low} ${2:high} ${3:x}",
   },
   {
     name: "mix",
@@ -1248,6 +1328,7 @@ const kBuiltins: Internal[] = [
 ` +
         "```",
     ],
+    insertText: "mix ${1:a} ${2:b} ${3:t}",
   },
   {
     name: "clamp",
@@ -1293,6 +1374,7 @@ const kBuiltins: Internal[] = [
       "Restricts *value*  between the range of *low* and *high*, this will be " +
         "applied component-wise to vector values.",
     ],
+    insertText: "clamp ${1:value} ${2:low} ${3:high}",
   },
   {
     name: "saturate",
@@ -1328,10 +1410,11 @@ const kBuiltins: Internal[] = [
       "Equivalent to",
       "```" +
         `
-(clamp 0 1 value)
+(clamp value 0 1)
 ` +
         "```",
     ],
+    insertText: "saturate ${1:value}",
   },
   {
     name: "saturate-xyz",
@@ -1364,6 +1447,7 @@ const kBuiltins: Internal[] = [
 ` +
         "```",
     ],
+    insertText: "saturate-xyz ${1:v}",
   },
   {
     name: "perlin",
@@ -1415,6 +1499,7 @@ const kBuiltins: Internal[] = [
         "illuminant to ensure that the noise is scaled correctly in the XYZ color " +
         "space.",
     ],
+    insertText: "perlin ${1:p} ${2:octave}",
   },
   {
     name: "rgb-xyz",
@@ -1438,6 +1523,7 @@ const kBuiltins: Internal[] = [
       "Converts the *rgb* vector representing a color in sRgb space, into a vector " +
         "representing the same color in CIE 1931 XYZ color space, using the D65 reference illuminant",
     ],
+    insertText: "rgb-xyz ${1:rgb}",
   },
   {
     name: "xyz-rgb",
@@ -1461,6 +1547,7 @@ const kBuiltins: Internal[] = [
       "Converts the *xyz* vector representing a color in CIE 1931 XYZ color space, into a vector " +
         "representing the same color in sRgb color space, using the D65 reference illuminant",
     ],
+    insertText: "xyz-rgb ${1:xyz}",
   },
   {
     name: "lab-xyz",
@@ -1485,6 +1572,7 @@ const kBuiltins: Internal[] = [
         "space, into a vector representing the same color in CIE 1931 XYZ color " +
         "space, using the D65 reference illuminant",
     ],
+    insertText: "lab-xyz ${1:lab}",
   },
   {
     name: "xyz-lab",
@@ -1508,6 +1596,7 @@ const kBuiltins: Internal[] = [
       "Converts the *xyz* vector representing a color in CIE 1931 XYZ color space, into a vector " +
         "representing the same color in CIE 1931 LAB color space, using the D65 reference illuminant",
     ],
+    insertText: "xyz-lab ${1:xyz}",
   },
   {
     name: "lab-lch",
@@ -1532,6 +1621,7 @@ const kBuiltins: Internal[] = [
         "space, into a vector representing the same color in CIE 1931 Lch color " +
         "space, using the D65 reference illuminant",
     ],
+    insertText: "lab-lch ${1:lab}",
   },
   {
     name: "lch-lab",
@@ -1555,6 +1645,7 @@ const kBuiltins: Internal[] = [
       "Converts the *lch* vector representing a color in CIE 1931 Lch color space, into a vector " +
         "representing the same color in CIE 1931 LAB color space, using the D65 reference illuminant",
     ],
+    insertText: "lch-lab ${1:lch}",
   },
 ];
 
@@ -1593,6 +1684,7 @@ const kLambdas: MacroDef[] = [
       "(**min-vec** *v*)",
       "Gets the minimum component value of the vector *v*",
     ],
+    insertText: "min-vec ${1:v}",
   },
   {
     name: "max-vec",
@@ -1602,6 +1694,7 @@ const kLambdas: MacroDef[] = [
       "(**max-vec** *v*)",
       "Gets the maximum component value of the vector *v*",
     ],
+    insertText: "max-vec ${1:v}",
   },
   {
     name: "xyz-lch",
@@ -1613,6 +1706,7 @@ const kLambdas: MacroDef[] = [
         "space, into a vector representing the same color in CIE 1931 LCH color " +
         "space, using the D65 reference illuminant",
     ],
+    insertText: "xyz-lch ${1:xyz}",
   },
   {
     name: "lch-xyz",
@@ -1624,6 +1718,19 @@ const kLambdas: MacroDef[] = [
         "space, into a vector representing the same color in CIE 1931 XYZ color " +
         "space, using the D65 reference illuminant",
     ],
+    insertText: "lch-xyz ${1:xyz}",
+  },
+  {
+    name: "step",
+    symbols: ["edge", "x"],
+    body: "(le? edge x)",
+    docs: [
+      "(**step** *edge* *x*)",
+      "Returns 1 if *edge* ≤ *x*, otherwise 0. This is evaluated component-wise " +
+        "for vectors.",
+      "*edge* and *x* must be numbers or vectors.",
+    ],
+    insertText: "step ${1:edge} ${2:x}",
   },
 ];
 
@@ -2132,6 +2239,52 @@ const kShapes: MacroDef[] = [
         "```",
     ],
     insertText: "asymmetric-ellipsoid ${1:c} ${2:r1} ${3:r2}",
+  },
+  {
+    name: "sdf-num",
+    symbols: ["s"],
+    body: "`(shape sdf-num ,s)",
+    docs: [
+      "(**sdf-num** *shape*)",
+      "Considers the signed distance field *shape* as a numeric value.",
+      "This function doesn't make any change to *shape*, it is used " +
+        "to tell the code generation engine how to interpret this number. ",
+      "This can be used to define your own shape combinators, or to use the " +
+        "SDF in other ways.",
+      "**Note:** if *shape* sets colors, that color information will be " +
+        "discarded when this is called.",
+      "**Example:**",
+      "```example" +
+        `
+#|start-interactive-values
+  k = 0.2 [0:0.2:0.001]
+  r = 1 [0:1:0.01]
+  y = 1 [0.01:5:0.001]
+  view.x = 90
+  view.y = 0
+  view.z = 0.5
+end-interactive-values|#
+
+(define fract (x) (- 1 (- x (floor x))))
+(define sdf-col (d)
+    (rgb-xyz (smoothcase #<d>
+             ((0) #<(pow (fract (* 10 (abs d))) 4) 0 (* 0.5 (fract d))>)
+             ((0) #<0 (* 0.5 (- 1 (fract d))) (pow (fract (* 10 d)) 4)>))))
+(define scene (sdf-num (union :k
+  (sphere #<-1 1 0> :r)
+  (sphere #<1 1 0> :r) )))
+(union (color #<(sdf-col scene)>
+          (plane #<0 1 0> :y))
+       (hide num-sdf scene))
+` +
+        "```",
+      "This visualizes the sdf of `scene` on x-z plane. The red lines show " +
+        "negative SDF, the blue show positive. Lines are draw every 0.1 units.",
+      "Removing the `hide` keyword on the last line will also show the " +
+        "scene &mdash; at the expense of being able to see the interior field " +
+        "values.",
+    ],
+    insertText: "sdf-num ${1:shape}",
   },
 ];
 

@@ -538,3 +538,138 @@ This creates cheeks by adding two spheres just below the surface of the skin,
 the cheek color is modulated with the :blush interactive value between the skin
 color and red. This combined with the smoothing will add a red tint to the
 cheeks.
+
+### Chin and Lips
+
+```example
+#|start-interactive-values
+  view.x = 7
+  view.y = 0
+  view.z = 0.6
+  cheek-pos.x = 0.21 [0:1:0.01]
+  cheek-pos.y = -0.3 [-1:1:0.01]
+  cheek-pos.z = 0.55 [0:1:0.01]
+  chin.y = -0.75 [-1:0:0.01]
+  chin.z = 0.56 [0:1:0.01]
+  eye-pos.x = 0.25 [0:2:0.01]
+  eye-pos.y = -0.05 [-1:1:0.01]
+  eye-pos.z = 0.69 [0:2:0.01]
+  lip.y = -0.532 [-1:0:0.001]
+  lip.z = 0.74 [0:1:0.01]
+  nose-pos.y = -0.15 [-1:1:0.01]
+  nose-pos.z = 0.85 [0:1:0.01]
+  rgb-iris.x = 0.608 [0:1:0.01]
+  rgb-iris.y = 0.376 [0:1:0.01]
+  rgb-iris.z = 0.11 [0:1:0.01]
+  rgb-lip.x = 0.737 [0:1:0.01]
+  rgb-lip.y = 0.447 [0:1:0.01]
+  rgb-lip.z = 0.322 [0:1:0.01]
+  rgb-skin.x = 0.941 [0:1:0.01]
+  rgb-skin.y = 0.796 [0:1:0.01]
+  rgb-skin.z = 0.698 [0:1:0.01]
+  blush = 0.62 [0:1:0.01]
+  cheek-size = 0.16 [0:0.2:0.001]
+  chin-angle = 9 [-180:180:1]
+  eye-size = 0.15 [0:1:0.01]
+  eyelid-angle = 22 [-180:180:1]
+  iris = 0.25 [0:0.5:0.001]
+  lh = 0.045 [0:0.2:0.001]
+  lk = 0.035 [0:0.2:0.001]
+  nose-angle = 17 [0:50:0.1]
+  nose-scale = 0.09 [0:0.2:0.001]
+  pupil = 0.153 [0:0.5:0.001]
+  smile = 0.019 [0:0.05:0.001]
+end-interactive-values|#
+
+(define pi (radians 180))
+(define noise (x) (+ (perlin x 1) (perlin x 2) (perlin x 4)))
+(define eye-color (sph)
+  (saturate-xyz
+    (smoothcase (/ (yyy sph) pi)
+      (((- :pupil 0.01)) #<0.025>)
+      ((:pupil :iris)
+        (mix (rgb-xyz :#<rgb-iris>)
+             (* 2 (rgb-xyz :#<rgb-iris>))
+             (smoothstep -0.1 0.6
+                (noise (* sph #<(+ 1 (* 5 :pupil)) (/ (+ 0.1 :pupil)) 20>)))))
+      (((+ :iris 0.01)) (rgb-xyz #<1>))
+      ((1) (rgb-xyz #<1 0 0>)))))
+(define lip-color (lp)
+    (let ((py (- (get-y lp)
+                 :lip.y
+                 (* 5 :smile (- 1 (cos (* (get-x lp) pi))))))
+          (lh (* :lh
+                 (cos (/ (* (get-x lp) pi) (* 8 :lh))))))
+
+        (smoothcase #<py>
+                    (((* -2 lh))               (rgb-xyz :#<rgb-skin>))
+                    (((- lh)     (* -0.25 lh)) (rgb-xyz :#<rgb-lip>))
+                    ((0)                       (* 0.5 (rgb-xyz :#<rgb-lip>)))
+                    (((* 0.9 lh) lh)           (rgb-xyz :#<rgb-lip>))
+                    (((* 1.5 lh))              (rgb-xyz :#<rgb-skin>)))))
+
+(translate-y 1.5
+(union
+  ;eyes
+	(reflect #<1 0 0>
+	  (translate-x (max (* 1.1 :eye-size) :eye-pos.x)
+	    (translate #<0 :eye-pos.y :eye-pos.z> (scale :eye-size
+		  (union
+		    (rotate-x (/ pi -2)
+		      (color (eye-color (cartesian-spherical :pos))
+		        (sphere #<0> 1)))
+		    (color (rgb-xyz :#<rgb-skin>)
+		      (intersect 0.01
+		        (sphere #<0> 1.02)
+		        (translate #<0 -0.5 -1> (rotate-x (radians :eyelid-angle)
+		          (plane #<0 -1 0> 0))))))))))
+  (color (rgb-xyz :#<rgb-skin>)
+    (difference 0.1
+      (union 0.04
+        (asymmetric-ellipsoid #<0> #<0.75 1 0.7> #<0.75 0.9 0.9>)
+        ; lips
+        (color (lip-color :pos)
+        (union :lk
+            (sphere #<0 :lip.y :lip.z> (/ :lh 3))
+            (sphere #<(* -1 :lh) :lip.y :lip.z > (/ :lh 3))
+            (sphere #<(* -2 :lh) (+ :lip.y :smile) (- :lip.z 0.04)> (/ :lh 3))
+            (sphere #<(* 1 :lh) :lip.y :lip.z> (/ :lh 3))
+            (sphere #<(* 2 :lh) (+ :lip.y :smile) (- :lip.z 0.04)> (/ :lh 3))))
+        ; nose
+        (translate :#<nose-pos> (scale :nose-scale
+          (rotate-x (radians :nose-angle)
+            (union 0.1
+              (sphere #<0.6 -1.5 -0.3> 0.7)
+              (sphere #<-0.6 -1.5 -0.3> 0.7)
+              (sphere #<0 -1.5 0> 0.75)
+              (ellipsoid #<0> #<1 2 1>)))))
+        ; cheeks
+        (color (mix (rgb-xyz :#<rgb-skin>)
+                     (rgb-xyz #<1 0 0>)
+                     :blush)
+          (reflect #<-1 0 0>
+            (sphere (+ :#<cheek-pos> (* #<1 1 1> :smile)) :cheek-size)))
+        ; chin
+        (translate :#<chin> (rotate-x (radians :chin-angle)
+            (asymmetric-ellipsoid #<0> #<0.18 0.1 0.3> #<0.18 0.2 0.15>)))
+        )
+      ; eye-sockets
+      (union
+        (sphere (* 1.25 :#<eye-pos>) (* :eye-size 0.5 (+ 1 (* 3 :smile))))
+        (sphere (* 1.25 :#<eye-pos> #<-1 1 1>) (* :eye-size 0.5 (+ 1 (* 3 :smile)))))))))
+```
+
+The chin is a simple asymmetric ellipsoid that helps create a more reasonable profile.
+
+The lips are more complicated, in terms of shape, they are a 5 small spheres set
+in a a line that approximately follows the curve of the face. The `:smile`
+interactive value then moves the outermost spheres up slightly. It is also used
+to control the position of the cheeks, so that more of the face moves with the
+smile.
+
+The lips are colored based on the position, in the centerline of the face they
+are colored between `:lh` above and below `:lip.z`, that height is then
+modulated as the x-coordinate moves away from the centerline using a scaled
+cosine of the x-coordinate. This gives the coloring some shape, and is also
+tweaked by the `:smile` variable to make the lip color follow the movement of
+the underlying geometry.

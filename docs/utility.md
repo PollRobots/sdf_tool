@@ -8,6 +8,8 @@
 ![Perlin](perlin.doc)
 ![Cartesian → Spherical](cartesian-spherical.doc)
 ![Spherical → Cartesian](spherical-cartesian.doc)
+![SDF → Number](sdf-num.doc)
+![Number → SDF](num-sdf.doc)
 
 ## Vector functions
 

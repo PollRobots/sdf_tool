@@ -387,7 +387,14 @@ const generateScale = (
     }
   } else {
     lines.push(`  var scale = ${factor.code};`);
-    lines.push("  if (scale == 0) {", "    res = 1e5;", "  } else {");
+    lines.push(
+      "  if (scale == 0)",
+      "  {",
+      "    res = 1e5;",
+      "  }",
+      "  else",
+      "  {"
+    );
     lines.push(`    var p = p / scale;`);
     switch (target.type) {
       case "sdf":
@@ -610,6 +617,38 @@ const generateShell = (
   return { code: lines.join("\n"), type: "void" };
 };
 
+const generateSdfToNum = (
+  shape: Shape,
+  env: Env,
+  ctx: GenerateContext
+): Generated => {
+  assertShapeArity(shape, 1);
+  const inner = generate(shape.args[0], env, ctx);
+  switch (inner.type) {
+    case "sdf":
+    case "float":
+      return { type: "float", code: inner.code };
+    case "void":
+      const fn: string[] = [];
+      const name = ctx.getName("sdf_num", true, inner.code);
+      fn.push(
+        `fn ${name}(p_arg: vec3<f32>, col_arg: vec3<f32>, k_arg: f32) -> f32 {`
+      );
+      fn.push("  var res: f32 = 1e5;");
+      fn.push("  var res4 = vec4<f32>(0);");
+      fn.push("  var p = p_arg;");
+      fn.push("  var col = col_arg;");
+      fn.push("  var k = k_arg;");
+      fn.push(...indent(inner.code));
+      fn.push("  return res;");
+      fn.push("}");
+      ctx.addFunction(name, fn, "float", inner.code);
+      return { type: "float", code: `${name}(p, col, k)` };
+    default:
+      throw new Error(`cannot convert ${printExpr(shape.args[0])} to a number`);
+  }
+};
+
 export const kShapeGenerators = new Map<
   string,
   (shape: Shape, env: Env, ctx: GenerateContext) => Generated
@@ -626,5 +665,6 @@ export const kShapeGenerators = new Map<
   ["reflect", generateReflect],
   ["color", generateColor],
   // ["shell", generateShell],
+  ["sdf-num", generateSdfToNum],
   ["hide", () => ({ code: "1e5", type: "sdf" })],
 ]);
