@@ -34,6 +34,7 @@ import { CompletionProvider } from "../monaco/completion-provider";
 
 interface DslEditorProps {
   editorRef: React.MutableRefObject<monaco.editor.IStandaloneCodeEditor>;
+  dirtyRef: React.MutableRefObject<boolean>;
   line: string;
   style?: React.CSSProperties;
   uniforms: Map<string, Uniform>;
@@ -136,6 +137,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
   const [currentVersion, setCurrentVersion] = React.useState(0);
   const [initialVersion, setInitialVersion] = React.useState(0);
   const [highVersion, setHighVersion] = React.useState(0);
+  const [savedVersion, setSavedVersion] = React.useState(0);
   const monacoInstance =
     React.useRef<monaco.editor.IStandaloneCodeEditor>(null);
   const [statusBar, setStatusBar] = React.useState<IStatusBar>(null);
@@ -186,6 +188,9 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
       const ver = model.getAlternativeVersionId();
       setCurrentVersion(ver);
       setHighVersion(Math.max(ver, highVersion));
+      if (ver != savedVersion) {
+        props.dirtyRef.current = true;
+      }
     });
 
     hoverProvider.current = new HoverProvider(editor);
@@ -224,6 +229,8 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
     saveFilePicker(editor.getValue(), filename)
       .then((filename) => {
         lastFileName.current = filename;
+        setSavedVersion(currentVersion);
+        props.dirtyRef.current = false;
       })
       .catch((err) => {})
       .finally(() => editor.focus());
@@ -238,7 +245,12 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
         lastFileName.current = file.name;
         return file.text();
       })
-      .then((text) => editor.setValue(text))
+      .then((text) => {
+        const model = editor.getModel();
+        model.setValue(text);
+        setSavedVersion(model.getAlternativeVersionId());
+        props.dirtyRef.current = false;
+      })
       .catch((err) => {})
       .finally(() => editor.focus());
   };
@@ -629,6 +641,7 @@ const DslEditor: React.FC<DslEditorProps> = (props) => {
             />
             <StatusBar
               filename={lastFileName.current}
+              dirty={props.dirtyRef.current}
               onMount={(statusBar) => onStatusBarMounted(statusBar)}
               focusEditor={() => monacoInstance.current.focus()}
             />

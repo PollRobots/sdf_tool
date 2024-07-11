@@ -21,8 +21,10 @@ import { version } from "../../package.json";
 
 interface DocumentationProps {
   style: CSSProperties;
+  topic: string;
   onClose: () => void;
   onAddToEditor: (fragment: string) => void;
+  onSetTopic: (topic: string) => void;
   colorize: (code: string) => Promise<string>;
 }
 
@@ -46,9 +48,40 @@ const makeEnv = () => {
   return env;
 };
 
+export interface HistoryState {
+  topic: string;
+}
+
+export const isHistoryState = (value: any): value is HistoryState =>
+  value && typeof value.topic === "string";
+
+const visitDocTopic = (topic: string) => {
+  const state: HistoryState = {
+    topic: topic,
+  };
+  history.pushState(state, "", `${location.pathname}#${topic}`);
+};
+
+export const getInitialTopic = () => {
+  if (location.hash) {
+    const topic = location.hash.substring(1);
+    if (kTopics.has(topic)) {
+      return topic;
+    }
+  }
+  return "howto";
+};
+
 export const Documentation: React.FC<DocumentationProps> = (props) => {
-  const [doc, setDoc] = React.useState("howto");
   const env = React.useRef(makeEnv());
+
+  const doc = kTopics.has(props.topic) ? props.topic : "howto";
+  const setDoc = (topic: string) => {
+    if (kTopics.has(topic)) {
+      props.onSetTopic(topic);
+      visitDocTopic(topic);
+    }
+  };
 
   const markdownComponents: Partial<Components> = {
     p: (props) => <div className="para">{props.children}</div>,
@@ -106,9 +139,7 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
           <span
             className="doc-link"
             onClick={() => {
-              if (kTopics.has(props.href)) {
-                setDoc(props.href);
-              }
+              setDoc(props.href);
             }}
           >
             {props.children}
@@ -130,7 +161,12 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
         }}
       >
         Topics:
-        <select value={doc} onChange={(e) => setDoc(e.target.value)}>
+        <select
+          value={doc}
+          onChange={(e) => {
+            setDoc(e.target.value);
+          }}
+        >
           {Array.from(kTopics.keys())
             .sort()
             .map((el) => (
@@ -144,7 +180,9 @@ export const Documentation: React.FC<DocumentationProps> = (props) => {
           size="1.3em"
           title="Close"
           style={{ fontWeight: "bold", padding: 0, justifyContent: "center" }}
-          onClick={() => props.onClose()}
+          onClick={() => {
+            props.onClose();
+          }}
         >
           ×
         </IconButton>

@@ -16,7 +16,11 @@ import { isVectorName, Vector } from "./dsl";
 import monacoTypes from "monaco-editor";
 import { loadSettings } from "./components/persisted-settings";
 import { ErrorBoundary } from "./components/error-boundary";
-import { Documentation } from "./components/documentation";
+import {
+  Documentation,
+  getInitialTopic,
+  isHistoryState,
+} from "./components/documentation";
 import {
   extractViewParameters,
   generateShader,
@@ -42,6 +46,7 @@ const DslEditor = React.lazy(async () => {
 export const App: React.FC = () => {
   const editorRef =
     React.useRef<monacoTypes.editor.IStandaloneCodeEditor>(null);
+  const dirtyRef = React.useRef(false);
   const [settings, setSettings] = React.useState(loadSettings());
   const width = Math.round(window.visualViewport.width / 2);
   const height = Math.round((width * 9) / 16);
@@ -51,7 +56,8 @@ export const App: React.FC = () => {
   const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
-  const [docs, setDocs] = React.useState(false);
+  const [docs, setDocs] = React.useState(location.hash.length > 0);
+  const [topic, setTopic] = React.useState(getInitialTopic());
   const [view, setView] = React.useState<Vector>({ x: 15, y: 0, z: 0 });
 
   const currTheme = kDefinedThemes.get(settings.themeName) || kSolarizedDark;
@@ -134,6 +140,29 @@ export const App: React.FC = () => {
     return window.monaco.editor.colorize(fragment, kLanguageId, {});
   };
 
+  React.useEffect(() => {
+    const listener = (evt: PopStateEvent) => {
+      if (isHistoryState(evt.state)) {
+        setDocs(true);
+        setTopic(evt.state.topic);
+      } else {
+        setDocs(false);
+      }
+    };
+    window.addEventListener("popstate", listener);
+    return () => window.removeEventListener("popstate", listener);
+  }, ["once"]);
+
+  React.useEffect(() => {
+    const listener = (evt: BeforeUnloadEvent) => {
+      if (dirtyRef.current) {
+        evt.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", listener);
+    return () => window.removeEventListener("beforeunload", listener);
+  }, ["once"]);
+
   return (
     <ThemeProvider value={currTheme}>
       <div
@@ -215,6 +244,7 @@ export const App: React.FC = () => {
             >
               <DslEditor
                 editorRef={editorRef}
+                dirtyRef={dirtyRef}
                 style={{ gridArea: editorTop ? "1/2/3/3" : "2/1/3/2" }}
                 line=""
                 uniforms={values}
@@ -335,7 +365,12 @@ export const App: React.FC = () => {
               color: currTheme.boldForeground,
               display: docs ? null : "none",
             }}
-            onClose={() => setDocs(false)}
+            topic={topic}
+            onSetTopic={(t) => setTopic(t)}
+            onClose={() => {
+              setDocs(false);
+              history.replaceState({}, "", location.pathname);
+            }}
             onAddToEditor={(frag) => addFragment(frag)}
             colorize={(frag) => colorize(frag)}
           />

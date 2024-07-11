@@ -4,6 +4,7 @@ import { ThemeContext } from "./theme-provider";
 
 interface StatusBarProps {
   filename: string;
+  dirty: boolean;
   onMount: (statusBar: IStatusBar) => void;
   focusEditor: () => void;
 }
@@ -123,7 +124,10 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
         gridTemplateColumns: "auto auto 1fr auto auto",
       }}
     >
-      <div>[{props.filename || "No Name"}]</div>
+      <div>
+        [{props.filename || "No Name"}
+        {props.dirty ? "*" : ""}]
+      </div>
       <div>{modeText}</div>
       {secondary ? <StatusBarSecondary {...secondary} /> : <div />}
       <div style={notificationStyle}>{notification}</div>
