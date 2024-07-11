@@ -64,10 +64,18 @@ until the shader is evaluated. There are two forms for this.
   You can reference individual elements of a vector interactive value directly,
   i.e. you can write `:t.y` you don't need to write `(vec-y :#<t>)`
 
-There are two predefined colon-keyword values `:pos` and `:col`. These cannot be controlled interactively. And despite being represetned using colon-keyword format are vectors not numbers.
+There are threww predefined colon-keyword values `:pos`, `:col`, and `:time`.
+These cannot be controlled interactively. And despite being represented using
+colon-keyword format `:pos` and `:col` are vectors not numbers.
 
-- **pos** is a vector representing the current position at which the SDF is being evaluated &mdash; subject to any current scale, translation, and rotation operations.
-- **col** is a vector representing the current color. This vector represents the color in CIE XYZ colorspace. It can be transformed to and from the more familiar sRGB using `(xyz-rgb c)` and `(rgb-xyz c)` respectively
+- **pos** is a vector representing the current position at which the SDF is
+  being evaluated &mdash; subject to any current scale, translation, and
+  rotation operations.
+- **col** is a vector representing the current color. This vector represents the
+  color in CIE XYZ colorspace. See the [color](color) documentation for more
+  information.
+- **time** is a number representing a time in seconds. This can be paused and
+  reset to zero using the UI.
 
 ## Shapes
 

@@ -279,6 +279,8 @@ const generateImpl = (
             return { code: "p", type: "vec" };
           case "col":
             return { code: "col", type: "vec" };
+          case "time":
+            return { code: "time", type: "float" };
           default:
             return {
               code: ctx.getUniformCode(ident),

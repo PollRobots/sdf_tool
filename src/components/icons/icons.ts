@@ -4,7 +4,7 @@ export { Edit } from "./edit";
 export { Image } from "./image";
 export { Open } from "./open";
 export { Paste } from "./paste";
-export { Pause, Play, Spin } from "./play-pause";
+export { Pause, Play, Rewind, Spin } from "./play-pause";
 export { Redo } from "./redo";
 export { Save } from "./save";
 export { Switch } from "./switch";

@@ -3,7 +3,7 @@ import seedrandom from "seedrandom";
 import { saveFilePickerComplete } from "../util";
 import { Vector } from "../dsl";
 import { ThemeContext } from "./theme-provider";
-import { Pause, Play, Spin } from "./icons/icons";
+import { Pause, Play, Rewind, Spin } from "./icons/icons";
 import { IconButton } from "./icon-button";
 import { Image } from "./icons/image";
 
@@ -37,11 +37,11 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
   const gpu = React.useRef<WebGpuWidget>(null);
   const [running, setRunning] = React.useState(false);
   const [fps, setFps] = React.useState(0);
+  const [time, setTime] = React.useState(0);
   const [spinning, setSpinning] = React.useState(false);
   const [initialPt, setInitialPt] = React.useState(kDefaultMouseDragPoint);
   const [leftButton, setLeftButton] = React.useState(false);
   const [tick, setTick] = React.useState(0);
-  const spinId = React.useId();
   const theme = React.useContext(ThemeContext);
 
   const changeView = (value: Partial<Vector>) =>
@@ -73,8 +73,11 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       if (fps != Math.round(gpu.current.fps)) {
         setFps(Math.round(gpu.current.fps));
       }
+      if (time != gpu.current.time) {
+        setTime(gpu.current.time);
+      }
     }
-    timerHandle.current = setTimeout(() => timerFn(tick + 1), 250);
+    timerHandle.current = setTimeout(() => timerFn(tick + 1), 50);
   }, [tick]);
 
   React.useEffect(() => {
@@ -270,13 +273,24 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           style={{
             background: theme.boldBackground,
             display: "grid",
-            gridTemplateColumns: "auto auto 1fr auto auto",
+            gridTemplateColumns: "auto auto 2em auto 1fr auto auto",
             fontSize: "150%",
             alignItems: "center",
             gap: "0.125em",
             padding: "0 0.125em",
           }}
         >
+          <IconButton
+            size="1em"
+            title="Reset time"
+            onClick={() => {
+              if (gpu.current) {
+                gpu.current.resetTime();
+              }
+            }}
+          >
+            <Rewind />
+          </IconButton>
           <IconButton
             size="1em"
             title={running ? "Pause" : "Play"}
@@ -292,6 +306,7 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
           >
             {running ? <Pause /> : <Play />}
           </IconButton>
+          <div style={{ fontSize: "50%" }}>{time.toFixed(2)}</div>
           <div style={{ fontSize: "50%" }}>{fps} fps</div>
           <div />
           <IconButton
@@ -380,6 +395,8 @@ export class WebGpuWidget {
   uniformBindGroup?: GPUBindGroup;
   x: number = 0;
   y: number = 0;
+  time: number = 0;
+  lastFrame: number = 0;
   zoom: number = 0;
   spinning: boolean = false;
   spinStart: CSSNumberish = document.timeline.currentTime;
@@ -528,6 +545,7 @@ ${"^".padStart(el.linePos)}`;
 
   stop() {
     this.running = false;
+    this.lastFrame = 0;
   }
 
   frame(timestamp: number) {
@@ -544,11 +562,19 @@ ${"^".padStart(el.linePos)}`;
       this.fc++;
     }
 
+    if (this.running) {
+      if (this.lastFrame > 0) {
+        this.time += (timestamp - this.lastFrame) / 1000;
+      }
+      this.lastFrame = timestamp;
+    }
+
     const uniformData = new ArrayBuffer(this.uniformBufferSize);
 
     const floats = new Float32Array(uniformData);
     floats[0] = this.canvas.width;
     floats[1] = this.canvas.height;
+    floats[2] = this.time;
     floats[4] = this.x;
     floats[5] = this.y;
     floats[6] = this.zoom;
@@ -645,5 +671,10 @@ ${"^".padStart(el.linePos)}`;
     );
 
     return texture;
+  }
+
+  resetTime() {
+    this.time = 0;
+    this.lastFrame = 0;
   }
 }

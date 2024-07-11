@@ -1,6 +1,6 @@
 struct Uniforms {
-    resolution: vec4<f32>,
-    rotation: vec4<f32>,
+    resolution: vec4<f32>, // note: z is use for time.
+    rotation: vec4<f32>, //note: w is used for "spinning"
     //UNIFORM-VALUES//
 }
 

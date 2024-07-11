@@ -3,7 +3,6 @@ import { ThemeContext } from "../theme-provider";
 import { IconProps } from "./IconProps";
 
 export const Pause: React.FunctionComponent<IconProps> = (props) => {
-  const theme = React.useContext(ThemeContext);
   return (
     <svg width={props.width} height={props.height} viewBox="0 0 32 32">
       <path
@@ -15,10 +14,22 @@ export const Pause: React.FunctionComponent<IconProps> = (props) => {
 };
 
 export const Play: React.FunctionComponent<IconProps> = (props) => {
-  const theme = React.useContext(ThemeContext);
   return (
     <svg width={props.width} height={props.height} viewBox="0 0 32 32">
       <path fill="currentColor" d="M 6,4 l 19,11 -19 11 Z" />
+    </svg>
+  );
+};
+
+export const Rewind: React.FunctionComponent<IconProps> = (props) => {
+  return (
+    <svg width={props.width} height={props.height} viewBox="0 0 32 32">
+      <path
+        fill="currentColor"
+        d="M 2,4 h 6 v 24 h -6 Z
+         M 8,16 l 12,-12 v 24 Z
+         M 20,16 l 12,-12 v 24 Z"
+      />
     </svg>
   );
 };

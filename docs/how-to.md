@@ -19,10 +19,13 @@ it using a mouse.
   - The right hand vertical slider adjusts the camera's distance from the target
     point &mdash; which is `(0, 1, 0)`
 - Buttons
-  - The play/pause button turns the interna; animation loop on and off. Changes to
-    angles or interactive values will always cause a new frame to be rendered, so
-    it isn't necessary to be running all the time, but it does allow you to gauge
-    the complexity of your function if the FPS starts to drop.
+  - The _reset time_ button resets the time value to zero.
+  - The _play/pause_ button turns the internal animation loop on and off. Changes
+    to angles or interactive values will always cause a new frame to be rendered,
+    so it isn't necessary to be running all the time, but it does allow you to
+    gauge the complexity of your function if the FPS starts to drop. If your
+    function is in any way time dependent, then the animation loop needs to be
+    running to advance time.
   - The _spin_ button causes the camera to continuously rotate around the
     vertical axis.
   - The _capture_ button saves a picture of the current image on the rendered view.
