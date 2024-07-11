@@ -89,6 +89,10 @@ The code editing font is Nikita Prokopov's "[Fira
 Code](https://github.com/tonsky/FiraCode)" as packaged by
 [fontsource](https://npmjs.com/@fontsource-variable/fira-code)
 
+The evaluation time color space conversions were derived from the
+[colorspaces.js](https://github.com/boronine/colorspaces.js) library by Alexei
+Boronine.
+
 # Acknowledgments
 
 It is pretty much impossible to play with SDFs without recognizing the contribution that Inigo Quillez has made in this space.

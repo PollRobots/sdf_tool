@@ -1435,7 +1435,7 @@ const kBuiltins: Internal[] = [
       const vec = coerce(args[0], "vec");
       return {
         type: "vec",
-        code: `clamp(vec3<f32>(0), kReferenceD65 * 0.01, ${vec.code})`,
+        code: `clamp(vec3<f32>(0), kReferenceD65, ${vec.code})`,
       };
     },
     docs: [
@@ -1520,8 +1520,9 @@ const kBuiltins: Internal[] = [
     },
     docs: [
       "(**rgb-xyz** *rgb*)",
-      "Converts the *rgb* vector representing a color in sRgb space, into a vector " +
-        "representing the same color in CIE 1931 XYZ color space, using the D65 reference illuminant",
+      "Converts the *rgb* vector representing a color in sRgb space, into a " +
+        "vector representing the same color in CIE 1931 XYZ color space, using " +
+        "the D65 reference illuminant",
     ],
     insertText: "rgb-xyz ${1:rgb}",
   },
@@ -1544,8 +1545,9 @@ const kBuiltins: Internal[] = [
     },
     docs: [
       "(**xyz-rgb** *xyz*)",
-      "Converts the *xyz* vector representing a color in CIE 1931 XYZ color space, into a vector " +
-        "representing the same color in sRgb color space, using the D65 reference illuminant",
+      "Converts the *xyz* vector representing a color in CIE 1931 XYZ color " +
+        "space, into a vector representing the same color in sRgb color space, " +
+        "using the D65 reference illuminant",
     ],
     insertText: "xyz-rgb ${1:xyz}",
   },
@@ -1629,7 +1631,7 @@ const kBuiltins: Internal[] = [
       requireArity("lch-lab", 1, args);
       requireVector("lch-lab", 0, args[0]);
       const lch = args[0].value as Vector;
-      const lab = make_color("CIEXYZ", [lch.x, lch.y, lch.z]).as(
+      const lab = make_color("CIELCH", [lch.x, lch.y, lch.z]).as(
         "CIELAB"
       ) as ColorTuple;
 
@@ -1718,7 +1720,7 @@ const kLambdas: MacroDef[] = [
         "space, into a vector representing the same color in CIE 1931 XYZ color " +
         "space, using the D65 reference illuminant",
     ],
-    insertText: "lch-xyz ${1:xyz}",
+    insertText: "lch-xyz ${1:lch}",
   },
   {
     name: "step",

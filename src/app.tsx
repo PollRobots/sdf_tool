@@ -315,12 +315,9 @@ export const App: React.FC = () => {
                 fontVariantLigatures: "discretionary-ligatures",
               }}
             >
-              <pre style={{ fontFamily: "unset", whiteSpace: "pre-wrap" }}>
-                {generated}
-              </pre>
+              <pre style={{ whiteSpace: "pre-wrap" }}>{generated}</pre>
               <pre
                 style={{
-                  fontFamily: "unset",
                   whiteSpace: "pre-wrap",
                   color: currTheme.red,
                 }}

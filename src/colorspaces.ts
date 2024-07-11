@@ -259,8 +259,8 @@ const polar_to_scalar = (tuple: ColorValue): ColorValue => {
   const _C = tuple[1];
   const _h = tuple[2];
   const _h_rad = (_h / 360) * 2 * Math.PI;
-  const var1 = Math.cos(_h_rad) * _C;
-  const var2 = Math.sin(_h_rad) * _C;
+  const var1 = Math.sin(_h_rad) * _C;
+  const var2 = Math.cos(_h_rad) * _C;
   return [_L, var1, var2];
 };
 conv["CIELCH"]["CIELAB"] = polar_to_scalar;
