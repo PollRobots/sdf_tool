@@ -153,11 +153,28 @@ describe("generate", () => {
   });
 
   it("lambda is inlined", () => {
-    const env = new Env();
+    const env = new Env(undefined, true);
     addBuiltins(env);
+    const ctx = makeContext({});
 
     const lambda = read("((lambda (x y) (+ x y)) 1 2)")[0];
-    expect(generate(lambda, env)).to.have.property("code", "(1 + 2)");
+    expect(generate(lambda, env, ctx)).to.have.property(
+      "code",
+      "lambda_anon(p, col, 1, 2)"
+    );
+    expect(ctx.generatedLambdas).to.have.lengthOf(1);
+    expect(ctx.generatedLambdas[0]).to.have.property("name", "lambda_anon");
+    expect(ctx.generatedLambdas[0]).to.have.property(
+      "code",
+      `fn lambda_anon(
+  p: vec3<f32>,
+  col: vec3<f32>,
+  x: f32,
+  y: f32,
+) -> f32 {
+  return (x + y);
+}`
+    );
   });
 
   it("shape generates sdf call", () => {
