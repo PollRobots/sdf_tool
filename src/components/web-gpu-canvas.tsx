@@ -19,6 +19,7 @@ interface WebGPUCanvasProps {
   style?: React.CSSProperties;
   onShaderError: (error: string) => void;
   onViewChange: (update: Vector) => void;
+  onGpuError: (err: Error) => void;
 }
 
 interface MouseDragPoint {
@@ -94,14 +95,23 @@ export const WebGPUCanvas: React.FC<WebGPUCanvasProps> = (props) => {
       return;
     }
 
-    gpu.current = new WebGpuWidget(canvasRef.current);
-
-    gpu.current
-      .init(props.shader, props.vertexShader, props.fragmentShader)
-      .then(() => console.log("initialized"))
-      .catch((err) => {
-        console.error("Initialization error:", err);
-      });
+    navigator.gpu
+      .requestAdapter()
+      .then((adapter) => {
+        if (!adapter) {
+          props.onGpuError(new Error("Cannot get GPU adapter"));
+          return;
+        }
+        gpu.current = new WebGpuWidget(canvasRef.current);
+        return gpu.current.init(
+          adapter,
+          props.shader,
+          props.vertexShader,
+          props.fragmentShader
+        );
+      })
+      .then(() => console.log("GPU initialized"))
+      .catch((err) => props.onGpuError(err));
   }, [canvasRef.current]);
 
   React.useEffect(() => {
@@ -413,9 +423,13 @@ export class WebGpuWidget {
     }) as unknown as GPUCanvasContext;
   }
 
-  async init(shaderSrc: string, vertex: string, fragment: string) {
-    const adapter = await navigator.gpu.requestAdapter();
-    this.device = await adapter!.requestDevice();
+  async init(
+    adapter: GPUAdapter,
+    shaderSrc: string,
+    vertex: string,
+    fragment: string
+  ) {
+    this.device = await adapter.requestDevice();
 
     this.noiseTexture = this.createNoise(256);
 

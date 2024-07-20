@@ -30,9 +30,9 @@ export const IconButton: React.FC<React.PropsWithChildren<IconButtonProps>> = (
         ...{
           cursor: props.disabled ? undefined : "pointer",
           background: isDown ? theme.boldBackground : theme.background,
-          opacity: props.disabled ? 0.7 : 1,
+          opacity: props.disabled ? 0.5 : 1,
           borderWidth: 1,
-          borderStyle: "solid",
+          borderStyle: props.disabled ? "dotted" : "solid",
           borderColor: theme.base00,
           display: "flex",
           width: props.size,

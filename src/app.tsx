@@ -50,14 +50,17 @@ export const App: React.FC = () => {
   const [settings, setSettings] = React.useState(loadSettings());
   const width = Math.round(window.visualViewport.width / 2);
   const height = Math.round((width * 9) / 16);
+  const [hasGpu, setHasGpu] = React.useState(Reflect.has(navigator, "gpu"));
   const [generated, setGenerated] = React.useState("");
   const [errors, setErrors] = React.useState("");
   const [uniforms, setUniforms] = React.useState<string[]>([]);
   const [offsets, setOffsets] = React.useState<number[]>([]);
   const [values, setValues] = React.useState<Map<string, Uniform>>(new Map());
   const [editorTop, setEditorTop] = React.useState(true);
-  const [docs, setDocs] = React.useState(location.hash.length > 0);
-  const [topic, setTopic] = React.useState(getInitialTopic());
+  const [docs, setDocs] = React.useState(location.hash.length > 0 || !hasGpu);
+  const [topic, setTopic] = React.useState(
+    hasGpu ? getInitialTopic() : "issues"
+  );
   const [view, setView] = React.useState<Vector>({ x: 15, y: 0, z: 0 });
 
   const currTheme = kDefinedThemes.get(settings.themeName) || kSolarizedDark;
@@ -180,32 +183,54 @@ export const App: React.FC = () => {
             gridTemplateRows: "auto 1fr",
           }}
         >
-          <WebGPUCanvas
-            style={{
-              width: `calc(48vw - 4em)`,
-              height: `calc(9 * (48vw - 4em) / 16)`,
-              gridArea: "1/1/2/2",
-              border: `solid 1px ${currTheme.base00}`,
-            }}
-            width={width}
-            height={height}
-            view={view}
-            shader={makeShader(
-              shader,
-              generated,
-              offsets.length == 0
-                ? 0
-                : offsets.reduce((a, e) => Math.max(a, e)) + 4
-            )}
-            vertexShader="vertex_main"
-            fragmentShader="frag_main"
-            uniformValues={uniforms
-              .map((el) => values.get(el) || kDefaultUniform)
-              .map((el) => el.value)}
-            uniformOffsets={offsets}
-            onShaderError={(shaderError) => setErrors(shaderError)}
-            onViewChange={(u) => setView(u)}
-          />
+          {hasGpu ? (
+            <WebGPUCanvas
+              style={{
+                width: `calc(48vw - 4em)`,
+                height: `calc(9 * (48vw - 4em) / 16)`,
+                gridArea: "1/1/2/2",
+                border: `solid 1px ${currTheme.base00}`,
+              }}
+              width={width}
+              height={height}
+              view={view}
+              shader={makeShader(
+                shader,
+                generated,
+                offsets.length == 0
+                  ? 0
+                  : offsets.reduce((a, e) => Math.max(a, e)) + 4
+              )}
+              vertexShader="vertex_main"
+              fragmentShader="frag_main"
+              uniformValues={uniforms
+                .map((el) => values.get(el) || kDefaultUniform)
+                .map((el) => el.value)}
+              uniformOffsets={offsets}
+              onShaderError={(shaderError) => setErrors(shaderError)}
+              onViewChange={(u) => setView(u)}
+              onGpuError={(err) => {
+                setHasGpu(false);
+                console.error("GPU initialization error:", err);
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: `calc(48vw - 4em)`,
+                height: `calc(9 * (48vw - 4em) / 16)`,
+                gridArea: "1/1/2/2",
+                border: `solid 1px ${currTheme.base00}`,
+                alignContent: "center",
+                textAlign: "center",
+                background: currTheme.red,
+                color: currTheme.background,
+                fontSize: "150%",
+              }}
+            >
+              This tool requires WebGPU support.
+            </div>
+          )}
           <div
             style={{
               gridArea: "1/1/2/2",
@@ -215,6 +240,7 @@ export const App: React.FC = () => {
               opacity: 0.8,
               fontWeight: "bolder",
               color: currTheme.base00,
+              display: hasGpu ? undefined : "none",
             }}
           >
             SDF Tool

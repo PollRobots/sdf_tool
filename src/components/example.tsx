@@ -61,18 +61,29 @@ export const Example: React.FC<ExampleProps> = (props) => {
         }),
         generated.uniformOffsets
       );
-      gpu
-        .init(
-          makeShader(
-            template,
-            generated.generated,
-            generated.uniformOffsets.length == 0
-              ? 0
-              : Math.max(...generated.uniformOffsets) + 4
-          ),
-          "vertex_main",
-          "frag_main"
-        )
+      if (!Reflect.has(navigator, "gpu")) {
+        setGenerating(false);
+        return;
+      }
+      navigator.gpu
+        .requestAdapter()
+        .then((adapter) => {
+          if (!adapter) {
+            throw new Error("Cannot get GPU adapter");
+          }
+          return gpu.init(
+            adapter,
+            makeShader(
+              template,
+              generated.generated,
+              generated.uniformOffsets.length == 0
+                ? 0
+                : Math.max(...generated.uniformOffsets) + 4
+            ),
+            "vertex_main",
+            "frag_main"
+          );
+        })
         .then(() => {
           gpu.stop();
           requestAnimationFrame((t) => {
@@ -120,7 +131,7 @@ export const Example: React.FC<ExampleProps> = (props) => {
         style={{ gridArea: "1/3/2/4" }}
         size="2em"
         title="Render"
-        disabled={generating || !!preview}
+        disabled={generating || !!preview || !Reflect.has(navigator, "gpu")}
         onClick={() => generate()}
       >
         <Image />
