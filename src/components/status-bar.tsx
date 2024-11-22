@@ -91,7 +91,7 @@ export const StatusBar: React.FC<StatusBarProps> = (props) => {
 
   React.useEffect(() => {
     if (notification !== "") {
-      setTimeout(() => setNotification(""), 50000);
+      setTimeout(() => setNotification(""), 5000);
     }
   }, [notification]);
 
